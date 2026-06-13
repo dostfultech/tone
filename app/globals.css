@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #f6f9ff;
+  --foreground: #08071a;
+  --panel: #ffffff;
+  --muted: #667085;
+  --theme-blue: #5f8df7;
+  --theme-blue-soft: #dce9ff;
+  --theme-lime: #a7ff3f;
+  --theme-ink: #08071a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  color: var(--foreground);
+  background:
+    radial-gradient(circle at 28% 9%, rgba(167, 255, 63, 0.22), transparent 18rem),
+    radial-gradient(circle at 76% 3%, rgba(95, 141, 247, 0.28), transparent 24rem),
+    linear-gradient(180deg, #eef5ff 0%, #ffffff 42%, #f6f9ff 100%),
+    var(--background);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.tone-grid {
+  background-image:
+    linear-gradient(rgba(23, 23, 23, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 23, 23, 0.06) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+
+.knob-shell {
+  position: relative;
+  background:
+    radial-gradient(circle at 48% 42%, rgba(255, 255, 255, 0.92) 0 31%, rgba(230, 240, 255, 0.92) 32% 100%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(213, 228, 255, 0.9));
+  box-shadow:
+    0 20px 45px rgba(95, 141, 247, 0.18),
+    inset 0 1px 1px rgba(255, 255, 255, 0.9);
+}
+
+.knob-shell::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: inherit;
+  background: conic-gradient(from 210deg, rgba(8, 7, 26, 0.72), rgba(95, 141, 247, 0.85), rgba(167, 255, 63, 0.9), rgba(8, 7, 26, 0.72));
+  opacity: 0.34;
+  filter: blur(1px);
+  animation: knob-pulse 2.8s ease-in-out infinite;
+}
+
+.knob {
+  position: relative;
+  background:
+    radial-gradient(circle at 58% 38%, rgba(255, 255, 255, 0.22), transparent 0.55rem),
+    conic-gradient(from 220deg, #08071a 0deg, #111a62 105deg, #5f8df7 188deg, #a7ff3f 260deg, #eaf1ff 260deg 360deg);
+  box-shadow:
+    inset 0 -8px 14px rgba(8, 7, 26, 0.22),
+    inset 0 8px 12px rgba(255, 255, 255, 0.18),
+    0 10px 24px rgba(8, 7, 26, 0.16);
+}
+
+.knob::after {
+  content: "";
+  position: absolute;
+  left: calc(50% - 2px);
+  top: 7px;
+  height: 18px;
+  width: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.45);
+  transform: rotate(var(--knob-angle, 45deg));
+  transform-origin: 50% 17px;
+  transition: transform 520ms cubic-bezier(0.2, 0.85, 0.24, 1);
+}
+
+@keyframes knob-pulse {
+  0%,
+  100% {
+    opacity: 0.24;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 0.46;
+    transform: scale(1.02);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .knob-shell::before {
+    animation: none;
+  }
+}
+
+.focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean focus-visible:ring-offset-2;
+}
+
+.field {
+  @apply w-full rounded-md border border-blue-100 bg-white/95 px-3 py-2 text-sm text-ink shadow-sm outline-none transition focus:border-ocean focus:ring-2 focus:ring-ocean/20;
+}
+
+.label {
+  @apply text-sm font-semibold text-slate-700;
+}
+
+.button-primary {
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white shadow-[0_14px_32px_rgba(8,7,26,0.18)] transition hover:-translate-y-0.5 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean focus-visible:ring-offset-2;
+}
+
+.button-secondary {
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-ink shadow-sm transition hover:-translate-y-0.5 hover:border-ink hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean focus-visible:ring-offset-2;
+}
+
+.button-quiet {
+  @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean focus-visible:ring-offset-2;
+}
+
+.section {
+  @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+}
+
+.compact-card {
+  @apply rounded-lg border border-white/80 bg-white/90 shadow-[0_24px_70px_rgba(95,141,247,0.14)] backdrop-blur;
+}
+
+.app-gradient {
+  background:
+    radial-gradient(circle at 20% 5%, rgba(167, 255, 63, 0.18), transparent 18rem),
+    radial-gradient(circle at 76% 0%, rgba(95, 141, 247, 0.26), transparent 28rem),
+    linear-gradient(180deg, #eef5ff 0%, #ffffff 45%, #f6f9ff 100%);
+}
+
+.theme-panel {
+  @apply rounded-lg border border-white/80 bg-white/75 shadow-[0_30px_90px_rgba(95,141,247,0.16)] backdrop-blur;
+}
+
+.theme-blue-panel {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.9), transparent 16rem),
+    linear-gradient(135deg, #f8fbff 0%, #dfeaff 100%);
+}
+
+.lime-highlight {
+  @apply rounded-md bg-moss px-2 text-ink;
+}
