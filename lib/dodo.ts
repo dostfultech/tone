@@ -36,7 +36,7 @@ export function createDodoClient() {
 
 export function normalizeDodoStatus(status: string | undefined) {
   const normalized = (status || "").toLowerCase();
-  if (["active", "subscription.active"].includes(normalized)) return "active";
+  if (["active", "subscription.active", "success", "succeeded", "complete", "completed", "paid"].includes(normalized)) return "active";
   if (["trialing", "trial"].includes(normalized)) return "trialing";
   if (["on_hold", "onhold", "hold"].includes(normalized)) return "on_hold";
   if (["cancelled", "canceled", "subscription.cancelled"].includes(normalized)) return "cancelled";

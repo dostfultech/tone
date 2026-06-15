@@ -33,13 +33,17 @@ export async function POST(request: NextRequest) {
   }
 
   const siteUrl = getSiteUrl();
+  const returnUrl = new URL("/checkout/success", siteUrl);
+  returnUrl.searchParams.set("plan_id", planId);
+  returnUrl.searchParams.set("billing_interval", billing);
+
   const checkout = await client.checkoutSessions.create({
     product_cart: [{ product_id: productId, quantity: 1 }],
     customer: {
       email: user.email || "",
       name: user.user_metadata?.full_name || user.email || "FretPilot user"
     },
-    return_url: `${siteUrl}/checkout/success`,
+    return_url: returnUrl.toString(),
     metadata: {
       user_id: user.id,
       plan_id: planId,
