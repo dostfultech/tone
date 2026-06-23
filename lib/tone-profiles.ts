@@ -155,6 +155,35 @@ export async function listCommunityToneProfiles(query: string) {
     }));
 }
 
+export async function getCommunityToneProfileById(profileId: string) {
+  const normalizedId = profileId.trim();
+  if (!normalizedId) {
+    return null;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from("song_tone_profiles")
+        .select(
+          "id, song_title, artist_name, mode, part_type, part_label, tone_type, original_guitar, original_amp, original_cab, original_pickup, original_settings, adaptation_notes, playing_notes, source_summary, confidence, verification_status, tone_profile_effects(effect_order, effect_type, effect_name, placement, settings), tone_profile_sources(source_type, title, url, notes, credibility)"
+        )
+        .eq("id", normalizedId)
+        .eq("is_public", true)
+        .maybeSingle();
+
+      if (!error && data) {
+        return mapDbToneProfile(data);
+      }
+    } catch {
+      // Fall through to starter catalog when database lookup is unavailable.
+    }
+  }
+
+  return starterProfiles.find((profile) => profile.id === normalizedId) || null;
+}
+
 export async function createMissingSongRequest(request: ToneRequest, userId?: string | null) {
   const admin = createSupabaseAdminClient();
   if (!admin) return;

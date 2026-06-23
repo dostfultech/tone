@@ -168,3 +168,30 @@ a {
 .lime-highlight {
   @apply rounded-md bg-moss px-2 text-ink;
 }
+
+.preview-lock {
+  position: relative;
+  overflow: hidden;
+}
+
+.preview-lock::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.58) 42%, rgba(255, 255, 255, 0.92) 100%);
+  backdrop-filter: blur(9px);
+  pointer-events: none;
+}
+
+.preview-lock-inner {
+  filter: blur(3px);
+  transform: scale(1.01);
+}
+
+.preview-lock-cta {
+  position: absolute;
+  left: 1.25rem;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 1;
+}

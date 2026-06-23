@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getTestAccessEmails, isSupabaseConfigured } from "@/lib/env";
 
-const appRoutes = ["/app", "/library", "/gear", "/community", "/account"];
+const appRoutes = ["/app", "/library", "/gear", "/account"];
 const authOnlyRoutes = ["/checkout"];
 
 export async function middleware(request: NextRequest) {
@@ -82,5 +82,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/app/:path*", "/library/:path*", "/gear/:path*", "/community/:path*", "/account/:path*", "/checkout/:path*"]
+  matcher: ["/app/:path*", "/library/:path*", "/gear/:path*", "/account/:path*", "/checkout/:path*"]
 };
