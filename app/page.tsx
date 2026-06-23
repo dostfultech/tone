@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowRight, BrainCircuit, CheckCircle2, Gauge, Guitar, Music2, SlidersHorizontal, Sparkles, Zap } from "lucide-react";
 import { SiteShell } from "@/components/site-shell";
 import { Reviews } from "@/components/reviews";
@@ -27,7 +28,29 @@ const flow = [
   { icon: Gauge, title: "Dial it in", body: "Save settings that are adapted for your rig." }
 ];
 
-export default function HomePage() {
+type HomePageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const params = await searchParams;
+  const code = stringParam(params?.code);
+  const error = stringParam(params?.error);
+  const errorDescription = stringParam(params?.error_description);
+
+  if (code) {
+    const callbackParams = new URLSearchParams({ code, next: "/app" });
+    redirect(`/auth/callback?${callbackParams.toString()}`);
+  }
+
+  if (error) {
+    const loginParams = new URLSearchParams({
+      error,
+      message: errorDescription || "Authentication could not be completed."
+    });
+    redirect(`/login?${loginParams.toString()}`);
+  }
+
   return (
     <SiteShell>
       <section className="app-gradient border-b border-white/80">
@@ -136,4 +159,8 @@ export default function HomePage() {
       <Reviews />
     </SiteShell>
   );
+}
+
+function stringParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] || "" : value || "";
 }

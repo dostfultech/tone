@@ -32,6 +32,7 @@ NEXT_PUBLIC_SITE_URL=https://your-domain.com
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=false
 
 TEST_ACCESS_EMAILS=your-test-email@example.com
 
@@ -67,6 +68,7 @@ Do not expose `SUPABASE_SERVICE_ROLE_KEY`, `DODO_PAYMENTS_API_KEY`, `DODO_PAYMEN
      - `https://*.vercel.app/auth/callback` for preview deployments
      - `http://localhost:3000/auth/callback` for local testing
 3. Keep RLS enabled.
+4. To use Google sign-in, enable Google under Supabase Auth providers, add your Google OAuth client ID and secret, and then set `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true` in Vercel.
 
 ## 5. Configure Dodo Payments
 

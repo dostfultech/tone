@@ -12,7 +12,8 @@
     "prebuild": "node scripts/clean-next.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "import:tones": "node scripts/import-tone-profiles.mjs"
   },
   "dependencies": {
     "@dodopayments/nextjs": "^0.3.6",

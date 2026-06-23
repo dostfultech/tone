@@ -98,6 +98,77 @@ Phase 1 adds structured song-tone tables: `artists`, `songs`, `song_tone_profile
 
 The matcher first searches Supabase for a profile matching song, artist, instrument mode, part type, and tone type. If none exists, it queues a `song_requests` row when Supabase is configured and falls back to cautious AI/deterministic adaptation. Seeded profiles are marked `starter_estimate` until you verify them against reliable rig sources or approve community submissions.
 
+## Bulk Importer
+
+You can bulk import first-party tone profiles into the current Supabase schema with:
+
+```bash
+npm run import:tones -- --file ./path/to/profiles.json --dry-run
+npm run import:tones -- --file ./path/to/profiles.json
+```
+
+The importer reads `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from `.env.local` or `.env`.
+
+Supported input formats:
+
+- JSON: either an array of profile objects or an object with a `profiles` array
+- CSV: one row per profile, with complex fields encoded as JSON strings
+
+Recommended profile fields:
+
+- `artistName`, `artistSlug`, `artistCountry`, `artistExternalIds`
+- `songTitle`, `songSlug`, `album`, `releaseYear`, `durationSeconds`, `songExternalIds`
+- `mode`, `partType`, `partLabel`, `toneType`
+- `originalGuitar`, `originalAmp`, `originalCab`, `originalPickup`
+- `originalSettings`, `originalEffects`, `adaptationNotes`, `playingNotes`
+- `confidence`, `verificationStatus`, `sourceSummary`, `isPublic`, `sources`
+
+Example JSON record:
+
+```json
+{
+	"artistName": "Pink Floyd",
+	"songTitle": "Comfortably Numb",
+	"mode": "guitar",
+	"partType": "solo",
+	"partLabel": "second solo",
+	"toneType": "distorted",
+	"originalGuitar": "Strat-style single-coil guitar",
+	"originalAmp": "Hiwatt-style clean platform with sustain pedals",
+	"originalSettings": {
+		"gain": 6,
+		"bass": 4,
+		"mids": 6,
+		"treble": 6
+	},
+	"originalEffects": [
+		{
+			"type": "delay",
+			"name": "Tape-style delay",
+			"placement": "post",
+			"settings": {
+				"mix": 3,
+				"time": 4
+			}
+		}
+	],
+	"adaptationNotes": ["Prioritize sustain before adding gain."],
+	"playingNotes": ["Use wide, controlled vibrato."],
+	"confidence": 78,
+	"verificationStatus": "needs_review",
+	"sources": [
+		{
+			"sourceType": "rig_rundown",
+			"title": "Example rundown",
+			"url": "https://example.com",
+			"credibility": 70
+		}
+	]
+}
+```
+
+The importer upserts artists, songs, and tone profiles, then replaces related effects and sources so repeated imports stay deterministic.
+
 ## Local Paid Access
 
 Because the product is paid-only, local testing is easiest with:

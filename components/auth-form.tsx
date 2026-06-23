@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Chrome, Loader2, Music2 } from "lucide-react";
@@ -14,6 +14,17 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" }) {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const googleAuthEnabled = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "true";
+
+  useEffect(() => {
+    const authMessage = searchParams.get("message");
+    const authError = searchParams.get("error");
+    if (authMessage) {
+      setError(authMessage);
+    } else if (authError) {
+      setError("Authentication could not be completed. Please try again.");
+    }
+  }, [searchParams]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -74,6 +85,11 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" }) {
 
   async function signInWithGoogle() {
     setError("");
+    if (!googleAuthEnabled) {
+      setError("Google sign-in is not enabled yet. Enable the Google provider in Supabase, then set NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true.");
+      return;
+    }
+
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
       setError("Supabase is not configured.");
