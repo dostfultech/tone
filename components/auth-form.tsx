@@ -74,7 +74,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
       return;
     }
 
-    const origin = window.location.origin;
+    const origin = getAuthOrigin();
     const redirectTo = searchParams.get("redirect") || "/app";
 
     if (mode === "reset") {
@@ -165,10 +165,11 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
     }
 
     const next = searchParams.get("redirect") || "/app";
+    const origin = getAuthOrigin();
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
+        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`
       }
     });
     if (oauthError) {
@@ -314,4 +315,24 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
       </div>
     </div>
   );
+}
+
+function getAuthOrigin() {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/+$/, "") || "";
+  const fallbackProductionOrigin = process.env.NODE_ENV === "production" ? "https://tonefex.com" : "";
+  const desiredOrigin = configured || fallbackProductionOrigin;
+  if (typeof window === "undefined") {
+    return desiredOrigin || "http://localhost:3000";
+  }
+
+  if (!desiredOrigin) {
+    return window.location.origin;
+  }
+
+  const hostname = window.location.hostname.toLowerCase();
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return window.location.origin;
+  }
+
+  return desiredOrigin;
 }

@@ -95,7 +95,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         <div className="flex h-24 items-center justify-between border-b border-white/70 px-8">
           <Link href="/app" className="flex items-center gap-4" onClick={() => setOpen(false)}>
-            <Image src="/tonefex-logo.svg" alt={brand.appName} width={48} height={48} className="rounded-lg" />
+            <Image src="/fretpilot-logo.svg" alt={brand.appName} width={48} height={48} className="rounded-lg" />
             <div>
               <div className="text-xl font-bold text-ink">Tone<span className="lime-highlight ml-0.5">fex</span></div>
               <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400">Tone workspace</div>
@@ -162,7 +162,7 @@ function AppFooter() {
         <div className="grid gap-10 md:grid-cols-[1.15fr_0.75fr_1fr]">
           <div>
             <Link href="/app" className="inline-flex items-center gap-4">
-              <Image src="/tonefex-logo.svg" alt={brand.appName} width={44} height={44} className="rounded-lg" />
+              <Image src="/fretpilot-logo.svg" alt={brand.appName} width={44} height={44} className="rounded-lg" />
               <span className="text-xl font-bold">
                 Tone<span className="lime-highlight ml-0.5">fex</span>
               </span>

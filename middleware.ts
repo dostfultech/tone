@@ -1,12 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { getTestAccessEmails, isSupabaseConfigured } from "@/lib/env";
+import { getSiteUrl, getTestAccessEmails, isSupabaseConfigured } from "@/lib/env";
 
 const appRoutes = ["/app", "/library", "/gear", "/account"];
 const authOnlyRoutes = ["/checkout"];
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const canonicalRedirect = redirectToCanonicalHost(request);
+  if (canonicalRedirect) {
+    return canonicalRedirect;
+  }
+
   const requiresAppAccess = appRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
   const requiresAuthOnly = authOnlyRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 
@@ -66,6 +71,7 @@ export async function middleware(request: NextRequest) {
     .select("status, plan_id")
     .eq("user_id", user.id)
     .in("status", ["active", "trialing"])
+    .in("plan_id", ["beginner", "expert"])
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -81,6 +87,27 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
+function redirectToCanonicalHost(request: NextRequest) {
+  if (process.env.NODE_ENV !== "production") {
+    return null;
+  }
+
+  const configuredSiteUrl = getSiteUrl();
+  const canonical = new URL(configuredSiteUrl);
+  const current = request.nextUrl;
+  const hostname = current.hostname.toLowerCase();
+  if (hostname === canonical.hostname.toLowerCase()) {
+    return null;
+  }
+
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return null;
+  }
+
+  const target = new URL(current.pathname + current.search, canonical.origin);
+  return NextResponse.redirect(target, 308);
+}
+
 export const config = {
-  matcher: ["/app/:path*", "/library/:path*", "/gear/:path*", "/account/:path*", "/checkout/:path*"]
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)"]
 };

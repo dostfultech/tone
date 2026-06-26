@@ -4,6 +4,10 @@ export function getSiteUrl() {
     return normalizeUrl(explicitSiteUrl);
   }
 
+  if (process.env.NODE_ENV === "production") {
+    return "https://tonefex.com";
+  }
+
   const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
   if (vercelUrl) {
     return normalizeUrl(vercelUrl);

@@ -18,6 +18,36 @@ export function getDodoProductId(planId: PlanId, billing: BillingInterval) {
   return process.env[productEnvMap[planId][billing]] || "";
 }
 
+export function inferPlanIdFromProductId(productId: string | null | undefined): PlanId | "" {
+  const normalized = (productId || "").trim();
+  if (!normalized) {
+    return "";
+  }
+
+  if (normalized === process.env.DODO_BEGINNER_MONTHLY_PRODUCT_ID || normalized === process.env.DODO_BEGINNER_ANNUAL_PRODUCT_ID) {
+    return "beginner";
+  }
+  if (normalized === process.env.DODO_EXPERT_MONTHLY_PRODUCT_ID || normalized === process.env.DODO_EXPERT_ANNUAL_PRODUCT_ID) {
+    return "expert";
+  }
+  return "";
+}
+
+export function inferBillingIntervalFromProductId(productId: string | null | undefined): BillingInterval | "" {
+  const normalized = (productId || "").trim();
+  if (!normalized) {
+    return "";
+  }
+
+  if (normalized === process.env.DODO_BEGINNER_MONTHLY_PRODUCT_ID || normalized === process.env.DODO_EXPERT_MONTHLY_PRODUCT_ID) {
+    return "monthly";
+  }
+  if (normalized === process.env.DODO_BEGINNER_ANNUAL_PRODUCT_ID || normalized === process.env.DODO_EXPERT_ANNUAL_PRODUCT_ID) {
+    return "annual";
+  }
+  return "";
+}
+
 export function isDodoConfigured() {
   return Boolean(process.env.DODO_PAYMENTS_API_KEY);
 }

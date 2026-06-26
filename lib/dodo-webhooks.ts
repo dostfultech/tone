@@ -1,4 +1,4 @@
-import { normalizeDodoStatus } from "@/lib/dodo";
+import { inferBillingIntervalFromProductId, inferPlanIdFromProductId, normalizeDodoStatus } from "@/lib/dodo";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type DodoWebhookPayload = {
@@ -19,11 +19,15 @@ export async function syncDodoSubscription(payload: DodoWebhookPayload) {
   const data = ((payload.data || payload.payload || payload) ?? {}) as Record<string, unknown>;
   const metadata = ((data.metadata || {}) ?? {}) as Record<string, unknown>;
   const userId = stringValue(metadata.user_id || data.user_id);
-  const planId = stringValue(metadata.plan_id || data.plan_id);
-  const billingInterval = stringValue(metadata.billing_interval || data.billing_interval);
+  const planIdFromPayload = stringValue(metadata.plan_id || data.plan_id);
+  const billingIntervalFromPayload = stringValue(metadata.billing_interval || data.billing_interval);
   const customerId = stringValue(data.customer_id || data.customer?.valueOf?.() || data.customer);
   const subscriptionId = stringValue(data.subscription_id || data.id);
   const productId = stringValue(data.product_id || data.product?.valueOf?.() || data.product);
+  const inferredPlanId = inferPlanIdFromProductId(productId);
+  const inferredBillingInterval = inferBillingIntervalFromProductId(productId);
+  const planId = planIdFromPayload || inferredPlanId;
+  const billingInterval = billingIntervalFromPayload || inferredBillingInterval;
   const rawStatus = stringValue(data.status || eventType);
   const status = normalizeDodoStatus(rawStatus);
 

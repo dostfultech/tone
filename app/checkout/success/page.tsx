@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { normalizeDodoStatus, type BillingInterval, type PlanId } from "@/lib/dodo";
+import { inferBillingIntervalFromProductId, inferPlanIdFromProductId, normalizeDodoStatus, type BillingInterval, type PlanId } from "@/lib/dodo";
 import { getCurrentSession } from "@/lib/server-access";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -43,11 +43,13 @@ async function activateReturnedSubscription(
 
   const checkoutMetadata = await getLatestCheckoutMetadata(userId);
   const subscriptionId = stringParam(params.subscription_id) || stringParam(params.subscriptionId);
-  const planId = validPlanId(stringParam(params.plan_id) || stringParam(params.planId) || stringValue(checkoutMetadata?.plan_id));
-  const billingInterval = validBillingInterval(
-    stringParam(params.billing_interval) || stringParam(params.billingInterval) || stringValue(checkoutMetadata?.billing_interval)
-  );
   const productId = stringParam(params.product_id) || stringParam(params.productId) || stringValue(checkoutMetadata?.product_id);
+  const inferredPlanId = inferPlanIdFromProductId(productId);
+  const inferredBillingInterval = inferBillingIntervalFromProductId(productId);
+  const planId = validPlanId(stringParam(params.plan_id) || stringParam(params.planId) || stringValue(checkoutMetadata?.plan_id) || inferredPlanId);
+  const billingInterval = validBillingInterval(
+    stringParam(params.billing_interval) || stringParam(params.billingInterval) || stringValue(checkoutMetadata?.billing_interval) || inferredBillingInterval
+  );
   const effectiveSubscriptionId = subscriptionId || `checkout-return-${userId}-${planId || "pending"}-${Date.now()}`;
 
   if (!planId || !billingInterval) {

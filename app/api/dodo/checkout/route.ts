@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { brand } from "@/lib/brand";
 import { type BillingInterval, createDodoClient, getDodoProductId, isDodoConfigured, type PlanId } from "@/lib/dodo";
+import { getSiteUrl } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getCurrentSession } from "@/lib/server-access";
 
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Dodo client unavailable" }, { status: 503 });
   }
 
-  const siteUrl = request.nextUrl.origin;
+  const siteUrl = process.env.NODE_ENV === "production" ? getSiteUrl() : request.nextUrl.origin;
   const returnUrl = new URL("/checkout/success", siteUrl);
   returnUrl.searchParams.set("plan_id", planId);
   returnUrl.searchParams.set("billing_interval", billing);

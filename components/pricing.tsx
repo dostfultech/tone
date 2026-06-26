@@ -69,7 +69,7 @@ export function Pricing() {
     <section className="px-4 pb-16 pt-28 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-3xl text-center">
         <div className="inline-flex rounded-lg border border-white/80 bg-white/80 px-5 py-3 text-sm font-bold uppercase tracking-[0.08em] text-slate-700 shadow-sm">
-          Free trial: 7 days - cancel anytime
+          Cancel anytime
         </div>
         <h1 className="mt-7 text-5xl font-bold tracking-normal">Unlock Your <span className="lime-highlight">Perfect Tone</span></h1>
         <p className="mt-4 text-lg leading-8 text-neutral-600">
@@ -98,7 +98,7 @@ export function Pricing() {
                 Most popular
               </div>
             ) : null}
-            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">7-day free trial</div>
+            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Flexible subscription</div>
             <h2 className="mt-3 text-2xl font-semibold">{plan.name}</h2>
             <div className="mt-5 flex items-end gap-2">
               <span className="text-5xl font-semibold">${plan.displayPrice.toFixed(2)}</span>
@@ -107,7 +107,7 @@ export function Pricing() {
             <p className="mt-2 text-sm text-neutral-600">{plan.subline}</p>
             {plan.savings ? <p className="mt-2 text-sm font-semibold text-ink"><span className="lime-highlight">Save {plan.savings}%</span> per year</p> : null}
             <div className="mt-6 grid gap-3 text-sm">
-              <Feature>{plan.trialAdaptations} total adaptations during trial</Feature>
+              <Feature>{plan.trialAdaptations} starter adaptations included</Feature>
               <Feature>{plan.adaptations}</Feature>
               <Feature>{plan.saved}</Feature>
               {plan.perks.map((perk) => (
@@ -116,7 +116,7 @@ export function Pricing() {
             </div>
             <button className="button-primary mt-7 w-full" onClick={() => startCheckout(plan.id)} disabled={loadingPlan !== null}>
               {loadingPlan === plan.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Start Free Trial
+              Choose Plan
             </button>
             <p className="mt-3 text-center text-xs text-neutral-500">Cancel anytime from the customer portal.</p>
           </article>
