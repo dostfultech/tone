@@ -65,8 +65,11 @@ Do not expose `SUPABASE_SERVICE_ROLE_KEY`, `DODO_PAYMENTS_API_KEY`, `DODO_PAYMEN
    - Site URL: `https://your-domain.com`
    - Redirect URLs:
      - `https://your-domain.com/auth/callback`
+   - `https://your-domain.com/reset-password`
      - `https://*.vercel.app/auth/callback` for preview deployments
+   - `https://*.vercel.app/reset-password` for preview deployments
      - `http://localhost:3000/auth/callback` for local testing
+   - `http://localhost:3000/reset-password` for local testing
 3. Keep RLS enabled.
 4. To use Google sign-in, enable Google under Supabase Auth providers, add your Google OAuth client ID and secret, and then set `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true` in Vercel.
 
@@ -98,6 +101,7 @@ DODO_PAYMENTS_ENVIRONMENT=live_mode
 3. Test these flows:
    - Home page loads cleanly.
    - Sign up and login work.
+   - Password reset email lands on `/reset-password` and updates the password.
    - Your `TEST_ACCESS_EMAILS` account can open `/app`.
    - Song search returns results.
    - Tone adaptation returns output.

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { brand } from "@/lib/brand";
 import { SiteShell } from "@/components/site-shell";
 
 export const metadata: Metadata = {
@@ -11,7 +12,7 @@ export default function PrivacyPage() {
     <SiteShell>
       <LegalPage title="Privacy Policy" updated="Last updated June 11, 2026">
         <p>
-          FretPilot stores account data, reviews, gear presets, saved tones, billing status, and tone-generation activity in the services configured for this application.
+          {brand.appName} stores account data, reviews, gear presets, saved tones, billing status, and tone-generation activity in the services configured for this application.
         </p>
         <h2>Information collected</h2>
         <p>
@@ -19,11 +20,11 @@ export default function PrivacyPage() {
         </p>
         <h2>Provider integrations</h2>
         <p>
-          FretPilot uses Supabase for authentication and data storage, Dodo Payments for billing, OpenAI for tone generation, and Vercel/PostHog-ready analytics hooks.
+          {brand.appName} uses Supabase for authentication and data storage, Dodo Payments for billing, OpenAI for tone generation, and Vercel/PostHog-ready analytics hooks.
         </p>
         <h2>Cookies and storage</h2>
         <p>
-          The cookie banner writes a consent value named <code>fretpilot_cookie_consent</code>. Additional localStorage keys track dismissed banners, trial state, generated tones, and saved gear.
+          The cookie banner writes a consent value named <code>{brand.storagePrefix}_cookie_consent</code>. Additional localStorage keys track dismissed banners, generated tones, and saved gear.
         </p>
         <h2>Contact</h2>
         <p>

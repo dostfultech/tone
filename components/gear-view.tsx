@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { Cpu, Guitar, Loader2, Plus, SlidersHorizontal, Trash2, Volume2 } from "lucide-react";
+import { brand } from "@/lib/brand";
 import { amps, guitars, multiFxUnits, pedalPresets, pickups } from "@/lib/mock-data";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
@@ -31,7 +32,7 @@ export function GearView() {
     async function loadPresets() {
       const supabase = createSupabaseBrowserClient();
       if (!supabase) {
-        setPresets(JSON.parse(localStorage.getItem("fretpilot_saved_gear_presets") || "[]"));
+        setPresets(JSON.parse(localStorage.getItem(`${brand.storagePrefix}_saved_gear_presets`) || "[]"));
         setLoading(false);
         return;
       }
@@ -81,7 +82,7 @@ export function GearView() {
 
     const next = [{ id: crypto.randomUUID(), name, guitar, amp, pickup }, ...presets];
     setPresets(next);
-    localStorage.setItem("fretpilot_saved_gear_presets", JSON.stringify(next));
+    localStorage.setItem(`${brand.storagePrefix}_saved_gear_presets`, JSON.stringify(next));
   }
 
   async function removePreset(id: string) {
@@ -91,7 +92,7 @@ export function GearView() {
     }
     const next = presets.filter((preset) => preset.id !== id);
     setPresets(next);
-    localStorage.setItem("fretpilot_saved_gear_presets", JSON.stringify(next));
+    localStorage.setItem(`${brand.storagePrefix}_saved_gear_presets`, JSON.stringify(next));
   }
 
   return (

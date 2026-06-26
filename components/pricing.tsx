@@ -129,7 +129,7 @@ export function Pricing() {
         <h2 className="text-2xl font-semibold">Frequently Asked Questions</h2>
         <div className="mt-5 divide-y divide-neutral-200 rounded-lg border border-neutral-200 bg-white">
           {[
-            ["How does access work?", "FretPilot is paid-only. For local testing, add your email to TEST_ACCESS_EMAILS."],
+            ["How does access work?", "A successful subscription unlocks the tone features included in your selected plan."],
             ["Can I cancel anytime?", "Dodo Payments handles subscription management through the customer portal."],
             ["How accurate are recommendations?", "Recommendations combine structured AI output with your selected guitar, amp, pickups, and effects."]
           ].map(([question, answer]) => (

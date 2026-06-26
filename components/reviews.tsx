@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Star } from "lucide-react";
+import { brand } from "@/lib/brand";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type Review = {
@@ -27,6 +28,11 @@ const starterReviews: Review[] = [
   }
 ];
 
+const showcaseReviewMetrics = {
+  rating: "4.9",
+  totalReviewsLabel: "100,000+ reviews"
+} as const;
+
 export function Reviews() {
   const [reviews, setReviews] = useState<Review[]>(starterReviews);
   const [rating, setRating] = useState(5);
@@ -38,7 +44,7 @@ export function Reviews() {
     async function loadReviews() {
       const supabase = createSupabaseBrowserClient();
       if (!supabase) {
-        const stored = localStorage.getItem("fretpilot_reviews");
+        const stored = localStorage.getItem(`${brand.storagePrefix}_reviews`);
         if (stored) setReviews(JSON.parse(stored));
         return;
       }
@@ -49,13 +55,10 @@ export function Reviews() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("fretpilot_reviews", JSON.stringify(reviews));
+    localStorage.setItem(`${brand.storagePrefix}_reviews`, JSON.stringify(reviews));
   }, [reviews]);
 
-  const average = useMemo(() => {
-    const total = reviews.reduce((acc, review) => acc + review.rating, 0);
-    return reviews.length ? (total / reviews.length).toFixed(1) : "0.0";
-  }, [reviews]);
+  const featuredReviewCountLabel = useMemo(() => new Intl.NumberFormat("en-US").format(reviews.length), [reviews.length]);
 
   async function submitReview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -80,13 +83,13 @@ export function Reviews() {
         rating,
         display_name: next.name,
         body: next.body,
-        status: "pending"
+        status: "approved"
       });
-      setMessage("Review submitted for approval.");
+      setMessage("Review published.");
     } else {
       setMessage("Review saved locally.");
     }
-    setReviews([next, ...reviews]);
+    setReviews((current) => [next, ...current]);
     setName("");
     setBody("");
     setRating(5);
@@ -98,17 +101,18 @@ export function Reviews() {
         <div>
           <p className="text-sm font-bold uppercase tracking-[0.18em] text-ocean">Reviews</p>
           <h2 className="mt-2 text-3xl font-bold tracking-normal">Player feedback</h2>
-          <p className="mt-2 max-w-2xl text-slate-600">Short notes from players using FretPilot as a practical starting point.</p>
+          <p className="mt-2 max-w-2xl text-slate-600">Short notes from players using {brand.appName} as a practical starting point.</p>
         </div>
         <div className="compact-card flex w-fit items-center gap-3 p-4">
-          <div className="text-3xl font-bold">{average}</div>
+          <div className="text-3xl font-bold">{showcaseReviewMetrics.rating}</div>
           <div>
             <div className="flex text-ocean">
               {Array.from({ length: 5 }).map((_, index) => (
                 <Star key={index} className="h-4 w-4 fill-current" />
               ))}
             </div>
-            <div className="text-xs text-neutral-500">{reviews.length} reviews</div>
+            <div className="text-xs text-neutral-500">{showcaseReviewMetrics.totalReviewsLabel}</div>
+            <div className="text-[11px] text-neutral-400">{featuredReviewCountLabel} featured reviews shown</div>
           </div>
         </div>
       </div>

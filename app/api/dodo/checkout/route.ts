@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getSiteUrl } from "@/lib/env";
+import { brand } from "@/lib/brand";
 import { type BillingInterval, createDodoClient, getDodoProductId, isDodoConfigured, type PlanId } from "@/lib/dodo";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getCurrentSession } from "@/lib/server-access";
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Dodo client unavailable" }, { status: 503 });
   }
 
-  const siteUrl = getSiteUrl();
+  const siteUrl = request.nextUrl.origin;
   const returnUrl = new URL("/checkout/success", siteUrl);
   returnUrl.searchParams.set("plan_id", planId);
   returnUrl.searchParams.set("billing_interval", billing);
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     product_cart: [{ product_id: productId, quantity: 1 }],
     customer: {
       email: user.email || "",
-      name: user.user_metadata?.full_name || user.email || "FretPilot user"
+      name: user.user_metadata?.full_name || user.email || `${brand.appName} user`
     },
     return_url: returnUrl.toString(),
     metadata: {

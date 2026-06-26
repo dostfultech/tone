@@ -1,5 +1,9 @@
 "use client";
 
+import { brand } from "@/lib/brand";
+
+const AUTO_ADAPT_KEY = `${brand.storagePrefix}_auto_adapt_from_community`;
+
 type CommunityToneCtaProps = {
   song: string;
   artist: string;
@@ -19,6 +23,7 @@ export function CommunityToneCta({ song, artist, part, partType, toneType, guita
     localStorage.setItem("toneMatch_toneType", toneType || "auto");
     localStorage.setItem("toneMatch_guitar", guitar);
     localStorage.setItem("toneMatch_amp", amp);
+    sessionStorage.setItem(AUTO_ADAPT_KEY, "1");
     window.location.href = "/app";
   }
 

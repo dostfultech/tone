@@ -70,7 +70,7 @@ export async function generateToneResult(request: ToneRequest, toneProfile?: Ton
       response_format: {
         type: "json_schema",
         json_schema: {
-          name: "fretpilot_tone_result",
+          name: "tonefex_tone_result",
           strict: true,
           schema: toneResultSchema
         }

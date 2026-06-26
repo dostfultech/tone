@@ -1,6 +1,7 @@
 import { type TonePartType, type ToneRequest, type ToneType } from "@/lib/mock-data";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { brand } from "@/lib/brand";
 
 export type ToneProfileEffect = {
   effectOrder: number;
@@ -211,9 +212,9 @@ export function buildResearchPayload(request: ToneRequest, toneProfile: ToneProf
       foundProfile: false,
       likelyRig:
         request.mode === "bass"
-          ? "No stored bass profile yet. FretPilot will generate a cautious DI/amp adaptation and queue this song for research."
-          : "No stored profile yet. FretPilot will generate a cautious guitar adaptation and queue this song for research.",
-      sourcesChecked: ["FretPilot tone catalog", "starter profile fallback", "AI adaptation fallback"],
+          ? `No stored bass profile yet. ${brand.appName} will generate a cautious DI/amp adaptation and queue this song for research.`
+          : `No stored profile yet. ${brand.appName} will generate a cautious guitar adaptation and queue this song for research.`,
+      sourcesChecked: [`${brand.appName} tone catalog`, "starter profile fallback", "AI adaptation fallback"],
       confidence: 54
     };
   }
@@ -378,7 +379,7 @@ function starter(
     sources: [
       {
         sourceType: "internal_seed",
-        title: "FretPilot starter tone estimate",
+        title: `${brand.appName} starter tone estimate`,
         notes: "Useful baseline, not an exact verified artist rig.",
         credibility: 55
       }

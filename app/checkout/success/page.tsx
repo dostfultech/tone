@@ -48,8 +48,9 @@ async function activateReturnedSubscription(
     stringParam(params.billing_interval) || stringParam(params.billingInterval) || stringValue(checkoutMetadata?.billing_interval)
   );
   const productId = stringParam(params.product_id) || stringParam(params.productId) || stringValue(checkoutMetadata?.product_id);
+  const effectiveSubscriptionId = subscriptionId || `checkout-return-${userId}-${planId || "pending"}-${Date.now()}`;
 
-  if (!subscriptionId || !planId || !billingInterval) {
+  if (!planId || !billingInterval) {
     return false;
   }
 
@@ -67,13 +68,14 @@ async function activateReturnedSubscription(
       plan_id: planId,
       billing_interval: billingInterval,
       status,
-      dodo_subscription_id: subscriptionId,
+      dodo_subscription_id: effectiveSubscriptionId,
       dodo_product_id: productId || null,
       current_period_start: now.toISOString(),
       current_period_end: periodEnd.toISOString(),
       cancel_at_period_end: false,
       metadata: {
         source: "checkout_return",
+        provisional: !subscriptionId,
         returned_params: params,
         checkout_metadata: checkoutMetadata
       }
@@ -86,8 +88,8 @@ async function activateReturnedSubscription(
       actor_id: userId,
       action: "dodo_checkout_return_sync",
       target_table: "subscriptions",
-      target_id: subscriptionId,
-      metadata: { status, planId, billingInterval, productId }
+      target_id: effectiveSubscriptionId,
+      metadata: { status, planId, billingInterval, productId, provisional: !subscriptionId }
     });
   }
 

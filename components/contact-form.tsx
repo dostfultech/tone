@@ -6,7 +6,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 const feedbackKinds = [
   { value: "Bug report", label: "Bug Report", caption: "Something is not working", icon: Bug },
-  { value: "Feature request", label: "Feature Request", caption: "I wish FretPilot could...", icon: Lightbulb },
+  { value: "Feature request", label: "Feature Request", caption: "I wish Tonefex could...", icon: Lightbulb },
   { value: "Improvement", label: "Improvement", caption: "This could be better", icon: Sparkles },
   { value: "Praise", label: "Praise", caption: "Something I love", icon: Heart },
   { value: "Other", label: "Other", caption: "Anything else", icon: MessageSquare }

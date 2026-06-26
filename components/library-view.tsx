@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Bookmark, Lock, Loader2, Search, Sparkles, Trash2 } from "lucide-react";
+import { brand } from "@/lib/brand";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type SavedTone = {
@@ -35,7 +36,7 @@ export function LibraryView() {
     async function loadTones() {
       const supabase = createSupabaseBrowserClient();
       if (!supabase) {
-        setTones(JSON.parse(localStorage.getItem("fretpilot_saved_tones") || "[]"));
+        setTones(JSON.parse(localStorage.getItem(`${brand.storagePrefix}_saved_tones`) || "[]"));
         setLoading(false);
         return;
       }
@@ -63,7 +64,7 @@ export function LibraryView() {
     }
     const next = tones.filter((tone) => tone.id !== id);
     setTones(next);
-    localStorage.setItem("fretpilot_saved_tones", JSON.stringify(next));
+    localStorage.setItem(`${brand.storagePrefix}_saved_tones`, JSON.stringify(next));
   }
 
   return (

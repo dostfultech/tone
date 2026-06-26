@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, FormEvent, useEffect, useState } from "react";
+import { type CSSProperties, FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BadgeCheck,
@@ -34,6 +34,7 @@ import {
   type ToneRequest,
   type ToneType
 } from "@/lib/mock-data";
+import { brand } from "@/lib/brand";
 
 type ToneResult = {
   id: string;
@@ -75,7 +76,10 @@ const trendingTones = [
   { rank: 5, song: "Be Quiet and Drive", artist: "Deftones", count: "12 searches" }
 ];
 
+const AUTO_ADAPT_KEY = `${brand.storagePrefix}_auto_adapt_from_community`;
+
 export function ToneMatcher() {
+  const autoAdaptTriggeredRef = useRef(false);
   const [mode, setMode] = useState<"guitar" | "bass">("guitar");
   const [song, setSong] = useState("Comfortably Numb");
   const [artist, setArtist] = useState("Pink Floyd");
@@ -99,6 +103,57 @@ export function ToneMatcher() {
   const [highlightedSongIndex, setHighlightedSongIndex] = useState(0);
   const [songSearchTouched, setSongSearchTouched] = useState(false);
 
+  const runAdaptation = useCallback(
+    async (
+      payload: ToneRequest,
+      options?: {
+        multiFx?: string;
+        selectedFx?: string;
+      }
+    ) => {
+      setLoading(true);
+      setMessage("");
+      setProgress(0);
+      setResult(null);
+
+      const progressTimer = window.setInterval(() => {
+        setProgress((value) => Math.min(progressSteps.length - 1, value + 1));
+      }, 350);
+
+      try {
+        await fetch(payload.mode === "bass" ? "/api/research-bass-tone" : "/api/research-tone", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const endpoint =
+          payload.mode === "bass"
+            ? "/api/adapt-bass-tone"
+            : payload.effectsMode === "multi_fx"
+              ? "/api/adapt-multi-fx-tone"
+              : "/api/adapt-tone";
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...payload, multiFx: options?.multiFx || multiFx, selectedFx: options?.selectedFx || selectedFx })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Tone adaptation failed.");
+        }
+        setResult(data.result);
+        trackUsage(data.result);
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "The adaptation endpoint did not respond.");
+      } finally {
+        window.clearInterval(progressTimer);
+        setProgress(progressSteps.length - 1);
+        window.setTimeout(() => setLoading(false), 350);
+      }
+    },
+    [multiFx, selectedFx]
+  );
+
   useEffect(() => {
     const fields = [
       ["toneMatch_song", setSong],
@@ -117,7 +172,37 @@ export function ToneMatcher() {
         setter(value);
       }
     });
-  }, []);
+
+    const shouldAutoAdapt = sessionStorage.getItem(AUTO_ADAPT_KEY) === "1";
+    if (!shouldAutoAdapt || autoAdaptTriggeredRef.current) {
+      return;
+    }
+
+    autoAdaptTriggeredRef.current = true;
+    sessionStorage.removeItem(AUTO_ADAPT_KEY);
+
+    const storedPart = localStorage.getItem("toneMatch_part") || "main part";
+    const storedPartType = localStorage.getItem("toneMatch_partType") || "main";
+    const storedToneType = localStorage.getItem("toneMatch_toneType") || "auto";
+    const storedMode = inferStoredMode(storedPartType, storedToneType);
+    const payload: ToneRequest = {
+      mode: storedMode,
+      song: localStorage.getItem("toneMatch_song") || "Unknown Song",
+      artist: localStorage.getItem("toneMatch_artist") || "Unknown Artist",
+      part: storedPart,
+      partType: normalizePartType(storedPartType, storedPart),
+      toneType: normalizeToneType(storedToneType),
+      guitar: localStorage.getItem("toneMatch_guitar") || (storedMode === "bass" ? "Fender Precision Bass" : "Fender Stratocaster"),
+      amp: localStorage.getItem("toneMatch_amp") || (storedMode === "bass" ? "Ampeg SVT-CL" : "Boss Katana Artist"),
+      pickup: localStorage.getItem("toneMatch_pickup") || "Vintage Single Coil",
+      effectsMode: localStorage.getItem("toneMatch_effectsMode") || "manual"
+    };
+
+    void runAdaptation(payload, {
+      multiFx: localStorage.getItem("toneMatch_multiFx") || "Line 6 Helix Floor",
+      selectedFx: localStorage.getItem("toneMatch_selectedEffects") || "ambient-lead"
+    });
+  }, [runAdaptation]);
 
   useEffect(() => {
     localStorage.setItem("toneMatch_song", song);
@@ -221,62 +306,29 @@ export function ToneMatcher() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setLoading(true);
-    setMessage("");
-    setProgress(0);
-    setResult(null);
-
     const payload: ToneRequest = { mode, song, artist, part, partType, toneType, guitar, amp, pickup, effectsMode };
-    const progressTimer = window.setInterval(() => {
-      setProgress((value) => Math.min(progressSteps.length - 1, value + 1));
-    }, 350);
-
-    try {
-      await fetch(mode === "bass" ? "/api/research-bass-tone" : "/api/research-tone", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const endpoint = mode === "bass" ? "/api/adapt-bass-tone" : effectsMode === "multi_fx" ? "/api/adapt-multi-fx-tone" : "/api/adapt-tone";
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload, multiFx, selectedFx })
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Tone adaptation failed.");
-      }
-      setResult(data.result);
-      trackUsage(data.result);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "The adaptation endpoint did not respond.");
-    } finally {
-      window.clearInterval(progressTimer);
-      setProgress(progressSteps.length - 1);
-      window.setTimeout(() => setLoading(false), 350);
-    }
+    await runAdaptation(payload);
   }
 
   function trackUsage(nextResult: ToneResult) {
-    const activity = JSON.parse(localStorage.getItem("fretpilot_recent_activity") || "[]");
+    const activity = JSON.parse(localStorage.getItem(`${brand.storagePrefix}_recent_activity`) || "[]");
     localStorage.setItem(
-      "fretpilot_recent_activity",
+      `${brand.storagePrefix}_recent_activity`,
       JSON.stringify([
         { id: nextResult.id, song: nextResult.request.song, artist: nextResult.request.artist, createdAt: new Date().toISOString() },
         ...activity
       ].slice(0, 8))
     );
-    const usage = Number(localStorage.getItem("fretpilot_daily_usage") || "0");
-    localStorage.setItem("fretpilot_daily_usage", String(usage + 1));
+    const usage = Number(localStorage.getItem(`${brand.storagePrefix}_daily_usage`) || "0");
+    localStorage.setItem(`${brand.storagePrefix}_daily_usage`, String(usage + 1));
   }
 
   async function saveTone() {
     if (!result) {
       return;
     }
-    const saved = JSON.parse(localStorage.getItem("fretpilot_saved_tones") || "[]");
-    localStorage.setItem("fretpilot_saved_tones", JSON.stringify([result, ...saved.filter((tone: ToneResult) => tone.id !== result.id)]));
+    const saved = JSON.parse(localStorage.getItem(`${brand.storagePrefix}_saved_tones`) || "[]");
+    localStorage.setItem(`${brand.storagePrefix}_saved_tones`, JSON.stringify([result, ...saved.filter((tone: ToneResult) => tone.id !== result.id)]));
     const response = await fetch("/api/save-tone", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -318,7 +370,7 @@ export function ToneMatcher() {
             <span className="block">Shape iconic tones with</span>
             <span className="mt-2 inline-block max-w-full break-words rounded-md bg-moss px-3 py-1 leading-tight text-ink">AI-matched gear</span>
           </h1>
-          <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-slate-600">FretPilot turns song research into clean, playable settings for the guitar, amp, pedals, and modelers you own.</p>
+          <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-slate-600">{brand.appName} turns song research into clean, playable settings for the guitar, amp, pedals, and modelers you own.</p>
           <div className="mx-auto mt-9 grid w-full max-w-md grid-cols-2 rounded-lg border border-white/80 bg-white/80 p-2 shadow-xl">
             {[
               { value: "guitar", label: "Guitar", icon: Guitar },
@@ -498,7 +550,7 @@ export function ToneMatcher() {
                       <Sparkles className="h-5 w-5" />
                       Multi FX Mode
                     </h4>
-                    <p className="mt-2 text-slate-600">FretPilot will shape a complete preset for your unit from the tone research.</p>
+                    <p className="mt-2 text-slate-600">{brand.appName} will shape a complete preset for your unit from the tone research.</p>
                     <SelectField label="Select your unit" value={multiFx} onChange={setMultiFx} options={multiFxUnits.map((unit) => unit.name)} />
                     <div className="mt-4 rounded-lg bg-white/80 p-4 text-sm text-slate-600">Using effects, modulation, delay, and reverb around your selected amp choice.</div>
                   </div>
@@ -671,13 +723,13 @@ export function ToneMatcher() {
 
               <div className="theme-blue-panel rounded-lg border border-white/80 p-8 text-center shadow-xl">
                 <p className="text-lg text-slate-700">New here?</p>
-                <h3 className="mt-2 text-3xl font-bold">Try FretPilot free for a limited time</h3>
-                <p className="mt-2 text-lg font-semibold text-emerald-700">Start a free trial and unlock full adaptations, tone saving, and presets.</p>
+                <h3 className="mt-2 text-3xl font-bold">Unlock full Tonefex access</h3>
+                <p className="mt-2 text-lg font-semibold text-emerald-700">Choose a plan to unlock full adaptations, tone saving, and presets.</p>
                 <div className="mt-6 flex flex-col items-center justify-center gap-4 sm:flex-row">
                   <a className="button-primary min-h-14 rounded-lg px-8 text-lg" href="/plans">
-                    Start Free Trial
+                    View Plans
                   </a>
-                  <span className="text-sm font-medium text-slate-600">Cancel anytime during your trial. No long-term commitment.</span>
+                  <span className="text-sm font-medium text-slate-600">Manage billing anytime from the customer portal.</span>
                 </div>
               </div>
 
@@ -733,6 +785,18 @@ function Stat({ value, label }: { value: string; label: string }) {
       <div className="text-xs text-neutral-500">{label}</div>
     </div>
   );
+}
+
+function inferStoredMode(partType: string | null, toneType: string | null): "guitar" | "bass" {
+  if (partType === "bassline") {
+    return "bass";
+  }
+
+  if (toneType === "bass_clean" || toneType === "bass_drive") {
+    return "bass";
+  }
+
+  return "guitar";
 }
 
 function StepProgress() {

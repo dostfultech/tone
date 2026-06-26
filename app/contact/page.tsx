@@ -16,7 +16,7 @@ export default function ContactPage() {
               <span className="text-2xl">?</span>
             </div>
             <h1 className="text-4xl font-bold tracking-normal">Send Feedback or Request Gear</h1>
-            <p className="mx-auto mt-4 max-w-2xl text-lg leading-8 text-neutral-600">Tell us what to fix, improve, or add to the FretPilot gear database.</p>
+            <p className="mx-auto mt-4 max-w-2xl text-lg leading-8 text-neutral-600">Tell us what to fix, improve, or add to the Tonefex gear database.</p>
           </div>
           <ContactForm />
         </div>

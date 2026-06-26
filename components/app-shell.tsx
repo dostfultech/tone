@@ -21,6 +21,7 @@ import {
   Wrench,
   X
 } from "lucide-react";
+import { brand } from "@/lib/brand";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
 
@@ -72,7 +73,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <button
         type="button"
         aria-label={open ? "Close navigation" : "Open navigation"}
-        className="fixed left-5 top-5 z-[70] grid h-14 w-14 place-items-center rounded-lg border border-white/80 bg-white/90 text-ink shadow-[0_18px_45px_rgba(95,141,247,0.22)] backdrop-blur transition hover:-translate-y-0.5 hover:border-ocean hover:shadow-2xl"
+        className="fixed left-5 top-5 z-[70] grid h-14 w-14 place-items-center rounded-lg border border-white/80 bg-white/90 text-ink shadow-[0_18px_45px_rgba(95,141,247,0.22)] backdrop-blur transition hover:-translate-y-0.5 hover:border-ocean hover:shadow-2xl lg:hidden"
         onClick={() => setOpen((value) => !value)}
       >
         {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -80,7 +81,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div
         className={cn(
-          "fixed inset-0 z-[60] bg-ink/35 backdrop-blur-[4px] transition-opacity",
+          "fixed inset-0 z-[60] bg-ink/35 backdrop-blur-[4px] transition-opacity lg:hidden",
           open ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         )}
         onClick={() => setOpen(false)}
@@ -88,16 +89,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <aside
         className={cn(
-          "theme-blue-panel fixed inset-y-0 left-0 z-[65] flex w-[322px] max-w-[88vw] flex-col border-r border-white/80 shadow-2xl transition-transform duration-300",
+          "theme-blue-panel fixed inset-y-0 left-0 z-[65] flex w-[322px] max-w-[88vw] flex-col border-r border-white/80 shadow-2xl transition-transform duration-300 lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full"
         )}
-        style={{ transform: open ? "translateX(0)" : "translateX(-100%)" }}
       >
         <div className="flex h-24 items-center justify-between border-b border-white/70 px-8">
           <Link href="/app" className="flex items-center gap-4" onClick={() => setOpen(false)}>
-            <Image src="/fretpilot-logo.svg" alt="FretPilot" width={48} height={48} className="rounded-lg" />
+            <Image src="/tonefex-logo.svg" alt={brand.appName} width={48} height={48} className="rounded-lg" />
             <div>
-              <div className="text-xl font-bold text-ink">Fret<span className="lime-highlight ml-0.5">Pilot</span></div>
+              <div className="text-xl font-bold text-ink">Tone<span className="lime-highlight ml-0.5">fex</span></div>
               <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400">Tone workspace</div>
             </div>
           </Link>
@@ -138,14 +138,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="mt-5 rounded-lg border border-white/80 bg-white/75 p-4 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-bold text-ink">
               <Sparkles className="h-4 w-4" />
-              Trial controls active
+              Subscription access
             </div>
-            <p className="mt-2 text-xs leading-5 text-slate-600">Use Plans when you are ready to connect live Dodo payment products.</p>
+            <p className="mt-2 text-xs leading-5 text-slate-600">Your active plan unlocks the tone features, saved tones, presets, and gated access available for that tier.</p>
           </div>
         </div>
       </aside>
 
-      <main className="min-h-screen">
+      <main className="min-h-screen lg:pl-[322px]">
         {children}
         <AppFooter />
       </main>
@@ -162,9 +162,9 @@ function AppFooter() {
         <div className="grid gap-10 md:grid-cols-[1.15fr_0.75fr_1fr]">
           <div>
             <Link href="/app" className="inline-flex items-center gap-4">
-              <Image src="/fretpilot-logo.svg" alt="FretPilot" width={44} height={44} className="rounded-lg" />
+              <Image src="/tonefex-logo.svg" alt={brand.appName} width={44} height={44} className="rounded-lg" />
               <span className="text-xl font-bold">
-                Fret<span className="lime-highlight ml-0.5">Pilot</span>
+                Tone<span className="lime-highlight ml-0.5">fex</span>
               </span>
             </Link>
             <p className="mt-5 max-w-sm text-base leading-7 text-slate-600">Gear-matched guitar and bass tone settings for musicians worldwide.</p>
@@ -176,8 +176,7 @@ function AppFooter() {
               <Link href="/">Home</Link>
               <Link href="/app">App</Link>
               <Link href="/plans">Plans</Link>
-              <Link href="/status">Status</Link>
-              <Link href="/login">Login</Link>
+              <Link href="/account">Account</Link>
             </nav>
           </div>
 
@@ -185,8 +184,8 @@ function AppFooter() {
             <h2 className="text-lg font-bold">Support</h2>
             <div className="mt-5 grid gap-3 text-base text-slate-600">
               <p>Need help or have questions?</p>
-              <a className="font-semibold text-ocean" href="mailto:support@fretpilot.app">
-                support@fretpilot.app
+              <a className="font-semibold text-ocean" href={`mailto:${brand.supportEmail}`}>
+                {brand.supportEmail}
               </a>
               <Link href="/privacy">Privacy Policy</Link>
               <Link href="/terms">Terms of Use</Link>
@@ -194,7 +193,7 @@ function AppFooter() {
           </div>
         </div>
         <div className="mt-10 border-t border-blue-100 pt-6 text-center text-sm text-slate-500">
-          © {year} FretPilot. All rights reserved.
+          © {year} {brand.appName}. All rights reserved.
         </div>
       </div>
     </footer>

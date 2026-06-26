@@ -1,16 +1,17 @@
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/react";
+import { brand } from "@/lib/brand";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "FretPilot - Guitar Tone Matching",
-    template: "%s | FretPilot"
+    default: `${brand.appName} - Guitar Tone Matching`,
+    template: `%s | ${brand.appName}`
   },
   description:
     "AI-assisted guitar and bass tone matching for players who want practical rig settings fast.",
   openGraph: {
-    title: "FretPilot",
+    title: brand.appName,
     description: "Gear-aware tone matching flows built with Next.js App Router.",
     type: "website"
   }

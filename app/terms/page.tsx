@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { brand } from "@/lib/brand";
 import { SiteShell } from "@/components/site-shell";
 
 export const metadata: Metadata = {
@@ -18,7 +19,7 @@ export default function TermsPage() {
           <p className="text-sm text-neutral-500">Last updated June 11, 2026</p>
           <h2>Use of this service</h2>
           <p>
-            FretPilot is a paid tone-matching service for guitar and bass players. You are responsible for using generated settings safely and lawfully.
+            {brand.appName} is a paid tone-matching service for guitar and bass players. You are responsible for using generated settings safely and lawfully.
           </p>
           <h2>Subscriptions</h2>
           <p>

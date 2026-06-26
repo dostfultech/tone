@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, BrainCircuit, CheckCircle2, Gauge, Guitar, Music2, SlidersHorizontal, Sparkles, Zap } from "lucide-react";
+import { brand } from "@/lib/brand";
 import { SiteShell } from "@/components/site-shell";
 import { Reviews } from "@/components/reviews";
 
@@ -65,7 +66,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </h1>
 
           <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-slate-600 sm:text-xl">
-            FretPilot turns song research into practical amp, pickup, pedal, and modeler settings you can dial in fast.
+            {brand.appName} turns song research into practical amp, pickup, pedal, and modeler settings you can dial in fast.
           </p>
 
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">

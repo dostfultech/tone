@@ -1,6 +1,6 @@
-# FretPilot
+# Tonefex
 
-FretPilot is a paid-only guitar and bass tone-matching SaaS built with Next.js, Supabase, Dodo Payments, and OpenAI.
+Tonefex is a paid-only guitar and bass tone-matching SaaS built with Next.js, Supabase, Dodo Payments, and OpenAI.
 
 The app lets users choose a song, artist, part, guitar/bass, amp, pickups, pedals, or multi-FX unit, then generates a structured tone recipe with amp settings, effects order, pickup advice, confidence, and playing notes.
 
@@ -16,7 +16,7 @@ The app lets users choose a song, artist, part, guitar/bass, amp, pickups, pedal
 
 ## Implemented
 
-- FretPilot brand, logo, metadata, and app copy
+- Tonefex brand, logo, metadata, and app copy
 - Supabase SSR auth clients and middleware
 - Paid-only app gate with `TEST_ACCESS_EMAILS` bypass for local testing
 - Supabase migrations for profiles, plans, subscriptions, usage, tones, gear, song-tone profiles, reviews, feedback, and audit logs
@@ -36,8 +36,10 @@ The app lets users choose a song, artist, part, guitar/bass, amp, pickups, pedal
 3. Paste your Dodo Payments keys and product IDs.
 4. Paste your OpenAI API key.
 5. Add your test email to `TEST_ACCESS_EMAILS`.
-6. Apply the SQL files in `supabase/migrations` to your Supabase project.
-7. Run the app locally.
+6. In Supabase Auth, enable Email auth and configure confirmation/reset redirects.
+7. Optionally enable the Google provider and set `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true`.
+8. Apply the SQL files in `supabase/migrations` to your Supabase project.
+9. Run the app locally.
 
 ```bash
 npm install --strict-ssl=false
@@ -60,6 +62,15 @@ Apply migrations in order:
 - `supabase/migrations/202606120004_seed_song_tone_profiles.sql`
 
 If you install the Supabase CLI later, use it to link your project and push migrations. Otherwise, paste the SQL into the Supabase SQL editor.
+
+Auth configuration:
+
+- Enable Email provider for sign-up and password login.
+- Set redirect URLs for:
+	- `http://localhost:3000/auth/callback`
+	- `http://localhost:3000/reset-password`
+	- your production equivalents
+- If you want Google sign-in, enable the Google provider in Supabase and set `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true` in your environment.
 
 ## Dodo Payments
 

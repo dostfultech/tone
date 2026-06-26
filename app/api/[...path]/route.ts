@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { brand } from "@/lib/brand";
 import {
   amps,
   bassAmps,
@@ -421,7 +422,7 @@ async function fetchItunesJson(url: string): Promise<{ results?: ItunesTrack[] }
     const response = await fetch(url, {
       cache: "no-store",
       headers: {
-        "User-Agent": "FretPilot/1.0"
+        "User-Agent": `${brand.appName}/1.0`
       }
     });
     if (!response.ok) return {};
@@ -448,7 +449,7 @@ async function fetchItunesJsonWithHttps(url: string): Promise<{ results?: Itunes
       {
         rejectUnauthorized: false,
         headers: {
-          "User-Agent": "FretPilot/1.0"
+          "User-Agent": `${brand.appName}/1.0`
         }
       },
       (response) => {

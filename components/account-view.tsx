@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Activity, CreditCard, Guitar, Loader2, Music2, ShieldCheck, Trash2, UserCircle } from "lucide-react";
+import { brand } from "@/lib/brand";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type SubscriptionSnapshot = {
@@ -56,10 +57,10 @@ export function AccountView() {
     loadAccount();
 
     setStats({
-      presets: JSON.parse(localStorage.getItem("fretpilot_saved_gear_presets") || "[]").length,
-      savedTones: JSON.parse(localStorage.getItem("fretpilot_saved_tones") || "[]").length,
-      activities: JSON.parse(localStorage.getItem("fretpilot_recent_activity") || "[]").length,
-      adaptations: Number(localStorage.getItem("fretpilot_daily_usage") || "0")
+      presets: JSON.parse(localStorage.getItem(`${brand.storagePrefix}_saved_gear_presets`) || "[]").length,
+      savedTones: JSON.parse(localStorage.getItem(`${brand.storagePrefix}_saved_tones`) || "[]").length,
+      activities: JSON.parse(localStorage.getItem(`${brand.storagePrefix}_recent_activity`) || "[]").length,
+      adaptations: Number(localStorage.getItem(`${brand.storagePrefix}_daily_usage`) || "0")
     });
   }, []);
 
