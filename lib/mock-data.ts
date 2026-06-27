@@ -138,7 +138,7 @@ export const multiFxUnits = [
 ];
 
 export const songs: SongItem[] = [
-  { id: "perfect-ed-sheeran", song: "Perfect", artist: "Ed Sheeran", part: "main progression", mode: "guitar", album: "÷ (Deluxe)", duration: "4:23", artworkColor: "#42a5c8" },
+  { id: "perfect-ed-sheeran", song: "Perfect", artist: "Ed Sheeran", part: "main progression", mode: "guitar", album: "Divide (Deluxe)", duration: "4:23", artworkColor: "#42a5c8" },
   { id: "perfect-simple-plan", song: "Perfect", artist: "Simple Plan", part: "chorus rhythm", mode: "guitar", album: "No Pads, No Helmets...Just Balls", duration: "4:37", artworkColor: "#b64a33" },
   { id: "perfect-one-direction", song: "Perfect", artist: "One Direction", part: "chorus rhythm", mode: "guitar", album: "Made in the A.M. (Deluxe Edition)", duration: "3:50", artworkColor: "#8a5a44" },
   { id: "perfect-exceeder", song: "Perfect (Exceeder)", artist: "Mason & Princess Superstar", part: "synth bass hook", mode: "bass", album: "Perfect (Exceeder)", duration: "2:41", artworkColor: "#62656a" },

@@ -2,8 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Bookmark, Lock, Loader2, Search, Sparkles, Trash2 } from "lucide-react";
+import { Bookmark, Loader2, Search, Sparkles, Trash2 } from "lucide-react";
 import { brand } from "@/lib/brand";
+import {
+  loadClientSubscriptionSnapshot,
+  type ClientSubscriptionSnapshot
+} from "@/lib/subscription-client";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type SavedTone = {
@@ -29,27 +33,31 @@ type SavedTone = {
 
 export function LibraryView() {
   const [tones, setTones] = useState<SavedTone[]>([]);
+  const [snapshot, setSnapshot] = useState<ClientSubscriptionSnapshot | null>(null);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadTones() {
+    async function loadView() {
       const supabase = createSupabaseBrowserClient();
       if (!supabase) {
         setTones(JSON.parse(localStorage.getItem(`${brand.storagePrefix}_saved_tones`) || "[]"));
         setLoading(false);
         return;
       }
+      const client = supabase;
 
-      const { data, error } = await supabase
-        .from("saved_tones")
-        .select("id, song, artist, part, mode, request, result, created_at")
-        .order("created_at", { ascending: false });
-      setTones(error ? [] : data || []);
+      const [subscriptionSnapshot, toneResult] = await Promise.all([
+        loadClientSubscriptionSnapshot(client),
+        client.from("saved_tones").select("id, song, artist, part, mode, request, result, created_at").order("created_at", { ascending: false })
+      ]);
+
+      setSnapshot(subscriptionSnapshot);
+      setTones(toneResult.error ? [] : toneResult.data || []);
       setLoading(false);
     }
 
-    loadTones();
+    void loadView();
   }, []);
 
   const filtered = useMemo(() => {
@@ -79,17 +87,30 @@ export function LibraryView() {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-5">
               <div className="grid h-16 w-16 place-items-center rounded-lg bg-ink text-moss">
-                <Lock className="h-8 w-8" />
+                <Bookmark className="h-8 w-8" />
               </div>
               <div>
                 <h2 className="text-2xl font-bold">You have {tones.length} saved {tones.length === 1 ? "tone" : "tones"}</h2>
-                <p className="mt-2 text-lg text-neutral-600">Paid access controls saved settings, adaptations, and future exports.</p>
+                <p className="mt-2 text-lg text-neutral-600">
+                  {snapshot?.hasAccess
+                    ? `${snapshot.planName} plan · ${snapshot.usage.savedTonesRemaining === null ? "Unlimited saves remaining" : `${snapshot.usage.savedTonesRemaining} saves remaining this cycle`}`
+                    : "Upgrade to keep your tone library synced across sessions."}
+                </p>
               </div>
             </div>
-            <Link href="/plans" className="button-primary min-h-14 rounded-lg px-8 text-lg">
-              <Sparkles className="h-5 w-5" />
-              View plans
-            </Link>
+            {snapshot?.hasAccess ? (
+              <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-5 py-4 text-sm text-neutral-700">
+                <div className="font-semibold text-ink">Current plan: {snapshot.planName}</div>
+                <div className="mt-1">
+                  Adaptations: {snapshot.usage.adaptationsRemaining === null ? "Unlimited remaining" : `${snapshot.usage.adaptationsRemaining} remaining`}
+                </div>
+              </div>
+            ) : (
+              <Link href="/plans" className="button-primary min-h-14 rounded-lg px-8 text-lg">
+                <Sparkles className="h-5 w-5" />
+                View plans
+              </Link>
+            )}
           </div>
         </div>
 
@@ -111,42 +132,47 @@ export function LibraryView() {
             {filtered.map((tone) => {
               const request = tone.result?.request || tone.request || {};
               const settings = tone.result?.targetSettings || {};
+
               return (
                 <article key={tone.id} className="compact-card overflow-hidden border-l-4 border-l-ocean p-7">
                   <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
+                    <Link href={`/library/${tone.id}`} target="_blank" rel="noreferrer" className="min-w-0 flex-1">
                       <div className="inline-flex rounded-md bg-moss px-3 py-1 text-sm font-bold text-ink">
                         {tone.result?.accuracy || tone.accuracy || 0}% match
                       </div>
                       <h3 className="mt-4 truncate text-3xl font-bold">{tone.song}</h3>
                       <p className="mt-1 text-lg text-neutral-600">
-                        {tone.artist} - {tone.part}
+                        {tone.artist} · {tone.part}
                       </p>
-                    </div>
+                    </Link>
                     <button type="button" className="button-secondary px-3" aria-label="Delete saved tone" onClick={() => removeTone(tone.id)}>
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
-                  <div className="mt-6 grid gap-3 text-base text-neutral-600">
-                    <span>{request.guitar || "Guitar not recorded"}</span>
-                    <span>{request.amp || "Amp not recorded"}</span>
-                  </div>
-                  <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    {Object.entries(settings)
-                      .slice(0, 4)
-                      .map(([key, value]) => (
-                        <div key={key} className="rounded-lg bg-neutral-100 px-3 py-3 text-center">
-                          <div className="text-xs font-semibold capitalize text-neutral-500">{key}</div>
-                          <div className="text-xl font-bold">{value}</div>
-                        </div>
-                      ))}
-                  </div>
+
+                  <Link href={`/library/${tone.id}`} target="_blank" rel="noreferrer" className="mt-6 block">
+                    <div className="grid gap-3 text-base text-neutral-600">
+                      <span>{request.guitar || "Guitar not recorded"}</span>
+                      <span>{request.amp || "Amp not recorded"}</span>
+                    </div>
+                    <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      {Object.entries(settings)
+                        .slice(0, 4)
+                        .map(([key, value]) => (
+                          <div key={key} className="rounded-lg bg-neutral-100 px-3 py-3 text-center transition hover:bg-neutral-200">
+                            <div className="text-xs font-semibold capitalize text-neutral-500">{key}</div>
+                            <div className="text-xl font-bold">{value}</div>
+                          </div>
+                        ))}
+                    </div>
+                    <div className="mt-5 text-sm font-semibold text-ocean">Open tone in a new tab</div>
+                  </Link>
                 </article>
               );
             })}
           </div>
         ) : (
-        <div className="grid min-h-[420px] place-items-center rounded-lg border border-dashed border-blue-100 bg-white/80 p-8 text-center">
+          <div className="grid min-h-[420px] place-items-center rounded-lg border border-dashed border-blue-100 bg-white/80 p-8 text-center">
             <div>
               <div className="mx-auto mb-5 grid h-24 w-24 place-items-center rounded-lg bg-blue-50 text-slate-400">
                 <Bookmark className="h-12 w-12" />

@@ -1,67 +1,73 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, CreditCard, Guitar, Loader2, Music2, ShieldCheck, Trash2, UserCircle } from "lucide-react";
+import { Activity, Check, CreditCard, Guitar, Loader2, Music2, ShieldCheck, Trash2, UserCircle } from "lucide-react";
 import { brand } from "@/lib/brand";
+import {
+  formatSubscriptionDate,
+  formatSubscriptionStatus,
+  loadClientSubscriptionSnapshot,
+  type ClientSubscriptionSnapshot
+} from "@/lib/subscription-client";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-
-type SubscriptionSnapshot = {
-  status: string;
-  plan_id: string | null;
-  billing_interval: string | null;
-  current_period_end: string | null;
-};
 
 export function AccountView() {
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
-  const [subscription, setSubscription] = useState<SubscriptionSnapshot | null>(null);
+  const [snapshot, setSnapshot] = useState<ClientSubscriptionSnapshot | null>(null);
   const [activeTab, setActiveTab] = useState<"settings" | "activity">("settings");
   const [stats, setStats] = useState({ presets: 0, savedTones: 0, activities: 0, adaptations: 0 });
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadAccount() {
-      const supabase = createSupabaseBrowserClient();
-      if (!supabase) {
-        setMessage("Supabase is not configured.");
-        setLoading(false);
-        return;
-      }
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) {
+      setMessage("Supabase is not configured.");
+      setLoading(false);
+      return;
+    }
+    const client = supabase;
 
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-      if (!user) {
+    async function loadAccount() {
+      const subscriptionSnapshot = await loadClientSubscriptionSnapshot(client);
+      setSnapshot(subscriptionSnapshot);
+
+      if (!subscriptionSnapshot.user) {
         setMessage("Sign in to manage your account.");
         setLoading(false);
         return;
       }
 
-      setEmail(user.email || "");
-      const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
-      setFullName(profile?.full_name || user.user_metadata?.full_name || "");
+      setEmail(subscriptionSnapshot.user.email || "");
 
-      const { data: sub } = await supabase
-        .from("subscriptions")
-        .select("status, plan_id, billing_interval, current_period_end")
-        .eq("user_id", user.id)
-        .order("updated_at", { ascending: false })
-        .limit(1)
+      const { data: profile } = await client
+        .from("profiles")
+        .select("full_name")
+        .eq("id", subscriptionSnapshot.user.id)
         .maybeSingle();
-      setSubscription(sub);
+
+      setFullName(profile?.full_name || subscriptionSnapshot.user.user_metadata?.full_name || "");
+
+      setStats({
+        presets: subscriptionSnapshot.totals.gearPresets,
+        savedTones: subscriptionSnapshot.totals.savedTones,
+        activities: JSON.parse(localStorage.getItem(`${brand.storagePrefix}_recent_activity`) || "[]").length,
+        adaptations: subscriptionSnapshot.usage.adaptationsUsed
+      });
+
       setLoading(false);
     }
 
-    loadAccount();
+    void loadAccount();
 
-    setStats({
-      presets: JSON.parse(localStorage.getItem(`${brand.storagePrefix}_saved_gear_presets`) || "[]").length,
-      savedTones: JSON.parse(localStorage.getItem(`${brand.storagePrefix}_saved_tones`) || "[]").length,
-      activities: JSON.parse(localStorage.getItem(`${brand.storagePrefix}_recent_activity`) || "[]").length,
-      adaptations: Number(localStorage.getItem(`${brand.storagePrefix}_daily_usage`) || "0")
+    const {
+      data: { subscription }
+    } = client.auth.onAuthStateChange(() => {
+      loadAccount().catch(() => undefined);
     });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   async function saveProfile() {
@@ -69,13 +75,17 @@ export function AccountView() {
     if (!supabase) {
       return;
     }
+    const client = supabase;
+
     const {
       data: { user }
-    } = await supabase.auth.getUser();
+    } = await client.auth.getUser();
+
     if (!user) {
       return;
     }
-    const { error } = await supabase.from("profiles").update({ full_name: fullName, email }).eq("id", user.id);
+
+    const { error } = await client.from("profiles").update({ full_name: fullName, email }).eq("id", user.id);
     setMessage(error ? error.message : "Profile saved.");
   }
 
@@ -95,6 +105,9 @@ export function AccountView() {
     setMessage(data.message || data.error || "Account deletion request processed.");
   }
 
+  const planLabel = snapshot?.hasAccess ? snapshot.planName || "Active plan" : "No active plan";
+  const statusLabel = snapshot?.hasAccess ? formatSubscriptionStatus(snapshot.status) : "Inactive";
+
   return (
     <div className="px-4 pb-16 pt-28 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1840px]">
@@ -107,7 +120,9 @@ export function AccountView() {
               <div>
                 <h1 className="text-3xl font-bold">{fullName || email?.split("@")[0] || "Account"}</h1>
                 <p className="mt-2 text-slate-600">{email || "Sign in to manage your profile"}</p>
-                <span className="mt-4 inline-flex rounded-md bg-moss px-4 py-1 text-xs font-bold uppercase tracking-[0.12em] text-ink">Free Account</span>
+                <span className={`mt-4 inline-flex rounded-md px-4 py-1 text-xs font-bold uppercase tracking-[0.12em] ${snapshot?.hasAccess ? "bg-moss text-ink" : "bg-white text-slate-700"}`}>
+                  {planLabel}
+                </span>
               </div>
             </div>
             <a href="/app" className="button-primary">
@@ -157,34 +172,60 @@ export function AccountView() {
           <div className="mt-8 grid gap-6">
             <section className="compact-card overflow-hidden">
               <div className="flex items-center gap-4 border-b border-neutral-200 p-6">
-                  <div className="grid h-12 w-12 place-items-center rounded-lg bg-ink text-moss">
+                <div className="grid h-12 w-12 place-items-center rounded-lg bg-ink text-moss">
                   <CreditCard className="h-6 w-6" />
                 </div>
                 <div>
                   <h2 className="text-xl font-bold">Subscription</h2>
-                  <p className="text-sm text-neutral-500">Plan and payment status</p>
+                  <p className="text-sm text-neutral-500">Plan, renewal, limits, and feature access</p>
                 </div>
               </div>
-              <div className="grid gap-5 p-6 lg:grid-cols-2">
-                <div className="rounded-lg bg-neutral-50 p-5">
-                  <div className="text-xs font-bold uppercase tracking-[0.14em] text-neutral-400">Plan</div>
-                  <div className="mt-2 text-lg font-bold">{subscription?.plan_id || "No Plan"}</div>
+
+              <div className="grid gap-5 p-6 xl:grid-cols-[1.1fr_0.9fr]">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <MetricCard label="Current plan" value={planLabel} />
+                  <MetricCard label="Plan status" value={statusLabel} />
+                  <MetricCard label="Renewal date" value={snapshot?.hasAccess ? formatSubscriptionDate(snapshot.renewalDate) : "Not scheduled"} />
+                  <MetricCard label="Billing" value={snapshot?.billingInterval === "annual" ? "Annual" : snapshot?.billingInterval === "monthly" ? "Monthly" : "None"} />
+                  <MetricCard label="Adaptations" value={snapshot ? formatRemaining(snapshot.usage.adaptationsUsed, snapshot.usage.adaptationsRemaining) : "0 used"} />
+                  <MetricCard label="Saved tones" value={snapshot ? formatRemaining(snapshot.usage.savedTonesUsed, snapshot.usage.savedTonesRemaining) : "0 used"} />
+                  <MetricCard label="Starter adaptations left" value={snapshot?.usage.starterAdaptationsRemaining === null ? "Unlimited" : String(snapshot?.usage.starterAdaptationsRemaining ?? 0)} />
+                  <MetricCard label="Gear presets" value={snapshot ? formatRemaining(snapshot.usage.gearPresetsUsed, snapshot.usage.gearPresetsRemaining) : "0 used"} />
                 </div>
-                <div className="rounded-lg bg-neutral-50 p-5">
-                  <div className="text-xs font-bold uppercase tracking-[0.14em] text-neutral-400">Status</div>
-                  <div className="mt-2 text-lg font-bold capitalize">{subscription?.status || "Inactive"}</div>
+
+                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-5">
+                  <div className="text-xs font-bold uppercase tracking-[0.14em] text-neutral-400">Unlocked features</div>
+                  <div className="mt-4 grid gap-3 text-sm text-neutral-700">
+                    {(snapshot?.features.length ? snapshot.features : ["Community Tone Database", "Saved tones", "Tone matching"]).map((feature) => (
+                      <div key={feature} className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-moss" />
+                        <span>{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    {snapshot?.hasAccess ? (
+                      <button className="button-primary" onClick={openBillingPortal}>
+                        Manage Subscription
+                      </button>
+                    ) : (
+                      <a className="button-primary" href="/plans">
+                        View Plans
+                      </a>
+                    )}
+                    {snapshot?.planId === "beginner" ? (
+                      <a className="button-secondary" href="/plans">
+                        Upgrade to Expert
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-              <div className="px-6 pb-6">
-                <button className="button-primary" onClick={openBillingPortal}>
-                  Manage Subscription
-                </button>
               </div>
             </section>
 
             <section className="compact-card overflow-hidden">
               <div className="flex items-center gap-4 border-b border-neutral-200 p-6">
-                  <div className="grid h-12 w-12 place-items-center rounded-lg bg-ink text-moss">
+                <div className="grid h-12 w-12 place-items-center rounded-lg bg-ink text-moss">
                   <UserCircle className="h-6 w-6" />
                 </div>
                 <div>
@@ -220,7 +261,7 @@ export function AccountView() {
 
             <section className="compact-card overflow-hidden">
               <div className="flex items-center gap-4 border-b border-neutral-200 p-6">
-                  <div className="grid h-12 w-12 place-items-center rounded-lg bg-ink text-moss">
+                <div className="grid h-12 w-12 place-items-center rounded-lg bg-ink text-moss">
                   <ShieldCheck className="h-6 w-6" />
                 </div>
                 <div>
@@ -261,4 +302,21 @@ function StatCard({ value, label }: { value: number; label: string }) {
       <div className="mt-1 text-sm text-neutral-500">{label}</div>
     </div>
   );
+}
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-neutral-50 p-5">
+      <div className="text-xs font-bold uppercase tracking-[0.14em] text-neutral-400">{label}</div>
+      <div className="mt-2 text-lg font-bold">{value}</div>
+    </div>
+  );
+}
+
+function formatRemaining(used: number, remaining: number | null) {
+  if (remaining === null) {
+    return `${used} used · Unlimited remaining`;
+  }
+
+  return `${used} used · ${remaining} remaining`;
 }

@@ -30,7 +30,9 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.redirect(new URL(next, origin));
+  const authCompleteUrl = new URL("/auth/complete", origin);
+  authCompleteUrl.searchParams.set("next", next);
+  return NextResponse.redirect(authCompleteUrl);
 }
 
 function resolveAuthOrigin(requestUrl: URL) {

@@ -3,42 +3,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, Crown, Loader2 } from "lucide-react";
 import { plans } from "@/lib/mock-data";
+import {
+  formatSubscriptionDate,
+  formatSubscriptionStatus,
+  loadClientSubscriptionSnapshot,
+  type ClientSubscriptionSnapshot
+} from "@/lib/subscription-client";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type Billing = "monthly" | "annual";
-
-type ActiveSubscription = {
-  planId: "beginner" | "expert";
-  status: string;
-  billingInterval: Billing;
-  currentPeriodEnd: string | null;
-};
-
-type UsageSnapshot = {
-  adaptationsUsed: number;
-  savedTonesUsed: number;
-  starterAdaptationsRemaining: number | null;
-};
-
-const planUsageLimits = {
-  beginner: {
-    monthlyAdaptations: 20,
-    savedTones: 15,
-    starterAdaptations: 5
-  },
-  expert: {
-    monthlyAdaptations: null,
-    savedTones: null,
-    starterAdaptations: null
-  }
-} as const;
 
 export function Pricing() {
   const [billing, setBilling] = useState<Billing>("annual");
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const [activeSubscription, setActiveSubscription] = useState<ActiveSubscription | null>(null);
-  const [usage, setUsage] = useState<UsageSnapshot | null>(null);
+  const [snapshot, setSnapshot] = useState<ClientSubscriptionSnapshot | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("plans_default_variant") as Billing | null;
@@ -62,67 +41,18 @@ export function Pricing() {
     if (!supabase) {
       return;
     }
+    const client = supabase;
 
-    async function loadSubscriptionState() {
-      const { data: authData } = await supabase.auth.getUser();
-      const user = authData.user;
-      if (!user) {
-        setActiveSubscription(null);
-        setUsage(null);
-        return;
-      }
-
-      const { data: subscription } = await supabase
-        .from("subscriptions")
-        .select("plan_id, status, billing_interval, current_period_end")
-        .eq("user_id", user.id)
-        .in("status", ["active", "trialing"])
-        .in("plan_id", ["beginner", "expert"])
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (!subscription?.plan_id) {
-        setActiveSubscription(null);
-        setUsage(null);
-        return;
-      }
-
-      const nextSubscription: ActiveSubscription = {
-        planId: subscription.plan_id,
-        status: subscription.status,
-        billingInterval: subscription.billing_interval === "monthly" ? "monthly" : "annual",
-        currentPeriodEnd: subscription.current_period_end || null
-      };
-      setActiveSubscription(nextSubscription);
-
-      const monthStart = new Date();
-      monthStart.setDate(1);
-      monthStart.setHours(0, 0, 0, 0);
-
-      const { data: monthlyUsage } = await supabase
-        .from("monthly_usage")
-        .select("adaptations_used, saved_tones_created")
-        .eq("user_id", user.id)
-        .eq("usage_month", monthStart.toISOString().slice(0, 10))
-        .maybeSingle();
-
-      const limits = planUsageLimits[nextSubscription.planId];
-      const starterLimit = limits.starterAdaptations;
-      const usedAdaptations = monthlyUsage?.adaptations_used || 0;
-      setUsage({
-        adaptationsUsed: usedAdaptations,
-        savedTonesUsed: monthlyUsage?.saved_tones_created || 0,
-        starterAdaptationsRemaining: starterLimit === null ? null : Math.max(starterLimit - usedAdaptations, 0)
-      });
+    async function refreshSnapshot() {
+      setSnapshot(await loadClientSubscriptionSnapshot(client));
     }
 
-    loadSubscriptionState();
+    void refreshSnapshot();
 
     const {
       data: { subscription }
-    } = supabase.auth.onAuthStateChange(() => {
-      loadSubscriptionState().catch(() => undefined);
+    } = client.auth.onAuthStateChange(() => {
+      refreshSnapshot().catch(() => undefined);
     });
 
     return () => subscription.unsubscribe();
@@ -139,10 +69,10 @@ export function Pricing() {
     [billing]
   );
 
-  const activePlan = activeSubscription ? computedPlans.find((plan) => plan.id === activeSubscription.planId) || null : null;
-  const availablePlans = activeSubscription?.planId === "expert"
+  const activePlan = snapshot?.planId ? computedPlans.find((plan) => plan.id === snapshot.planId) || null : null;
+  const availablePlans = snapshot?.planId === "expert"
     ? []
-    : activeSubscription?.planId === "beginner"
+    : snapshot?.planId === "beginner"
       ? computedPlans.filter((plan) => plan.id === "expert")
       : computedPlans;
 
@@ -196,17 +126,17 @@ export function Pricing() {
         </div>
       </div>
 
-      {activeSubscription && activePlan ? (
+      {snapshot?.hasAccess && activePlan ? (
         <div className="mx-auto mt-10 max-w-5xl rounded-2xl border border-neutral-200 bg-white p-6 shadow-soft">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">Current Plan</div>
-              <h2 className="mt-2 text-3xl font-semibold">{activePlan.name}</h2>
+              <h2 className="mt-2 text-3xl font-semibold">{snapshot.planName || activePlan.name}</h2>
               <p className="mt-2 text-sm text-neutral-600">
-                Status: {activeSubscription.status} · Renews {formatDate(activeSubscription.currentPeriodEnd)}
+                Status: {formatSubscriptionStatus(snapshot.status)} - Renews {formatSubscriptionDate(snapshot.renewalDate)}
               </p>
               <div className="mt-4 grid gap-2 text-sm text-neutral-700">
-                {activePlan.perks.map((perk) => (
+                {snapshot.features.map((perk) => (
                   <div key={perk} className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-moss" />
                     <span>{perk}</span>
@@ -214,23 +144,23 @@ export function Pricing() {
                 ))}
               </div>
             </div>
-            <div className="grid min-w-[280px] gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
-              <UsageRow
-                label="Adaptations"
-                value={formatUsage(usage?.adaptationsUsed ?? 0, planUsageLimits[activeSubscription.planId].monthlyAdaptations)}
-              />
-              <UsageRow
-                label="Saved tones"
-                value={formatUsage(usage?.savedTonesUsed ?? 0, planUsageLimits[activeSubscription.planId].savedTones)}
-              />
+
+            <div className="grid min-w-[300px] gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
+              <UsageRow label="Current plan" value={snapshot.planName || activePlan.name} />
+              <UsageRow label="Adaptations" value={formatUsage(snapshot.usage.adaptationsUsed, snapshot.usage.adaptationsRemaining)} />
+              <UsageRow label="Saved tones" value={formatUsage(snapshot.usage.savedTonesUsed, snapshot.usage.savedTonesRemaining)} />
+              <UsageRow label="Saved tones in library" value={String(snapshot.totals.savedTones)} />
+              <UsageRow label="Gear presets" value={formatUsage(snapshot.usage.gearPresetsUsed, snapshot.usage.gearPresetsRemaining)} />
               <UsageRow
                 label="Starter adaptations remaining"
-                value={usage?.starterAdaptationsRemaining === null ? "Unlimited" : String(usage?.starterAdaptationsRemaining ?? 0)}
+                value={snapshot.usage.starterAdaptationsRemaining === null ? "Unlimited" : String(snapshot.usage.starterAdaptationsRemaining)}
               />
-              <UsageRow label="Billing" value={activeSubscription.billingInterval === "monthly" ? "Monthly" : "Annual"} />
+              <UsageRow label="Billing" value={snapshot.billingInterval === "annual" ? "Annual" : "Monthly"} />
+              <UsageRow label="Plan status" value={formatSubscriptionStatus(snapshot.status)} />
             </div>
           </div>
-          {activeSubscription.planId === "beginner" ? (
+
+          {snapshot.planId === "beginner" ? (
             <div className="mt-6 flex justify-end">
               <button className="button-primary" onClick={() => startCheckout("expert")} disabled={loadingPlan !== null}>
                 {loadingPlan === "expert" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -242,39 +172,39 @@ export function Pricing() {
       ) : null}
 
       {availablePlans.length ? (
-      <div className="mx-auto mt-10 grid max-w-5xl gap-6 lg:grid-cols-2">
-        {availablePlans.map((plan) => (
-          <article key={plan.id} className={`compact-card relative p-6 ${plan.id === "expert" ? "border-ink shadow-soft" : ""}`}>
-            {plan.id === "expert" ? (
-              <div className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-md bg-ink px-3 py-1 text-xs font-semibold text-white">
-                <Crown className="h-3.5 w-3.5" />
-                Most popular
+        <div className="mx-auto mt-10 grid max-w-5xl gap-6 lg:grid-cols-2">
+          {availablePlans.map((plan) => (
+            <article key={plan.id} className={`compact-card relative p-6 ${plan.id === "expert" ? "border-ink shadow-soft" : ""}`}>
+              {plan.id === "expert" ? (
+                <div className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-md bg-ink px-3 py-1 text-xs font-semibold text-white">
+                  <Crown className="h-3.5 w-3.5" />
+                  Most popular
+                </div>
+              ) : null}
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Flexible subscription</div>
+              <h2 className="mt-3 text-2xl font-semibold">{plan.name}</h2>
+              <div className="mt-5 flex items-end gap-2">
+                <span className="text-5xl font-semibold">${plan.displayPrice.toFixed(2)}</span>
+                <span className="pb-2 text-neutral-500">/mo</span>
               </div>
-            ) : null}
-            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Flexible subscription</div>
-            <h2 className="mt-3 text-2xl font-semibold">{plan.name}</h2>
-            <div className="mt-5 flex items-end gap-2">
-              <span className="text-5xl font-semibold">${plan.displayPrice.toFixed(2)}</span>
-              <span className="pb-2 text-neutral-500">/mo</span>
-            </div>
-            <p className="mt-2 text-sm text-neutral-600">{plan.subline}</p>
-            {plan.savings ? <p className="mt-2 text-sm font-semibold text-ink"><span className="lime-highlight">Save {plan.savings}%</span> per year</p> : null}
-            <div className="mt-6 grid gap-3 text-sm">
-              <Feature>{plan.trialAdaptations} starter adaptations included</Feature>
-              <Feature>{plan.adaptations}</Feature>
-              <Feature>{plan.saved}</Feature>
-              {plan.perks.map((perk) => (
-                <Feature key={perk}>{perk}</Feature>
-              ))}
-            </div>
-            <button className="button-primary mt-7 w-full" onClick={() => startCheckout(plan.id)} disabled={loadingPlan !== null}>
-              {loadingPlan === plan.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {activeSubscription?.planId === "beginner" && plan.id === "expert" ? "Upgrade to Expert" : "Choose Plan"}
-            </button>
-            <p className="mt-3 text-center text-xs text-neutral-500">Cancel anytime from the customer portal.</p>
-          </article>
-        ))}
-      </div>
+              <p className="mt-2 text-sm text-neutral-600">{plan.subline}</p>
+              {plan.savings ? <p className="mt-2 text-sm font-semibold text-ink"><span className="lime-highlight">Save {plan.savings}%</span> per year</p> : null}
+              <div className="mt-6 grid gap-3 text-sm">
+                <Feature>{plan.trialAdaptations} starter adaptations included</Feature>
+                <Feature>{plan.adaptations}</Feature>
+                <Feature>{plan.saved}</Feature>
+                {plan.perks.map((perk) => (
+                  <Feature key={perk}>{perk}</Feature>
+                ))}
+              </div>
+              <button className="button-primary mt-7 w-full" onClick={() => startCheckout(plan.id)} disabled={loadingPlan !== null}>
+                {loadingPlan === plan.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {snapshot?.planId === "beginner" && plan.id === "expert" ? "Upgrade to Expert" : "Choose Plan"}
+              </button>
+              <p className="mt-3 text-center text-xs text-neutral-500">Cancel anytime from the customer portal.</p>
+            </article>
+          ))}
+        </div>
       ) : null}
 
       {message ? <div className="mx-auto mt-6 max-w-2xl rounded-md bg-ink px-4 py-3 text-center text-sm font-semibold text-white">{message}</div> : null}
@@ -302,34 +232,17 @@ function UsageRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <span className="text-neutral-500">{label}</span>
-      <span className="font-semibold text-ink">{value}</span>
+      <span className="text-right font-semibold text-ink">{value}</span>
     </div>
   );
 }
 
-function formatUsage(used: number, limit: number | null) {
-  if (limit === null) {
-    return `${used} used · Unlimited remaining`;
+function formatUsage(used: number, remaining: number | null) {
+  if (remaining === null) {
+    return `${used} used - Unlimited remaining`;
   }
 
-  return `${used} used · ${Math.max(limit - used, 0)} remaining`;
-}
-
-function formatDate(value: string | null) {
-  if (!value) {
-    return "soon";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "soon";
-  }
-
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric"
-  });
+  return `${used} used - ${remaining} remaining`;
 }
 
 function Feature({ children }: { children: React.ReactNode }) {

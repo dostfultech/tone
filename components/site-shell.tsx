@@ -77,7 +77,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-30 border-b border-neutral-200 bg-white/90 backdrop-blur">
         <div className="section flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center gap-3 font-semibold">
-            <Image src="/fretpilot-logo.svg" alt={brand.appName} width={34} height={34} priority />
+            <Image src="/tonefex-logo.svg" alt={brand.appName} width={34} height={34} priority />
             <span>{brand.appName}</span>
           </Link>
 
@@ -139,7 +139,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         <div className="section grid gap-8 py-10 md:grid-cols-[1.4fr_1fr_1fr]">
           <div>
             <div className="mb-3 flex items-center gap-3 font-semibold">
-              <Image src="/fretpilot-logo.svg" alt={brand.appName} width={34} height={34} />
+              <Image src="/tonefex-logo.svg" alt={brand.appName} width={34} height={34} />
               {brand.appName}
             </div>
             <p className="max-w-md text-sm leading-6 text-neutral-600">

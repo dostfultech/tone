@@ -18,6 +18,7 @@ export default async function LibraryTonePage({ params }: LibraryTonePageProps) 
     .from("saved_tones")
     .select("id, song, artist, part, mode, notes, result")
     .eq("id", toneId)
+    .eq("user_id", user.id)
     .maybeSingle();
 
   if (!data) {

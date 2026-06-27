@@ -118,33 +118,43 @@ export async function listCommunityToneProfiles(query: string) {
 
       const { data, error } = await dbQuery;
       if (!error && data?.length) {
-        return data
-          .slice()
-          .sort((left, right) => {
-            const leftSynthetic = isSyntheticLibraryProfile(left.song_title, left.artist_name);
-            const rightSynthetic = isSyntheticLibraryProfile(right.song_title, right.artist_name);
-            if (leftSynthetic !== rightSynthetic) {
-              return leftSynthetic ? 1 : -1;
-            }
+        const realProfiles = data.filter((profile) => !isSyntheticLibraryProfile(profile.song_title, profile.artist_name));
+        const mappedProfiles = realProfiles.map((profile) => ({
+          id: profile.id,
+          song: profile.song_title,
+          artist: profile.artist_name,
+          part: profile.part_label,
+          mode: profile.mode,
+          score: profile.confidence,
+          guitar: profile.original_guitar || "Original guitar unknown",
+          amp: profile.original_amp || "Original amp unknown",
+          toneType: profile.tone_type,
+          verificationStatus: profile.verification_status
+        }));
 
-            return right.confidence - left.confidence;
+        if (mappedProfiles.length >= 12) {
+          return mappedProfiles;
+        }
+
+        const fallbackProfiles = starterProfiles
+          .filter((profile) => {
+            const haystack = normalize(`${profile.songTitle} ${profile.artistName} ${profile.partLabel} ${profile.toneType}`);
+            return !normalized || haystack.includes(normalized);
           })
-          .map((profile) => {
-            const display = displayProfileIdentity(profile.id, profile.song_title, profile.artist_name);
+          .map((profile) => ({
+            id: profile.id,
+            song: profile.songTitle,
+            artist: profile.artistName,
+            part: profile.partLabel,
+            mode: profile.mode,
+            score: profile.confidence,
+            guitar: profile.originalGuitar || "Original guitar unknown",
+            amp: profile.originalAmp || "Original amp unknown",
+            toneType: profile.toneType,
+            verificationStatus: profile.verificationStatus
+          }));
 
-            return {
-              id: profile.id,
-              song: display.songTitle,
-              artist: display.artistName,
-              part: profile.part_label,
-              mode: profile.mode,
-              score: profile.confidence,
-              guitar: profile.original_guitar || "Original guitar unknown",
-              amp: profile.original_amp || "Original amp unknown",
-              toneType: profile.tone_type,
-              verificationStatus: profile.verification_status
-            };
-          });
+        return mergeCommunityProfiles(mappedProfiles, fallbackProfiles).slice(0, 60);
       }
     } catch {
       // Fall through to starter catalog for local development or unapplied migrations.
@@ -174,42 +184,6 @@ export async function listCommunityToneProfiles(query: string) {
 function isSyntheticLibraryProfile(songTitle: string, artistName: string) {
   const combined = `${songTitle} ${artistName}`.toLowerCase();
   return combined.includes("tone database song") || combined.includes("tonefex session library");
-}
-
-function displayProfileIdentity(profileId: string, songTitle: string, artistName: string) {
-  if (!isSyntheticLibraryProfile(songTitle, artistName)) {
-    return { songTitle, artistName };
-  }
-
-  const index = syntheticProfileIndex(profileId || `${songTitle}-${artistName}`);
-  const firstWords = [
-    "Midnight", "Silver", "Golden", "Electric", "Quiet", "Restless", "Velvet", "Neon", "Falling", "Broken",
-    "Static", "Young", "Wild", "Secret", "Blue", "Crimson", "Open", "Dark", "Shallow", "Northern"
-  ];
-  const secondWords = [
-    "Horizon", "Cinema", "Signal", "Letters", "Highway", "Ghost", "River", "Fever", "Seasons", "Dreams",
-    "Mercy", "Thunder", "Satellite", "Mirrors", "Motion", "Fire", "Crown", "Ocean", "Echo", "Run",
-    "Silence", "Street", "Lights", "Colour", "Gravity"
-  ];
-  const artistNames = [
-    "North Avenue", "Silver Line", "Midnight Arcade", "Velvet Echo", "Neon Harbour", "Atlas Fire", "Paper Satellites",
-    "Golden Static", "Afterglow Parade", "Hollow Avenue", "Blue Cinema", "Signal Hearts", "Wild Meridian",
-    "Electric Letters", "The Last Seasons", "Lowlight District", "Cassette Bloom", "Crimson Youth", "Polar Fires", "Sunday Lights"
-  ];
-
-  return {
-    songTitle: `${firstWords[index % firstWords.length]} ${secondWords[Math.floor(index / firstWords.length) % secondWords.length]}`,
-    artistName: artistNames[index % artistNames.length]
-  };
-}
-
-function syntheticProfileIndex(seed: string) {
-  let hash = 0;
-  for (let index = 0; index < seed.length; index += 1) {
-    hash = (hash * 31 + seed.charCodeAt(index)) % 500;
-  }
-
-  return Math.abs(hash);
 }
 
 export async function getCommunityToneProfileById(profileId: string) {
@@ -349,12 +323,10 @@ function scoreProfile(profile: ToneProfile, request: ToneRequest) {
 }
 
 function mapDbToneProfile(profile: DbToneProfile): ToneProfile {
-  const display = displayProfileIdentity(profile.id, profile.song_title, profile.artist_name);
-
   return {
     id: profile.id,
-    songTitle: display.songTitle,
-    artistName: display.artistName,
+    songTitle: profile.song_title,
+    artistName: profile.artist_name,
     mode: profile.mode,
     partType: profile.part_type,
     partLabel: profile.part_label,
@@ -386,6 +358,48 @@ function mapDbToneProfile(profile: DbToneProfile): ToneProfile {
       credibility: source.credibility
     }))
   };
+}
+
+function mergeCommunityProfiles(
+  primary: Array<{
+    id: string;
+    song: string;
+    artist: string;
+    part: string;
+    mode: string;
+    score: number;
+    guitar: string;
+    amp: string;
+    toneType?: string;
+    verificationStatus?: string;
+  }>,
+  fallback: Array<{
+    id: string;
+    song: string;
+    artist: string;
+    part: string;
+    mode: string;
+    score: number;
+    guitar: string;
+    amp: string;
+    toneType?: string;
+    verificationStatus?: string;
+  }>
+) {
+  const seen = new Set<string>();
+  const merged: typeof primary = [];
+
+  for (const item of [...primary, ...fallback]) {
+    const key = `${normalize(item.song)}|${normalize(item.artist)}|${item.mode}|${normalize(item.part)}`;
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    merged.push(item);
+  }
+
+  return merged;
 }
 
 function starter(

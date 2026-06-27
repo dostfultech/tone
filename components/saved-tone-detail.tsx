@@ -46,7 +46,7 @@ export function SavedToneDetail({ song, artist, part, mode, notes, result }: Sav
           <div className="flex flex-col gap-3 border-b border-neutral-200 pb-6">
             <div className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">Saved Tone</div>
             <h1 className="text-4xl font-semibold text-ink">{song}</h1>
-            <p className="text-base text-neutral-600">{artist} · {part} · {mode}</p>
+            <p className="text-base text-neutral-600">{artist} - {part} - {mode}</p>
             {notes ? <p className="max-w-3xl text-sm leading-6 text-neutral-600">{notes}</p> : null}
           </div>
 

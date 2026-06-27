@@ -104,13 +104,13 @@ export function CommunityView() {
               </div>
               <div className="mt-5 rounded-xl border border-blue-50 bg-gradient-to-br from-white to-slate-50 px-4 py-3.5">
                 <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Original Rig Snapshot</div>
-                <div className="mt-2.5 line-clamp-1 text-sm font-semibold text-neutral-500">
+                <div className="mt-2.5 line-clamp-1 text-sm font-semibold text-neutral-600">
                   {item.guitar} <span className="mx-2 text-neutral-300">+</span> {item.amp}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="rounded-md bg-moss px-2.5 py-1 text-xs font-bold uppercase text-ink">Rock</span>
-                  <span className="rounded-md bg-neutral-50 px-2.5 py-1 text-xs font-bold uppercase text-neutral-400">1980s</span>
-                  <span className="rounded-md bg-white px-2.5 py-1 text-xs font-bold uppercase text-ocean">Source preview</span>
+                  <span className="rounded-md bg-moss px-2.5 py-1 text-xs font-bold uppercase text-ink">{normalizePart(item.part)}</span>
+                  <span className="rounded-md bg-neutral-50 px-2.5 py-1 text-xs font-bold uppercase text-neutral-500">{(item.toneType || "auto").replace("_", " ")}</span>
+                  <span className="rounded-md bg-white px-2.5 py-1 text-xs font-bold uppercase text-ocean">{item.mode}</span>
                 </div>
               </div>
               <div className="mt-5 grid grid-cols-[82px_1fr] gap-3 border-t border-neutral-100 pt-4">

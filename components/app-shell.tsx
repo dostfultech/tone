@@ -7,7 +7,6 @@ import { useEffect, useState } from "react";
 import {
   BarChart3,
   Database,
-  Guitar,
   Library,
   LogIn,
   LogOut,
@@ -17,11 +16,15 @@ import {
   Settings,
   SlidersHorizontal,
   Sparkles,
-  UserCircle,
   Wrench,
   X
 } from "lucide-react";
 import { brand } from "@/lib/brand";
+import {
+  formatSubscriptionDate,
+  loadClientSubscriptionSnapshot,
+  type ClientSubscriptionSnapshot
+} from "@/lib/subscription-client";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
 
@@ -48,49 +51,28 @@ const feedbackNav = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [planSummary, setPlanSummary] = useState<{
-    planId: "beginner" | "expert" | null;
-    status: string | null;
-    renewalDate: string | null;
-  }>({
-    planId: null,
-    status: null,
-    renewalDate: null
-  });
+  const [snapshot, setSnapshot] = useState<ClientSubscriptionSnapshot | null>(null);
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
-    if (!supabase) return;
+    if (!supabase) {
+      return;
+    }
+    const client = supabase;
 
-    supabase.auth.getUser().then(({ data }) => {
-      const user = data.user;
-      setEmail(user?.email || "");
-      setName(user?.user_metadata?.full_name || user?.email?.split("@")[0] || "");
+    async function refreshShell() {
+      setSnapshot(await loadClientSubscriptionSnapshot(client));
+    }
 
-      if (!user) {
-        setPlanSummary({ planId: null, status: null, renewalDate: null });
-        return;
-      }
+    void refreshShell();
 
-      supabase
-        .from("subscriptions")
-        .select("plan_id, status, current_period_end")
-        .eq("user_id", user.id)
-        .in("status", ["active", "trialing"])
-        .in("plan_id", ["beginner", "expert"])
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
-        .then(({ data: subscription }) => {
-          setPlanSummary({
-            planId: subscription?.plan_id === "beginner" || subscription?.plan_id === "expert" ? subscription.plan_id : null,
-            status: subscription?.status || null,
-            renewalDate: subscription?.current_period_end || null
-          });
-        });
+    const {
+      data: { subscription }
+    } = client.auth.onAuthStateChange(() => {
+      refreshShell().catch(() => undefined);
     });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   async function logout() {
@@ -98,6 +80,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     await supabase?.auth.signOut();
     window.location.href = "/login";
   }
+
+  const email = snapshot?.user?.email || "";
+  const name = snapshot?.user?.user_metadata?.full_name || snapshot?.user?.email?.split("@")[0] || "";
 
   return (
     <div className="app-gradient min-h-screen text-ink">
@@ -126,7 +111,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         <div className="flex h-24 items-center justify-between border-b border-white/70 px-8">
           <Link href="/app" className="flex items-center gap-4" onClick={() => setOpen(false)}>
-            <Image src="/fretpilot-logo.svg" alt={brand.appName} width={48} height={48} className="rounded-lg" />
+            <Image src="/tonefex-logo.svg" alt={brand.appName} width={48} height={48} className="rounded-lg" />
             <div>
               <div className="text-xl font-bold text-ink">Tone<span className="lime-highlight ml-0.5">fex</span></div>
               <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400">Tone workspace</div>
@@ -166,15 +151,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               Login
             </Link>
           )}
+
           <div className="mt-5 rounded-lg border border-white/80 bg-white/75 p-4 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-bold text-ink">
               <Sparkles className="h-4 w-4" />
-              {planSummary.planId ? `Current plan: ${planSummary.planId === "expert" ? "Expert" : "Beginner"}` : "Subscription access"}
+              {snapshot?.hasAccess ? `Current plan: ${snapshot.planName}` : "Subscription access"}
             </div>
             <p className="mt-2 text-xs leading-5 text-slate-600">
-              {planSummary.planId
-                ? `${planSummary.planId === "expert" ? "Premium features enabled with unlimited adaptations and saved tones." : "Your Beginner plan is active with saved tones, monthly adaptations, and upgrade access."}${planSummary.renewalDate ? ` Renews ${formatRenewalDate(planSummary.renewalDate)}.` : ""}`
-                : "Your active plan unlocks the tone features, saved tones, presets, and gated access available for that tier."}
+              {snapshot?.hasAccess
+                ? `${snapshot.planId === "expert" ? "Premium features are enabled with unlimited adaptations and saved tones." : "Your Beginner plan is active with monthly adaptation and library limits."}${snapshot.renewalDate ? ` Renews ${formatSubscriptionDate(snapshot.renewalDate)}.` : ""}`
+                : "Sign in and choose a plan to unlock tone matching, saved tones, presets, and tone database access."}
             </p>
           </div>
         </div>
@@ -188,19 +174,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function formatRenewalDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "soon";
-  }
-
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric"
-  });
-}
-
 function AppFooter() {
   const year = new Date().getFullYear();
 
@@ -210,7 +183,7 @@ function AppFooter() {
         <div className="grid gap-10 md:grid-cols-[1.15fr_0.75fr_1fr]">
           <div>
             <Link href="/app" className="inline-flex items-center gap-4">
-              <Image src="/fretpilot-logo.svg" alt={brand.appName} width={44} height={44} className="rounded-lg" />
+              <Image src="/tonefex-logo.svg" alt={brand.appName} width={44} height={44} className="rounded-lg" />
               <span className="text-xl font-bold">
                 Tone<span className="lime-highlight ml-0.5">fex</span>
               </span>

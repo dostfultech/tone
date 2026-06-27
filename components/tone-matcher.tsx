@@ -35,6 +35,8 @@ import {
   type ToneType
 } from "@/lib/mock-data";
 import { brand } from "@/lib/brand";
+import { loadClientSubscriptionSnapshot, type ClientSubscriptionSnapshot } from "@/lib/subscription-client";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type ToneResult = {
   id: string;
@@ -102,6 +104,7 @@ export function ToneMatcher() {
   const [songSearchLoading, setSongSearchLoading] = useState(false);
   const [highlightedSongIndex, setHighlightedSongIndex] = useState(0);
   const [songSearchTouched, setSongSearchTouched] = useState(false);
+  const [subscriptionSnapshot, setSubscriptionSnapshot] = useState<ClientSubscriptionSnapshot | null>(null);
 
   const runAdaptation = useCallback(
     async (
@@ -254,6 +257,28 @@ export function ToneMatcher() {
     };
   }, [song, songSearchTouched]);
 
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+    const client = supabase;
+
+    async function refreshSubscription() {
+      setSubscriptionSnapshot(await loadClientSubscriptionSnapshot(client));
+    }
+
+    void refreshSubscription();
+
+    const {
+      data: { subscription }
+    } = client.auth.onAuthStateChange(() => {
+      refreshSubscription().catch(() => undefined);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   const currentGuitars = mode === "bass" ? bassGuitars : guitars;
   const currentAmps = mode === "bass" ? bassAmps : amps;
 
@@ -355,7 +380,6 @@ export function ToneMatcher() {
   const backingTrackUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`${song} ${artist} backing track`)}`;
   const selectedSongLabel = song.trim() || "selected song";
   const selectedArtistLabel = artist.trim();
-  const researchLabel = selectedArtistLabel ? `Research "${selectedSongLabel}" by ${selectedArtistLabel}` : `Research "${selectedSongLabel}"`;
   const songLinkLabel = song.trim() ? `"${song.trim()}"` : "this song";
 
   return (
@@ -721,23 +745,28 @@ export function ToneMatcher() {
                 </div>
               </div>
 
-              <div className="theme-blue-panel rounded-lg border border-white/80 p-8 text-center shadow-xl">
-                <p className="text-lg text-slate-700">New here?</p>
-                <h3 className="mt-2 text-3xl font-bold">Unlock full Tonefex access</h3>
-                <p className="mt-2 text-lg font-semibold text-emerald-700">Choose a plan to unlock full adaptations, tone saving, and presets.</p>
-                <div className="mt-6 flex flex-col items-center justify-center gap-4 sm:flex-row">
-                  <a className="button-primary min-h-14 rounded-lg px-8 text-lg" href="/plans">
-                    View Plans
-                  </a>
-                  <span className="text-sm font-medium text-slate-600">Manage billing anytime from the customer portal.</span>
+              {!subscriptionSnapshot?.hasAccess ? (
+                <div className="theme-blue-panel rounded-lg border border-white/80 p-8 text-center shadow-xl">
+                  <p className="text-lg text-slate-700">Need access?</p>
+                  <h3 className="mt-2 text-3xl font-bold">Unlock full Tonefex access</h3>
+                  <p className="mt-2 text-lg font-semibold text-emerald-700">Choose a plan to unlock full adaptations, tone saving, and presets.</p>
+                  <div className="mt-6 flex flex-col items-center justify-center gap-4 sm:flex-row">
+                    <a className="button-primary min-h-14 rounded-lg px-8 text-lg" href="/plans">
+                      View Plans
+                    </a>
+                    <span className="text-sm font-medium text-slate-600">Manage billing anytime from the customer portal.</span>
+                  </div>
                 </div>
-              </div>
+              ) : null}
 
               <div className="grid justify-items-center gap-5 text-center">
-                <button type="submit" className="button-primary min-h-16 w-full max-w-xl rounded-lg text-lg" disabled={loading}>
+                <button type="submit" className="button-primary min-h-16 w-full max-w-xl rounded-lg px-8 text-lg shadow-xl" disabled={loading}>
                   {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
-                  {researchLabel}
+                  Generate My Tone
                 </button>
+                <p className="max-w-2xl text-sm font-medium text-slate-600">
+                  Generate a gear-matched version of {selectedArtistLabel ? `"${selectedSongLabel}" by ${selectedArtistLabel}` : `"${selectedSongLabel}"`} for your setup.
+                </p>
                 <div className="grid w-full max-w-4xl gap-4 sm:grid-cols-2">
                   <a className="button-secondary min-h-14 rounded-lg text-base" href={songsterrUrl} target="_blank" rel="noreferrer">
                     <ExternalLink className="h-5 w-5" />
@@ -763,10 +792,11 @@ export function ToneMatcher() {
         {loading ? (
           <motion.div className="fixed inset-0 z-[80] grid place-items-center bg-ink/35 p-4 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <motion.div className="theme-panel w-full max-w-md p-7" initial={{ y: 20, scale: 0.98 }} animate={{ y: 0, scale: 1 }} exit={{ y: 20, scale: 0.98 }}>
-              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-lg bg-ink text-moss">
-                <Gauge className="h-8 w-8 animate-pulse" />
+              <div className="mx-auto mb-5 grid h-20 w-20 place-items-center rounded-full border border-white/80 bg-white shadow-sm">
+                <Loader2 className="h-9 w-9 animate-spin text-ink" />
               </div>
-              <div className="text-center text-lg font-bold">{progressSteps[progress]}</div>
+              <div className="text-center text-2xl font-bold">Generating your adapted tone...</div>
+              <div className="mt-2 text-center text-sm font-medium text-slate-600">{progressSteps[progress]}</div>
               <div className="mt-5 h-2 overflow-hidden rounded-full bg-blue-100">
                 <motion.div className="h-full rounded-full bg-moss" initial={{ width: "8%" }} animate={{ width: `${((progress + 1) / progressSteps.length) * 100}%` }} />
               </div>
@@ -774,15 +804,6 @@ export function ToneMatcher() {
           </motion.div>
         ) : null}
       </AnimatePresence>
-    </div>
-  );
-}
-
-function Stat({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="px-4 py-3">
-      <div className="text-lg font-semibold">{value}</div>
-      <div className="text-xs text-neutral-500">{label}</div>
     </div>
   );
 }
@@ -955,38 +976,23 @@ function partLabelFromType(value: TonePartType) {
 
 function EmptySplitResult({ song, artist, guitar, amp }: { song: string; artist: string; guitar: string; amp: string }) {
   return (
-    <div className="grid min-h-[520px] gap-8 lg:grid-cols-2">
-      <div className="theme-blue-panel grid place-items-center rounded-lg border border-white/80 p-8 text-center">
-        <div>
-          <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-lg bg-ink text-moss shadow-lg">
-            <Music2 className="h-8 w-8" />
-          </div>
-          <h3 className="text-3xl font-bold">Original Tone</h3>
-          <p className="mt-2 text-xl text-slate-600">
-            {song || "Choose a song"} {artist ? `by ${artist}` : ""}
-          </p>
-          <div className="mt-20 text-blue-200">
-            <Music2 className="mx-auto h-20 w-20" />
-          </div>
-          <h4 className="mt-8 text-2xl font-bold text-slate-700">Ready to Research</h4>
-          <p className="mx-auto mt-4 max-w-md text-lg leading-8 text-slate-500">Enter a song and run research to see source tone details.</p>
+    <div className="theme-blue-panel grid min-h-[520px] place-items-center rounded-lg border border-white/80 p-8 text-center">
+      <div>
+        <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-lg bg-ink text-moss shadow-lg">
+          <Gauge className="h-8 w-8" />
         </div>
-      </div>
-      <div className="theme-blue-panel grid place-items-center rounded-lg border border-white/80 p-8 text-center">
-        <div>
-          <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-lg bg-ink text-moss shadow-lg">
-            <Gauge className="h-8 w-8" />
-          </div>
-          <h3 className="text-3xl font-bold">Your Adapted Tone</h3>
-          <p className="mt-2 text-xl text-slate-600">
-            {guitar} + {amp}
-          </p>
-          <div className="mt-20 text-blue-200">
-            <Guitar className="mx-auto h-20 w-20" />
-          </div>
-          <h4 className="mt-8 text-2xl font-bold text-slate-700">Ready to Adapt</h4>
-          <p className="mx-auto mt-4 max-w-md text-lg leading-8 text-slate-500">Select gear and run research to generate personalized tone settings.</p>
+        <h3 className="text-3xl font-bold">Your Adapted Tone</h3>
+        <p className="mt-2 text-xl text-slate-600">
+          {song || "Choose a song"} {artist ? `by ${artist}` : ""}
+        </p>
+        <p className="mt-1 text-base text-slate-500">
+          {guitar} + {amp}
+        </p>
+        <div className="mt-20 text-blue-200">
+          <Guitar className="mx-auto h-20 w-20" />
         </div>
+        <h4 className="mt-8 text-2xl font-bold text-slate-700">Ready to Generate</h4>
+        <p className="mx-auto mt-4 max-w-md text-lg leading-8 text-slate-500">Select your gear, choose the song details, and generate the adapted tone when you are ready.</p>
       </div>
     </div>
   );
@@ -994,7 +1000,6 @@ function EmptySplitResult({ song, artist, guitar, amp }: { song: string; artist:
 
 function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => void }) {
   const targetSettings = Object.entries(result.targetSettings);
-  const originalSettings = Object.entries(result.originalSettings || {});
   const profile = result.sourceProfile;
 
   return (
@@ -1011,10 +1016,11 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => voi
               {result.request.artist} - {result.request.part}
             </p>
             <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
-               <span className="rounded-md bg-blue-50 px-2 py-1 capitalize text-slate-700">{profile?.partType || result.request.partType || "main"}</span>
-               <span className="rounded-md bg-blue-50 px-2 py-1 capitalize text-slate-700">{(profile?.toneType || result.request.toneType || "auto").replace("_", " ")}</span>
-               {profile ? <span className="rounded-md bg-white px-2 py-1 text-ocean">{profile.verificationStatus.replace("_", " ")}</span> : null}
+              <span className="rounded-md bg-blue-50 px-2 py-1 capitalize text-slate-700">{profile?.partType || result.request.partType || "main"}</span>
+              <span className="rounded-md bg-blue-50 px-2 py-1 capitalize text-slate-700">{(profile?.toneType || result.request.toneType || "auto").replace("_", " ")}</span>
+              {profile ? <span className="rounded-md bg-white px-2 py-1 text-ocean">{profile.verificationStatus.replace("_", " ")}</span> : null}
             </div>
+            {profile ? <p className="mt-3 text-xs font-semibold text-slate-500">Matched source confidence: {profile.confidence}%</p> : null}
           </div>
           <button
             type="button"
@@ -1032,17 +1038,7 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => voi
       </div>
 
       <div className="grid gap-5 p-5">
-        <section className="theme-blue-panel rounded-lg border border-white/80 p-4">
-          <h3 className="flex items-center gap-2 font-semibold">
-            <Search className="h-4 w-4 text-ocean" />
-            Original tone research
-          </h3>
-          <p className="mt-2 text-sm leading-6 text-slate-700">{result.originalRig}</p>
-          {profile ? <p className="mt-2 text-xs font-semibold text-slate-500">Profile confidence: {profile.confidence}%</p> : null}
-        </section>
-
-        <section className="grid gap-4 xl:grid-cols-2">
-          <SettingsBlock title="Original tone" icon={<Search className="h-4 w-4 text-ocean" />} settings={originalSettings} empty="No stored original settings yet" />
+        <section>
           <SettingsBlock title="Your adapted tone" icon={<Gauge className="h-4 w-4 text-ocean" />} settings={targetSettings} empty="No target settings returned" />
         </section>
 
@@ -1083,6 +1079,33 @@ function knobStyle(value: number): CSSProperties {
 }
 
 function SettingsBlock({ title, icon, settings, empty }: { title: string; icon: React.ReactNode; settings: Array<[string, number]>; empty: string }) {
+  const [animatedValues, setAnimatedValues] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    let frame = 0;
+    const startedAt = performance.now();
+    const durationMs = 900;
+
+    const animate = (now: number) => {
+      const progress = Math.min((now - startedAt) / durationMs, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const nextValues = Object.fromEntries(
+        settings.map(([name, value]) => [name, Number((value * eased).toFixed(1))])
+      );
+
+      setAnimatedValues(nextValues);
+
+      if (progress < 1) {
+        frame = requestAnimationFrame(animate);
+      }
+    };
+
+    setAnimatedValues({});
+    frame = requestAnimationFrame(animate);
+
+    return () => cancelAnimationFrame(frame);
+  }, [settings]);
+
   return (
     <div>
       <h3 className="mb-3 flex items-center gap-2 font-semibold">
@@ -1093,11 +1116,11 @@ function SettingsBlock({ title, icon, settings, empty }: { title: string; icon: 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {settings.map(([name, value]) => (
             <div key={name} className="rounded-lg border border-white/80 bg-white/90 p-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
-              <div className="knob-shell mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full" style={knobStyle(value)} aria-label={`${name} ${value}`}>
+              <div className="knob-shell mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full" style={knobStyle(animatedValues[name] ?? 0)} aria-label={`${name} ${value}`}>
                 <div className="knob h-12 w-12 rounded-full" />
               </div>
               <div className="text-xs capitalize text-slate-500">{name.replace("_", " ")}</div>
-              <div className="text-lg font-semibold">{value}</div>
+              <div className="text-lg font-semibold">{animatedValues[name] ?? 0}</div>
             </div>
           ))}
         </div>

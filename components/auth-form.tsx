@@ -222,7 +222,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
       <div className="mx-auto w-full max-w-md">
         <div className="compact-card p-6 shadow-soft">
           <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-ink/5 p-2">
-            <Image src="/fretpilot-logo.svg" alt={brand.appName} width={40} height={40} priority />
+            <Image src="/tonefex-logo.svg" alt={brand.appName} width={40} height={40} priority />
           </div>
           <h1 className="text-2xl font-semibold">{title}</h1>
           <p className="mt-2 text-sm leading-6 text-neutral-600">{description}</p>
