@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { brand } from "@/lib/brand";
 
 const AUTO_ADAPT_KEY = `${brand.storagePrefix}_auto_adapt_from_community`;
@@ -15,6 +16,8 @@ type CommunityToneCtaProps = {
 };
 
 export function CommunityToneCta({ song, artist, part, partType, toneType, guitar, amp }: CommunityToneCtaProps) {
+  const router = useRouter();
+
   function adaptTone() {
     localStorage.setItem("toneMatch_song", song);
     localStorage.setItem("toneMatch_artist", artist);
@@ -24,7 +27,7 @@ export function CommunityToneCta({ song, artist, part, partType, toneType, guita
     localStorage.setItem("toneMatch_guitar", guitar);
     localStorage.setItem("toneMatch_amp", amp);
     sessionStorage.setItem(AUTO_ADAPT_KEY, "1");
-    window.location.href = "/app";
+    router.push("/app");
   }
 
   return (

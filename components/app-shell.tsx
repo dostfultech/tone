@@ -178,7 +178,7 @@ function AppFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="mx-auto max-w-[1840px] px-4 pb-12 sm:px-6 lg:px-8">
+    <footer className="mx-auto max-w-[1440px] px-4 pb-12 sm:px-6 lg:px-8">
       <div className="theme-panel border-t border-white/80 bg-white/75 p-8 md:p-10">
         <div className="grid gap-10 md:grid-cols-[1.15fr_0.75fr_1fr]">
           <div>

@@ -2,19 +2,23 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Database, Guitar, Search, Sparkles, ThumbsUp, Volume2 } from "lucide-react";
+import { Database, Guitar, Loader2, Search, Sparkles, ThumbsUp, Volume2 } from "lucide-react";
 import type { TonePartType } from "@/lib/mock-data";
 
 type CommunityTone = {
   id: string;
   song: string;
   artist: string;
+  genre: string;
+  difficulty: string;
   part: string;
   mode: string;
   score: number;
   guitar: string;
   amp: string;
+  pickupType: string;
   toneType?: string;
+  toneCategory?: string;
   verificationStatus?: string;
 };
 
@@ -30,36 +34,74 @@ export function CommunityView() {
   const [part, setPart] = useState<(typeof partFilters)[number]>("all");
   const [tone, setTone] = useState<(typeof toneFilters)[number]>("all");
   const [sort, setSort] = useState<(typeof sortFilters)[number]>("top");
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(18);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/community-tones/lookup?q=${encodeURIComponent(query)}`)
-      .then((response) => response.json())
-      .then((data) => setTones(data.results || []))
-      .catch(() => setTones([]));
-  }, [query]);
+    setPage(1);
+  }, [query, instrument, part, tone, sort]);
 
-  const filtered = useMemo(() => {
-    const next = tones.filter((item) => {
-      const itemPart = normalizePart(item.part);
-      const itemTone = (item.toneType || "").toLowerCase();
-      if (instrument !== "all" && item.mode !== instrument) return false;
-      if (part !== "all" && itemPart !== part) return false;
-      if (tone !== "all" && !itemTone.includes(tone)) return false;
-      return true;
-    });
+  useEffect(() => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({
+          q: query,
+          instrument,
+          part,
+          tone,
+          sort,
+          page: String(page),
+          pageSize: String(pageSize)
+        });
+        const response = await fetch(`/api/community-tones/lookup?${params.toString()}`, {
+          signal: controller.signal
+        });
+        const data = await response.json();
+        const results = (data.results || []) as CommunityTone[];
+        setTotal(data.total || 0);
+        setHasMore(Boolean(data.hasMore));
+        setTones((current) => {
+          if (page === 1) {
+            return results;
+          }
 
-    return [...next].sort((a, b) => {
-      if (sort === "recent") return a.song.localeCompare(b.song);
-      if (sort === "popular") return b.score - a.score + b.artist.localeCompare(a.artist);
-      return b.score - a.score;
-    });
-  }, [instrument, part, sort, tone, tones]);
+          const seen = new Set(current.map((item) => item.id));
+          return [...current, ...results.filter((item) => !seen.has(item.id))];
+        });
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          if (page === 1) {
+            setTones([]);
+            setTotal(0);
+          }
+          setHasMore(false);
+        }
+      } finally {
+        setLoading(false);
+      }
+    }, 180);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [instrument, page, pageSize, part, query, sort, tone]);
+
+  const resultsLabel = useMemo(() => {
+    if (!total) return "No tones yet";
+    return `${total.toLocaleString()} tones`;
+  }, [total]);
 
   return (
-    <div className="px-4 pb-16 pt-28 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1840px]">
-        <section className="theme-panel theme-blue-panel px-6 py-14 text-center lg:px-8 lg:py-16">
-          <h1 className="text-4xl font-bold tracking-normal sm:text-5xl lg:text-6xl">
+    <div className="px-4 pb-14 pt-24 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1440px]">
+        <section className="theme-panel theme-blue-panel px-6 py-12 text-center lg:px-8 lg:py-14">
+          <h1 className="text-4xl font-bold tracking-normal sm:text-5xl">
             Tone <span className="lime-highlight">Database</span>
           </h1>
           <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-neutral-600 sm:text-lg">Browse community tone research, compare gear assumptions, and preview source rigs before adapting them to your setup.</p>
@@ -80,16 +122,26 @@ export function CommunityView() {
             <FilterGroup value={part} setValue={setPart} options={partFilters} labels={{ all: "All Parts", riff: "Riff", solo: "Solo" }} />
             <FilterGroup value={tone} setValue={setTone} options={toneFilters} labels={{ all: "All Tones", clean: "Clean", distorted: "Distorted" }} />
           </div>
-          <FilterGroup value={sort} setValue={setSort} options={sortFilters} labels={{ top: "Top", popular: "Popular", recent: "Recent" }} />
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-semibold text-slate-500">{resultsLabel}</span>
+            <FilterGroup value={sort} setValue={setSort} options={sortFilters} labels={{ top: "Top", popular: "Popular", recent: "Recent" }} />
+          </div>
         </div>
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-2 2xl:grid-cols-3">
-          {filtered.map((item) => (
+        {loading && page === 1 ? (
+          <div className="compact-card mt-8 flex min-h-[280px] items-center justify-center gap-3 p-8 text-neutral-600">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Loading tone database
+          </div>
+        ) : tones.length ? (
+          <>
+            <div className="mt-8 grid gap-6 lg:grid-cols-2 2xl:grid-cols-3">
+              {tones.map((item) => (
             <article key={item.id} className="compact-card overflow-hidden border border-white/90 bg-white/85 p-5 shadow-lg transition hover:-translate-y-1 hover:shadow-xl">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <h2 className="line-clamp-1 text-2xl font-bold leading-tight">{item.song}</h2>
-                  <p className="mt-1.5 text-base font-semibold text-neutral-400">{item.artist}</p>
+                  <p className="mt-1.5 text-base font-semibold text-neutral-500">{item.artist}</p>
                 </div>
                 <div className="rounded-md bg-blue-50 px-3 py-2 text-right">
                   <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Research</div>
@@ -100,6 +152,7 @@ export function CommunityView() {
                 <Pill icon={item.mode === "bass" ? <Volume2 className="h-4 w-4" /> : <Guitar className="h-4 w-4" />}>{item.mode}</Pill>
                 <Pill>{normalizePart(item.part)}</Pill>
                 <Pill tone>{(item.toneType || "auto").replace("_", " ")}</Pill>
+                {item.toneCategory ? <Pill>{item.toneCategory}</Pill> : null}
                 {item.verificationStatus ? <Pill icon={<Sparkles className="h-4 w-4" />}>{item.verificationStatus.replace("_", " ")}</Pill> : null}
               </div>
               <div className="mt-5 rounded-xl border border-blue-50 bg-gradient-to-br from-white to-slate-50 px-4 py-3.5">
@@ -107,10 +160,10 @@ export function CommunityView() {
                 <div className="mt-2.5 line-clamp-1 text-sm font-semibold text-neutral-600">
                   {item.guitar} <span className="mx-2 text-neutral-300">+</span> {item.amp}
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="rounded-md bg-moss px-2.5 py-1 text-xs font-bold uppercase text-ink">{normalizePart(item.part)}</span>
-                  <span className="rounded-md bg-neutral-50 px-2.5 py-1 text-xs font-bold uppercase text-neutral-500">{(item.toneType || "auto").replace("_", " ")}</span>
-                  <span className="rounded-md bg-white px-2.5 py-1 text-xs font-bold uppercase text-ocean">{item.mode}</span>
+                <div className="mt-3 grid gap-2 text-xs font-semibold text-slate-500 sm:grid-cols-2">
+                  <span>{item.genre}</span>
+                  <span className="sm:text-right">{item.difficulty}</span>
+                  <span className="sm:col-span-2">{item.pickupType}</span>
                 </div>
               </div>
               <div className="mt-5 grid grid-cols-[82px_1fr] gap-3 border-t border-neutral-100 pt-4">
@@ -124,8 +177,27 @@ export function CommunityView() {
                 </Link>
               </div>
             </article>
-          ))}
-        </div>
+              ))}
+            </div>
+
+            {hasMore ? (
+              <div className="mt-8 flex justify-center">
+                <button type="button" className="button-secondary min-h-12 rounded-lg px-6" onClick={() => setPage((current) => current + 1)} disabled={loading}>
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Load More Tones
+                </button>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div className="compact-card mt-8 grid min-h-[280px] place-items-center p-8 text-center">
+            <div>
+              <Database className="mx-auto h-10 w-10 text-slate-400" />
+              <h2 className="mt-4 text-2xl font-bold">No tones matched this search</h2>
+              <p className="mt-2 text-sm text-slate-500">Try a different song, artist, part, or tone filter.</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

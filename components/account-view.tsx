@@ -109,8 +109,8 @@ export function AccountView() {
   const statusLabel = snapshot?.hasAccess ? formatSubscriptionStatus(snapshot.status) : "Inactive";
 
   return (
-    <div className="px-4 pb-16 pt-28 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1840px]">
+    <div className="px-4 pb-14 pt-24 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1440px]">
         <section className="theme-panel theme-blue-panel p-8">
           <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-6">

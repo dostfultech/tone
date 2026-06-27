@@ -23,10 +23,13 @@ export type ToneProfile = {
   id: string;
   songTitle: string;
   artistName: string;
+  genre: string;
   mode: "guitar" | "bass";
   partType: TonePartType;
   partLabel: string;
   toneType: ToneType;
+  toneCategory: string;
+  difficulty: string;
   originalGuitar?: string | null;
   originalAmp?: string | null;
   originalCab?: string | null;
@@ -45,10 +48,13 @@ type DbToneProfile = {
   id: string;
   song_title: string;
   artist_name: string;
+  genre: string;
   mode: "guitar" | "bass";
   part_type: TonePartType;
   part_label: string;
   tone_type: ToneType;
+  tone_category: string;
+  difficulty: string;
   original_guitar: string | null;
   original_amp: string | null;
   original_cab: string | null;
@@ -75,6 +81,41 @@ type DbToneProfile = {
   }>;
 };
 
+export type CommunityToneQuery = {
+  query: string;
+  instrument?: "all" | "guitar" | "bass";
+  part?: "all" | "riff" | "solo";
+  tone?: "all" | "clean" | "distorted";
+  sort?: "top" | "popular" | "recent";
+  page?: number;
+  pageSize?: number;
+};
+
+export type CommunityToneListResult = {
+  results: CommunityToneListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+};
+
+type CommunityToneListItem = {
+  id: string;
+  song: string;
+  artist: string;
+  genre: string;
+  difficulty: string;
+  part: string;
+  mode: string;
+  score: number;
+  guitar: string;
+  amp: string;
+  pickupType: string;
+  toneType?: string;
+  toneCategory?: string;
+  verificationStatus?: string;
+};
+
 const starterProfiles: ToneProfile[] = [
   starter("perfect-ed-sheeran-rhythm", "Perfect", "Ed Sheeran", "guitar", "rhythm", "main acoustic progression", "acoustic", "Steel-string acoustic with piezo or mic blend", "Studio acoustic preamp / DI", "acoustic pickup or mic", { gain: 2, bass: 4, mids: 5, treble: 7, presence: 6, compression: 3, reverb: 3, delay: 0 }, ["Light compressor", "Small room reverb"], 72),
   starter("comfortably-numb-second-solo", "Comfortably Numb", "Pink Floyd", "guitar", "solo", "second solo", "distorted", "Strat-style single-coil guitar", "Hiwatt-style clean platform with sustain pedals", "bridge or bridge/neck single coil", { gain: 6, bass: 4, mids: 6, treble: 6, presence: 6, reverb: 3, delay: 4 }, ["Sustain/fuzz drive", "Tape-style delay", "Plate reverb"], 78),
@@ -99,86 +140,156 @@ export async function findToneProfile(request: ToneRequest): Promise<ToneProfile
   return findStarterToneProfile(request);
 }
 
-export async function listCommunityToneProfiles(query: string) {
-  const normalized = normalize(query);
+export async function listCommunityToneProfiles(options: CommunityToneQuery): Promise<CommunityToneListResult> {
+  const page = Math.max(1, options.page || 1);
+  const pageSize = Math.min(Math.max(options.pageSize || 24, 12), 48);
+  const normalized = normalize(options.query || "");
   const supabase = await createSupabaseServerClient();
+  const instrument = options.instrument || "all";
+  const part = options.part || "all";
+  const tone = options.tone || "all";
+  const sort = options.sort || "top";
 
   if (supabase) {
     try {
       let dbQuery = supabase
         .from("song_tone_profiles")
-        .select("id, song_title, artist_name, mode, part_type, part_label, tone_type, original_guitar, original_amp, confidence, verification_status")
+        .select("id, song_title, artist_name, genre, mode, part_type, part_label, tone_type, tone_category, difficulty, original_guitar, original_amp, original_pickup, confidence, verification_status", { count: "exact" })
         .eq("is_public", true)
-        .order("confidence", { ascending: false })
-        .limit(60);
+        .not("song_title", "ilike", "Tone Database Song %")
+        .not("artist_name", "ilike", "Tonefex Session Library");
 
-      if (normalized) {
-        dbQuery = dbQuery.ilike("search_text", `%${escapeLike(normalized)}%`);
+      if (instrument !== "all") {
+        dbQuery = dbQuery.eq("mode", instrument);
       }
 
-      const { data, error } = await dbQuery;
-      if (!error && data?.length) {
-        const realProfiles = data.filter((profile) => !isSyntheticLibraryProfile(profile.song_title, profile.artist_name));
-        const mappedProfiles = realProfiles.map((profile) => ({
+      if (part !== "all") {
+        dbQuery = dbQuery.eq("part_type", part);
+      }
+
+      if (tone !== "all") {
+        dbQuery = dbQuery.or(`tone_type.ilike.%${escapeLike(tone)}%,tone_category.ilike.%${escapeLike(tone)}%`);
+      }
+
+      if (normalized) {
+        dbQuery = dbQuery.or(`search_text.ilike.%${escapeLike(normalized)}%,song_title.ilike.%${escapeLike(normalized)}%,artist_name.ilike.%${escapeLike(normalized)}%`);
+      }
+
+      if (sort === "recent") {
+        dbQuery = dbQuery.order("updated_at", { ascending: false });
+      } else if (sort === "popular") {
+        dbQuery = dbQuery.order("confidence", { ascending: false }).order("song_title", { ascending: true });
+      } else {
+        dbQuery = dbQuery.order("confidence", { ascending: false }).order("updated_at", { ascending: false });
+      }
+
+      dbQuery = dbQuery.range((page - 1) * pageSize, page * pageSize - 1);
+
+      const { data, error, count } = await dbQuery;
+      if (!error) {
+        const mappedProfiles: CommunityToneListItem[] = (data || [])
+          .filter((profile) => !isSyntheticLibraryProfile(profile.song_title, profile.artist_name))
+          .map((profile) => ({
           id: profile.id,
           song: profile.song_title,
           artist: profile.artist_name,
+          genre: profile.genre || "rock",
+          difficulty: profile.difficulty || "intermediate",
           part: profile.part_label,
           mode: profile.mode,
           score: profile.confidence,
           guitar: profile.original_guitar || "Original guitar unknown",
           amp: profile.original_amp || "Original amp unknown",
+          pickupType: profile.original_pickup || "Pickup unknown",
           toneType: profile.tone_type,
+          toneCategory: profile.tone_category,
           verificationStatus: profile.verification_status
         }));
 
-        if (mappedProfiles.length >= 12) {
-          return mappedProfiles;
+        if ((count || 0) >= pageSize || page > 1 || mappedProfiles.length >= pageSize) {
+          return {
+            results: mappedProfiles,
+            total: count || mappedProfiles.length,
+            page,
+            pageSize,
+            hasMore: page * pageSize < (count || mappedProfiles.length)
+          };
         }
 
-        const fallbackProfiles = starterProfiles
+        const fallbackProfiles: CommunityToneListItem[] = starterProfiles
           .filter((profile) => {
-            const haystack = normalize(`${profile.songTitle} ${profile.artistName} ${profile.partLabel} ${profile.toneType}`);
+            const haystack = normalize(`${profile.songTitle} ${profile.artistName} ${profile.partLabel} ${profile.toneType} ${profile.genre} ${profile.toneCategory} ${profile.difficulty}`);
+            if (instrument !== "all" && profile.mode !== instrument) return false;
+            if (part !== "all" && profile.partType !== part) return false;
+            if (tone !== "all" && !`${profile.toneType} ${profile.toneCategory}`.includes(tone)) return false;
             return !normalized || haystack.includes(normalized);
           })
           .map((profile) => ({
             id: profile.id,
             song: profile.songTitle,
             artist: profile.artistName,
+            genre: profile.genre,
+            difficulty: profile.difficulty,
             part: profile.partLabel,
             mode: profile.mode,
             score: profile.confidence,
             guitar: profile.originalGuitar || "Original guitar unknown",
             amp: profile.originalAmp || "Original amp unknown",
+            pickupType: profile.originalPickup || "Pickup unknown",
             toneType: profile.toneType,
+            toneCategory: profile.toneCategory,
             verificationStatus: profile.verificationStatus
           }));
 
-        return mergeCommunityProfiles(mappedProfiles, fallbackProfiles).slice(0, 60);
+        const merged = mergeCommunityProfiles(mappedProfiles, fallbackProfiles);
+        const paginated = merged.slice((page - 1) * pageSize, page * pageSize);
+        return {
+          results: paginated,
+          total: merged.length,
+          page,
+          pageSize,
+          hasMore: page * pageSize < merged.length
+        };
       }
     } catch {
       // Fall through to starter catalog for local development or unapplied migrations.
     }
   }
 
-  return starterProfiles
+  const starterResults = starterProfiles
     .filter((profile) => {
-      const haystack = normalize(`${profile.songTitle} ${profile.artistName} ${profile.partLabel} ${profile.toneType}`);
-      return !normalized || haystack.includes(normalized);
+      const haystack = normalize(`${profile.songTitle} ${profile.artistName} ${profile.partLabel} ${profile.toneType} ${profile.genre} ${profile.toneCategory} ${profile.difficulty}`);
+      if (normalized && !haystack.includes(normalized)) return false;
+      if (instrument !== "all" && profile.mode !== instrument) return false;
+      if (part !== "all" && profile.partType !== part) return false;
+      if (tone !== "all" && !`${profile.toneType} ${profile.toneCategory}`.includes(tone)) return false;
+      return true;
     })
-    .slice(0, 60)
     .map((profile) => ({
       id: profile.id,
       song: profile.songTitle,
       artist: profile.artistName,
+      genre: profile.genre,
+      difficulty: profile.difficulty,
       part: profile.partLabel,
       mode: profile.mode,
       score: profile.confidence,
       guitar: profile.originalGuitar || "Original guitar unknown",
       amp: profile.originalAmp || "Original amp unknown",
+      pickupType: profile.originalPickup || "Pickup unknown",
       toneType: profile.toneType,
+      toneCategory: profile.toneCategory,
       verificationStatus: profile.verificationStatus
-    }));
+    }))
+    .sort((left, right) => sort === "recent" ? left.song.localeCompare(right.song) : right.score - left.score);
+
+  return {
+    results: starterResults.slice((page - 1) * pageSize, page * pageSize),
+    total: starterResults.length,
+    page,
+    pageSize,
+    hasMore: page * pageSize < starterResults.length
+  };
 }
 
 function isSyntheticLibraryProfile(songTitle: string, artistName: string) {
@@ -198,7 +309,7 @@ export async function getCommunityToneProfileById(profileId: string) {
       const { data, error } = await supabase
         .from("song_tone_profiles")
         .select(
-          "id, song_title, artist_name, mode, part_type, part_label, tone_type, original_guitar, original_amp, original_cab, original_pickup, original_settings, adaptation_notes, playing_notes, source_summary, confidence, verification_status, tone_profile_effects(effect_order, effect_type, effect_name, placement, settings), tone_profile_sources(source_type, title, url, notes, credibility)"
+          "id, song_title, artist_name, genre, mode, part_type, part_label, tone_type, tone_category, difficulty, original_guitar, original_amp, original_cab, original_pickup, original_settings, adaptation_notes, playing_notes, source_summary, confidence, verification_status, tone_profile_effects(effect_order, effect_type, effect_name, placement, settings), tone_profile_sources(source_type, title, url, notes, credibility)"
         )
         .eq("id", normalizedId)
         .eq("is_public", true)
@@ -274,9 +385,11 @@ async function findToneProfileFromSupabase(request: ToneRequest): Promise<TonePr
     let dbQuery = supabase
       .from("song_tone_profiles")
       .select(
-        "id, song_title, artist_name, mode, part_type, part_label, tone_type, original_guitar, original_amp, original_cab, original_pickup, original_settings, adaptation_notes, playing_notes, source_summary, confidence, verification_status, tone_profile_effects(effect_order, effect_type, effect_name, placement, settings), tone_profile_sources(source_type, title, url, notes, credibility)"
+        "id, song_title, artist_name, genre, mode, part_type, part_label, tone_type, tone_category, difficulty, original_guitar, original_amp, original_cab, original_pickup, original_settings, adaptation_notes, playing_notes, source_summary, confidence, verification_status, tone_profile_effects(effect_order, effect_type, effect_name, placement, settings), tone_profile_sources(source_type, title, url, notes, credibility)"
       )
       .eq("is_public", true)
+      .not("song_title", "ilike", "Tone Database Song %")
+      .not("artist_name", "ilike", "Tonefex Session Library")
       .eq("mode", request.mode)
       .ilike("search_text", `%${escapeLike(request.song)}%`)
       .limit(20);
@@ -327,10 +440,13 @@ function mapDbToneProfile(profile: DbToneProfile): ToneProfile {
     id: profile.id,
     songTitle: profile.song_title,
     artistName: profile.artist_name,
+    genre: profile.genre || "rock",
     mode: profile.mode,
     partType: profile.part_type,
     partLabel: profile.part_label,
     toneType: profile.tone_type,
+    toneCategory: profile.tone_category || "rhythm",
+    difficulty: profile.difficulty || "intermediate",
     originalGuitar: profile.original_guitar,
     originalAmp: profile.original_amp,
     originalCab: profile.original_cab,
@@ -361,30 +477,8 @@ function mapDbToneProfile(profile: DbToneProfile): ToneProfile {
 }
 
 function mergeCommunityProfiles(
-  primary: Array<{
-    id: string;
-    song: string;
-    artist: string;
-    part: string;
-    mode: string;
-    score: number;
-    guitar: string;
-    amp: string;
-    toneType?: string;
-    verificationStatus?: string;
-  }>,
-  fallback: Array<{
-    id: string;
-    song: string;
-    artist: string;
-    part: string;
-    mode: string;
-    score: number;
-    guitar: string;
-    amp: string;
-    toneType?: string;
-    verificationStatus?: string;
-  }>
+  primary: CommunityToneListItem[],
+  fallback: CommunityToneListItem[]
 ) {
   const seen = new Set<string>();
   const merged: typeof primary = [];
@@ -421,10 +515,13 @@ function starter(
     id,
     songTitle,
     artistName,
+    genre: mode === "bass" ? "alt rock" : toneType === "acoustic" ? "acoustic" : "classic rock",
     mode,
     partType,
     partLabel,
     toneType,
+    toneCategory: partType === "solo" || partType === "lead" ? "lead" : partType === "bassline" ? "bass" : toneType === "crunch" ? "crunch" : toneType === "clean" ? "clean" : toneType === "distorted" || toneType === "high_gain" || toneType === "fuzz" ? "distortion" : "rhythm",
+    difficulty: confidence >= 76 ? "advanced" : confidence >= 72 ? "intermediate" : "beginner",
     originalGuitar,
     originalAmp,
     originalCab: mode === "bass" ? "Bass cab or studio DI" : "Guitar cab or studio chain",

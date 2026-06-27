@@ -20,14 +20,7 @@ import {
   X
 } from "lucide-react";
 import {
-  amps,
-  bassAmps,
-  bassGuitars,
-  guitars,
-  multiFxUnits,
   partOptions,
-  pedalPresets,
-  pickups,
   toneTypeOptions,
   type SongItem,
   type TonePartType,
@@ -60,6 +53,14 @@ type ToneResult = {
 
 type SongSuggestion = SongItem;
 
+type CatalogEntry = {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  details?: string[];
+};
+
 const progressSteps = [
   "Searching for this song...",
   "Finding original gear used...",
@@ -82,6 +83,7 @@ const AUTO_ADAPT_KEY = `${brand.storagePrefix}_auto_adapt_from_community`;
 
 export function ToneMatcher() {
   const autoAdaptTriggeredRef = useRef(false);
+  const resultRef = useRef<HTMLDivElement | null>(null);
   const [mode, setMode] = useState<"guitar" | "bass">("guitar");
   const [song, setSong] = useState("Comfortably Numb");
   const [artist, setArtist] = useState("Pink Floyd");
@@ -105,6 +107,13 @@ export function ToneMatcher() {
   const [highlightedSongIndex, setHighlightedSongIndex] = useState(0);
   const [songSearchTouched, setSongSearchTouched] = useState(false);
   const [subscriptionSnapshot, setSubscriptionSnapshot] = useState<ClientSubscriptionSnapshot | null>(null);
+  const [guitarCatalog, setGuitarCatalog] = useState<CatalogEntry[]>([]);
+  const [bassGuitarCatalog, setBassGuitarCatalog] = useState<CatalogEntry[]>([]);
+  const [ampCatalog, setAmpCatalog] = useState<CatalogEntry[]>([]);
+  const [bassAmpCatalog, setBassAmpCatalog] = useState<CatalogEntry[]>([]);
+  const [pickupCatalog, setPickupCatalog] = useState<CatalogEntry[]>([]);
+  const [pedalCatalog, setPedalCatalog] = useState<CatalogEntry[]>([]);
+  const [multiFxCatalog, setMultiFxCatalog] = useState<CatalogEntry[]>([]);
 
   const runAdaptation = useCallback(
     async (
@@ -166,6 +175,9 @@ export function ToneMatcher() {
       ["toneMatch_toneType", (value: string) => setToneType(normalizeToneType(value))],
       ["toneMatch_guitar", setGuitar],
       ["toneMatch_amp", setAmp],
+      ["toneMatch_pickup", setPickup],
+      ["toneMatch_multiFx", setMultiFx],
+      ["toneMatch_effectsMode", setEffectsMode],
       ["toneMatch_selectedEffects", setSelectedFx]
     ] as const;
 
@@ -215,8 +227,11 @@ export function ToneMatcher() {
     localStorage.setItem("toneMatch_toneType", toneType);
     localStorage.setItem("toneMatch_guitar", guitar);
     localStorage.setItem("toneMatch_amp", amp);
+    localStorage.setItem("toneMatch_pickup", pickup);
+    localStorage.setItem("toneMatch_multiFx", multiFx);
+    localStorage.setItem("toneMatch_effectsMode", effectsMode);
     localStorage.setItem("toneMatch_selectedEffects", selectedFx);
-  }, [song, artist, part, partType, toneType, guitar, amp, selectedFx]);
+  }, [song, artist, part, partType, toneType, guitar, amp, pickup, multiFx, effectsMode, selectedFx]);
 
   useEffect(() => {
     const query = song.trim();
@@ -279,8 +294,87 @@ export function ToneMatcher() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const currentGuitars = mode === "bass" ? bassGuitars : guitars;
-  const currentAmps = mode === "bass" ? bassAmps : amps;
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCatalog() {
+      const [guitarsResponse, bassGuitarsResponse, ampsResponse, bassAmpsResponse, pickupsResponse, pedalsResponse, multiFxResponse] = await Promise.all([
+        fetchCatalog("/api/guitars/lookup"),
+        fetchCatalog("/api/bass-guitars/lookup"),
+        fetchCatalog("/api/amps/lookup"),
+        fetchCatalog("/api/bass-amps/lookup"),
+        fetchCatalog("/api/pickups/catalog"),
+        fetchCatalog("/api/pedals/catalog"),
+        fetchCatalog("/api/multi-fx/catalog")
+      ]);
+
+      if (cancelled) {
+        return;
+      }
+
+      const storedGuitar = localStorage.getItem("toneMatch_guitar") || "Fender Stratocaster";
+      const storedAmp = localStorage.getItem("toneMatch_amp") || "Boss Katana Artist";
+      const storedPickup = localStorage.getItem("toneMatch_pickup") || "Vintage Single Coil";
+      const storedSelectedFx = localStorage.getItem("toneMatch_selectedEffects") || "ambient-lead";
+      const storedMultiFx = localStorage.getItem("toneMatch_multiFx") || "Line 6 Helix Floor";
+      const storedMode = inferStoredMode(localStorage.getItem("toneMatch_partType"), localStorage.getItem("toneMatch_toneType"));
+
+      setGuitarCatalog(guitarsResponse);
+      setBassGuitarCatalog(bassGuitarsResponse);
+      setAmpCatalog(ampsResponse);
+      setBassAmpCatalog(bassAmpsResponse);
+      setPickupCatalog(pickupsResponse);
+      setPedalCatalog(pedalsResponse);
+      setMultiFxCatalog(multiFxResponse);
+
+      if (guitarsResponse.length && storedMode !== "bass" && !guitarsResponse.some((item) => item.name === storedGuitar)) {
+        setGuitar(guitarsResponse[0].name);
+      }
+
+      if (bassGuitarsResponse.length && storedMode === "bass" && !bassGuitarsResponse.some((item) => item.name === storedGuitar)) {
+        setGuitar(bassGuitarsResponse[0].name);
+      }
+
+      if (ampsResponse.length && storedMode !== "bass" && !ampsResponse.some((item) => item.name === storedAmp)) {
+        setAmp(ampsResponse[0].name);
+      }
+
+      if (bassAmpsResponse.length && storedMode === "bass" && !bassAmpsResponse.some((item) => item.name === storedAmp)) {
+        setAmp(bassAmpsResponse[0].name);
+      }
+
+      if (pickupsResponse.length && !pickupsResponse.some((item) => item.name === storedPickup)) {
+        setPickup(pickupsResponse[0].name);
+      }
+
+      if (pedalsResponse.length && !pedalsResponse.some((item) => item.name === storedSelectedFx)) {
+        setSelectedFx(pedalsResponse[0].name);
+      }
+
+      if (multiFxResponse.length && !multiFxResponse.some((item) => item.name === storedMultiFx)) {
+        setMultiFx(multiFxResponse[0].name);
+      }
+    }
+
+    void loadCatalog();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!result) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [result]);
+
+  const currentGuitars = mode === "bass" ? bassGuitarCatalog : guitarCatalog;
+  const currentAmps = mode === "bass" ? bassAmpCatalog : ampCatalog;
 
   function applySongPreset(preset: SongSuggestion) {
     setMode(preset.mode);
@@ -290,11 +384,11 @@ export function ToneMatcher() {
     setPartType(normalizePartType(preset.part, preset.mode === "bass" ? "bassline" : undefined));
     setToneType(preset.mode === "bass" ? "bass_clean" : "auto");
     if (preset.mode === "bass") {
-      setGuitar("Fender Precision Bass");
-      setAmp("Ampeg SVT-CL");
+      setGuitar(bassGuitarCatalog[0]?.name || "Fender Precision Bass");
+      setAmp(bassAmpCatalog[0]?.name || "Ampeg SVT-CL");
     } else if (mode === "bass") {
-      setGuitar("Fender Stratocaster");
-      setAmp("Boss Katana Artist");
+      setGuitar(guitarCatalog[0]?.name || "Fender Stratocaster");
+      setAmp(ampCatalog[0]?.name || "Boss Katana Artist");
     }
     setSongSearchTouched(false);
     setSongSearchOpen(false);
@@ -369,8 +463,8 @@ export function ToneMatcher() {
 
   const selectedGuitar = currentGuitars.find((item) => item.name === guitar);
   const selectedAmp = currentAmps.find((item) => item.name === amp);
-  const selectedPickup = pickups.find((item) => item.name === pickup);
-  const selectedPreset = pedalPresets.find((item) => item.id === selectedFx);
+  const selectedPickup = pickupCatalog.find((item) => item.name === pickup);
+  const selectedPreset = pedalCatalog.find((item) => item.name === selectedFx);
   const partChoices = partOptions.filter((option) => mode === "bass" || option.value !== "bassline");
   const toneChoices = toneTypeOptions.filter((option) => {
     if (mode === "bass") return option.value === "auto" || option.value === "bass_clean" || option.value === "bass_drive" || option.value === "clean" || option.value === "distorted";
@@ -383,14 +477,14 @@ export function ToneMatcher() {
   const songLinkLabel = song.trim() ? `"${song.trim()}"` : "this song";
 
   return (
-    <div className="px-4 pb-16 pt-28 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1840px]">
-        <section className="theme-panel theme-blue-panel mx-auto max-w-6xl px-6 py-16 text-center">
+    <div className="px-4 pb-14 pt-24 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1440px]">
+        <section className="theme-panel theme-blue-panel mx-auto max-w-5xl px-6 py-12 text-center lg:py-14">
           <div className="inline-flex items-center gap-2 rounded-md border border-white/80 bg-white/80 px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-600 shadow-sm">
             <Sparkles className="h-4 w-4" />
             Gear-matched tone settings
           </div>
-          <h1 className="mx-auto mt-7 max-w-5xl text-4xl font-bold leading-tight tracking-normal text-ink sm:text-5xl lg:text-6xl">
+          <h1 className="mx-auto mt-7 max-w-4xl text-4xl font-bold leading-tight tracking-normal text-ink sm:text-5xl">
             <span className="block">Shape iconic tones with</span>
             <span className="mt-2 inline-block max-w-full break-words rounded-md bg-moss px-3 py-1 leading-tight text-ink">AI-matched gear</span>
           </h1>
@@ -412,12 +506,12 @@ export function ToneMatcher() {
                   onClick={() => {
                     setMode(item.value as "guitar" | "bass");
                     if (item.value === "bass") {
-                      setGuitar("Fender Precision Bass");
-                      setAmp("Ampeg SVT-CL");
+                      setGuitar(bassGuitarCatalog[0]?.name || "Fender Precision Bass");
+                      setAmp(bassAmpCatalog[0]?.name || "Ampeg SVT-CL");
                       setToneType("bass_clean");
                     } else {
-                      setGuitar("Fender Stratocaster");
-                      setAmp("Boss Katana Artist");
+                      setGuitar(guitarCatalog[0]?.name || "Fender Stratocaster");
+                      setAmp(ampCatalog[0]?.name || "Boss Katana Artist");
                       setToneType("auto");
                     }
                   }}
@@ -430,7 +524,7 @@ export function ToneMatcher() {
           </div>
         </section>
 
-        <section className="mt-16">
+        <section className="mt-14">
           <div className="mb-6 text-center">
             <div className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-ink text-moss shadow-lg">
               <Flame className="h-6 w-6" />
@@ -471,7 +565,7 @@ export function ToneMatcher() {
 
         <StepProgress />
 
-        <form onSubmit={submit} className="mt-14 grid gap-12">
+        <form onSubmit={submit} className="mt-12 grid gap-10">
           <WorkflowCard step="1" title="Your Gear">
             <div className="grid gap-8">
               <div>
@@ -523,11 +617,15 @@ export function ToneMatcher() {
                     Pickup
                   </label>
                   <select id="pickup" className="field mt-2 h-12" value={pickup} onChange={(event) => setPickup(event.target.value)}>
-                    {pickups.map((item) => (
-                      <option key={item.id} value={item.name}>
-                        {item.name} - {item.category}
-                      </option>
-                    ))}
+                    {pickupCatalog.length ? (
+                      pickupCatalog.map((item) => (
+                        <option key={item.id} value={item.name}>
+                          {item.name} {item.category ? `- ${item.category}` : ""}
+                        </option>
+                      ))
+                    ) : (
+                      <option value={pickup}>{pickup || "Loading pickups..."}</option>
+                    )}
                   </select>
                 </div>
               ) : null}
@@ -575,16 +673,16 @@ export function ToneMatcher() {
                       Multi FX Mode
                     </h4>
                     <p className="mt-2 text-slate-600">{brand.appName} will shape a complete preset for your unit from the tone research.</p>
-                    <SelectField label="Select your unit" value={multiFx} onChange={setMultiFx} options={multiFxUnits.map((unit) => unit.name)} />
+                    <SelectField label="Select your unit" value={multiFx} onChange={setMultiFx} options={multiFxCatalog.map((unit) => unit.name)} />
                     <div className="mt-4 rounded-lg bg-white/80 p-4 text-sm text-slate-600">Using effects, modulation, delay, and reverb around your selected amp choice.</div>
                   </div>
                 ) : (
                   <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.55fr)]">
-                    <SelectField label="Effect preset" value={selectedFx} onChange={setSelectedFx} options={pedalPresets.map((preset) => preset.id)} />
+                    <SelectField label="Effect preset" value={selectedFx} onChange={setSelectedFx} options={pedalCatalog.map((preset) => preset.name)} />
                     <div className="rounded-lg border border-white/80 bg-blue-50/70 p-4">
                       <div className="text-sm font-bold">{selectedPreset?.name || "Custom chain"}</div>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {(selectedPreset?.pedals || ["Amp effects"]).map((pedal) => (
+                        {(selectedPreset?.details || selectedPreset?.description?.split(" | ") || ["Amp effects"]).map((pedal) => (
                           <span key={pedal} className="rounded-md bg-white px-3 py-1 text-xs font-semibold text-slate-600">
                             {pedal}
                           </span>
@@ -782,9 +880,11 @@ export function ToneMatcher() {
             </div>
           </WorkflowCard>
 
-          <WorkflowCard step="3" title="Results">
-            {result ? <ResultPanel result={result} onSave={saveTone} /> : <EmptySplitResult song={song} artist={artist} guitar={guitar} amp={amp} />}
-          </WorkflowCard>
+          <div ref={resultRef}>
+            <WorkflowCard step="3" title="Results">
+              {result ? <ResultPanel result={result} onSave={saveTone} /> : <EmptySplitResult song={song} artist={artist} guitar={guitar} amp={amp} />}
+            </WorkflowCard>
+          </div>
         </form>
       </div>
 
@@ -895,11 +995,15 @@ function SelectField({ label, value, onChange, options }: { label: string; value
     <div>
       <label className="label">{label}</label>
       <select className="field mt-1" value={value} onChange={(event) => onChange(event.target.value)}>
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
+        {options.length ? (
+          options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))
+        ) : (
+          <option value={value || ""}>{value || "Loading options..."}</option>
+        )}
       </select>
     </div>
   );
@@ -959,6 +1063,27 @@ function normalizeToneType(value: string): ToneType {
   return allowed.includes(value as ToneType) ? (value as ToneType) : "auto";
 }
 
+async function fetchCatalog(url: string): Promise<CatalogEntry[]> {
+  try {
+    const response = await fetch(url, { cache: "no-store" });
+    const payload = await response.json();
+    const results = Array.isArray(payload.results) ? payload.results : [];
+    return results.map((item: Record<string, unknown>) => ({
+      id: String(item.id || item.name),
+      name: String(item.name || ""),
+      description: String(item.description || item.category || item.meta || ""),
+      category: String(item.category || item.itemType || item.meta || ""),
+      details: Array.isArray(item.details)
+        ? item.details.map((detail) => String(detail))
+        : typeof item.description === "string"
+          ? item.description.split(" | ").filter(Boolean)
+          : []
+    }));
+  } catch {
+    return [];
+  }
+}
+
 function partLabelFromType(value: TonePartType) {
   const labels: Record<TonePartType, string> = {
     main: "main part",
@@ -1003,7 +1128,7 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => voi
   const profile = result.sourceProfile;
 
   return (
-    <article className="overflow-hidden">
+    <motion.article className="overflow-hidden" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: "easeOut" }}>
       <div className="border-b border-white/80 bg-white/70 p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -1038,11 +1163,11 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => voi
       </div>
 
       <div className="grid gap-5 p-5">
-        <section>
+        <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}>
           <SettingsBlock title="Your adapted tone" icon={<Gauge className="h-4 w-4 text-ocean" />} settings={targetSettings} empty="No target settings returned" />
-        </section>
+        </motion.section>
 
-        <section className="grid gap-4 lg:grid-cols-2">
+        <motion.section className="grid gap-4 lg:grid-cols-2" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.12 }}>
           <InfoBlock icon={<Guitar className="h-4 w-4" />} title="Pickup and touch">
             {result.pickupAdvice}
           </InfoBlock>
@@ -1056,9 +1181,9 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => voi
               ))}
             </div>
           </InfoBlock>
-        </section>
+        </motion.section>
 
-        <section>
+        <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.18 }}>
           <h3 className="mb-3 font-semibold">Playing tips</h3>
           <div className="grid gap-2">
             {result.playingTips.map((tip) => (
@@ -1067,9 +1192,9 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => voi
               </div>
             ))}
           </div>
-        </section>
+        </motion.section>
       </div>
-    </article>
+    </motion.article>
   );
 }
 

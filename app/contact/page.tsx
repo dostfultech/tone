@@ -9,8 +9,8 @@ export const metadata: Metadata = {
 export default function ContactPage() {
   return (
     <AppShell>
-      <section className="px-4 pb-16 pt-28 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-[1840px]">
+      <section className="px-4 pb-14 pt-24 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1440px]">
           <div className="mb-10 text-center">
             <div className="mx-auto mb-5 grid h-14 w-14 place-items-center rounded-lg bg-ink text-moss">
               <span className="text-2xl">?</span>

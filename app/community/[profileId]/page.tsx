@@ -40,12 +40,14 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
   const researchCount = Math.max(24, profile.confidence * 4);
   const likes = Math.max(10, Math.round(profile.confidence / 1.35));
   const isUnlocked = entitlement.hasAccess;
+  const userLoggedIn = Boolean(user);
+  const canAdapt = userLoggedIn;
   const redirectTarget = `/community/${profile.id}`;
 
   return (
     <AppShell>
-      <div className="px-4 pb-16 pt-28 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-[1840px]">
+      <div className="px-4 pb-14 pt-24 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1440px]">
           <Link href="/community" className="button-quiet mb-8 w-fit">
             <ArrowLeft className="h-4 w-4" />
             Back to Tone Database
@@ -127,7 +129,7 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
                       ))}
                     </div>
                     <div className="preview-lock-cta">
-                      <LockedCta label="Unlock the remaining amp settings and full tone recipe" redirectTarget={redirectTarget} userLoggedIn={Boolean(user)} />
+                      <LockedCta label="Unlock the remaining amp settings and full tone recipe" redirectTarget={redirectTarget} userLoggedIn={userLoggedIn} />
                     </div>
                   </div>
                 ) : null}
@@ -171,7 +173,7 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
                   </div>
                   {!isUnlocked ? (
                     <div className="preview-lock-cta">
-                      <LockedCta label="Preview effects and routing, then adapt it to your own rig" redirectTarget={redirectTarget} userLoggedIn={Boolean(user)} />
+                      <LockedCta label="Preview effects and routing, then adapt it to your own rig" redirectTarget={redirectTarget} userLoggedIn={userLoggedIn} />
                     </div>
                   ) : null}
                 </div>
@@ -184,7 +186,7 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
                   </div>
                   {!isUnlocked ? (
                     <div className="preview-lock-cta">
-                      <LockedCta label="Open the matcher to carry these notes into your tone adaptation" redirectTarget={redirectTarget} userLoggedIn={Boolean(user)} />
+                      <LockedCta label="Open the matcher to carry these notes into your tone adaptation" redirectTarget={redirectTarget} userLoggedIn={userLoggedIn} />
                     </div>
                   ) : null}
                 </div>
@@ -237,8 +239,14 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
 
               <div className="theme-panel p-6">
                 <h2 className="text-lg font-bold">Use This Tone</h2>
-                <p className="mt-3 text-sm leading-6 text-slate-600">{isUnlocked ? "Send this reference profile into the matcher with its song, artist, part, and original rig prefilled." : "Subscribers can unlock the full recipe, all notes, and direct profile-to-matcher handoff."}</p>
-                {isUnlocked ? (
+                <p className="mt-3 text-sm leading-6 text-slate-600">
+                  {canAdapt
+                    ? isUnlocked
+                      ? "Send this reference profile into the matcher with its song, artist, part, and original rig prefilled."
+                      : "You are signed in. Start the adaptation flow now, and upgrade whenever you want the full unlocked workspace."
+                    : "Sign in to send this reference profile into the matcher with its song, artist, part, and original rig prefilled."}
+                </p>
+                {canAdapt ? (
                   <>
                     <div className="mt-5">
                       <CommunityToneCta
@@ -251,10 +259,17 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
                         amp={profile.originalAmp || "Boss Katana Artist"}
                       />
                     </div>
-                    <Link href="/app" className="button-secondary mt-3 w-full justify-center">
-                      <Music2 className="h-4 w-4" />
-                      Open Matcher
-                    </Link>
+                    {isUnlocked ? (
+                      <Link href="/app" className="button-secondary mt-3 w-full justify-center">
+                        <Music2 className="h-4 w-4" />
+                        Open Matcher
+                      </Link>
+                    ) : (
+                      <Link href={`/plans?required=subscription&redirect=${encodeURIComponent("/app")}`} className="button-secondary mt-3 w-full justify-center">
+                        <Sparkles className="h-4 w-4" />
+                        Upgrade for Full Access
+                      </Link>
+                    )}
                   </>
                 ) : (
                   <div className="mt-5 grid gap-3">

@@ -103,12 +103,12 @@ export function Pricing() {
   }
 
   return (
-    <section className="px-4 pb-16 pt-28 sm:px-6 lg:px-8">
+    <section className="px-4 pb-14 pt-24 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-3xl text-center">
         <div className="inline-flex rounded-lg border border-white/80 bg-white/80 px-5 py-3 text-sm font-bold uppercase tracking-[0.08em] text-slate-700 shadow-sm">
           Cancel anytime
         </div>
-        <h1 className="mt-7 text-5xl font-bold tracking-normal">Unlock Your <span className="lime-highlight">Perfect Tone</span></h1>
+        <h1 className="mt-7 text-4xl font-bold tracking-normal sm:text-5xl">Unlock Your <span className="lime-highlight">Perfect Tone</span></h1>
         <p className="mt-4 text-lg leading-8 text-neutral-600">
           Get exact amp settings from favorite songs, adapted to your gear.
         </p>

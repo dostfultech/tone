@@ -20,7 +20,7 @@ import { lookupGearFromSupabase } from "@/lib/gear-catalog";
 import { generateToneResult } from "@/lib/tone-ai";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { assertCanCreateAdaptation, incrementAdaptationUsage } from "@/lib/usage";
-import { buildResearchPayload, createMissingSongRequest, findToneProfile, listCommunityToneProfiles } from "@/lib/tone-profiles";
+import { buildResearchPayload, createMissingSongRequest, findToneProfile, listCommunityToneProfiles, type CommunityToneQuery } from "@/lib/tone-profiles";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -39,27 +39,46 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const query = request.nextUrl.searchParams.get("q") || request.nextUrl.searchParams.get("name") || "";
 
   if (route === "amps/lookup") {
-    const dbResults = await lookupGearFromSupabase(["amp"], query);
+    const dbResults = await lookupGearFromSupabase(["amp"], query, { limit: 60 });
     if (dbResults) return json({ results: dbResults });
     return json({ results: lookupGear(amps, query) });
   }
 
   if (route === "guitars/lookup") {
-    const dbResults = await lookupGearFromSupabase(["guitar"], query);
-    if (dbResults) return json({ results: dbResults, pickups });
+    const dbResults = await lookupGearFromSupabase(["guitar", "acoustic_guitar"], query, { limit: 80 });
+    if (dbResults) return json({ results: dbResults });
     return json({ results: lookupGear(guitars, query), pickups });
   }
 
   if (route === "bass-amps/lookup") {
-    const dbResults = await lookupGearFromSupabase(["bass_amp"], query);
+    const dbResults = await lookupGearFromSupabase(["bass_amp"], query, { limit: 40 });
     if (dbResults) return json({ results: dbResults });
     return json({ results: lookupGear(bassAmps, query) });
   }
 
   if (route === "bass-guitars/lookup") {
-    const dbResults = await lookupGearFromSupabase(["bass_guitar"], query);
+    const dbResults = await lookupGearFromSupabase(["bass_guitar"], query, { limit: 40 });
     if (dbResults) return json({ results: dbResults });
     return json({ results: lookupGear(bassGuitars, query) });
+  }
+
+  if (route === "acoustic-guitars/lookup") {
+    const dbResults = await lookupGearFromSupabase(["acoustic_guitar"], query, { limit: 40 });
+    if (dbResults) return json({ results: dbResults });
+    return json({ results: lookupGear(guitars, query) });
+  }
+
+  if (route === "pickups/catalog") {
+    const dbResults = await lookupGearFromSupabase(["pickup"], query, { limit: 40 });
+    if (dbResults) return json({ results: dbResults });
+    return json({
+      results: pickups.map((item) => ({
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        description: item.category
+      }))
+    });
   }
 
   if (route === "music/search") {
@@ -79,18 +98,39 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return json({ results: songs });
   }
 
-  if (route === "pedals/user" || route === "pedals/presets") {
-    return json({ results: pedalPresets });
+  if (route === "pedals/user" || route === "pedals/presets" || route === "pedals/catalog") {
+    const dbResults = await lookupGearFromSupabase(["pedal", "effect"], query, { limit: 80 });
+    if (dbResults) return json({ results: dbResults });
+    return json({
+      results: pedalPresets.map((preset) => ({
+        id: preset.id,
+        name: preset.name,
+        category: preset.category,
+        details: preset.pedals
+      }))
+    });
   }
 
   if (route === "multi-fx/user" || route === "multi-fx/catalog") {
-    const dbResults = await lookupGearFromSupabase(["multi_fx"], query);
+    const dbResults = await lookupGearFromSupabase(["multi_fx"], query, { limit: 40 });
     if (dbResults) return json({ results: dbResults });
     return json({ results: multiFxUnits.filter((unit) => `${unit.brand} ${unit.name}`.toLowerCase().includes(query.toLowerCase())) });
   }
 
+  if (route === "cabinets/catalog") {
+    const dbResults = await lookupGearFromSupabase(["cabinet"], query, { limit: 60 });
+    if (dbResults) return json({ results: dbResults });
+    return json({ results: [] });
+  }
+
+  if (route === "effects/catalog") {
+    const dbResults = await lookupGearFromSupabase(["effect"], query, { limit: 60 });
+    if (dbResults) return json({ results: dbResults });
+    return json({ results: [] });
+  }
+
   if (route === "community-tones/lookup") {
-    return json({ results: await listCommunityToneProfiles(query) });
+    return json(await listCommunityToneProfiles(parseCommunityToneQuery(request)));
   }
 
   if (route === "promo-credit/usage") {
@@ -274,6 +314,26 @@ function json(data: unknown) {
       "Cache-Control": "no-store"
     }
   });
+}
+
+function parseCommunityToneQuery(request: NextRequest): CommunityToneQuery {
+  const params = request.nextUrl.searchParams;
+  const instrument = params.get("instrument");
+  const part = params.get("part");
+  const tone = params.get("tone");
+  const sort = params.get("sort");
+  const page = Number(params.get("page") || "1");
+  const pageSize = Number(params.get("pageSize") || "24");
+
+  return {
+    query: params.get("q") || "",
+    instrument: instrument === "guitar" || instrument === "bass" || instrument === "all" ? instrument : "all",
+    part: part === "riff" || part === "solo" || part === "all" ? part : "all",
+    tone: tone === "clean" || tone === "distorted" || tone === "all" ? tone : "all",
+    sort: sort === "popular" || sort === "recent" || sort === "top" ? sort : "top",
+    page: Number.isFinite(page) && page > 0 ? page : 1,
+    pageSize: Number.isFinite(pageSize) && pageSize > 0 ? pageSize : 24
+  };
 }
 
 function scoreSongResult(song: { song: string; artist: string; album: string; part: string }, query: string) {
