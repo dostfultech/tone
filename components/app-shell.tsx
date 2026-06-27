@@ -54,6 +54,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [snapshot, setSnapshot] = useState<ClientSubscriptionSnapshot | null>(null);
 
   useEffect(() => {
+    const saved = localStorage.getItem(`${brand.storagePrefix}_sidebar_open`);
+    if (saved === "0") {
+      setOpen(false);
+      return;
+    }
+
+    if (saved === "1") {
+      setOpen(true);
+      return;
+    }
+
+    setOpen(window.innerWidth >= 1024);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(`${brand.storagePrefix}_sidebar_open`, open ? "1" : "0");
+  }, [open]);
+
+  useEffect(() => {
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
       return;
@@ -89,7 +108,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <button
         type="button"
         aria-label={open ? "Close navigation" : "Open navigation"}
-        className="fixed left-5 top-5 z-[70] grid h-14 w-14 place-items-center rounded-lg border border-white/80 bg-white/90 text-ink shadow-[0_18px_45px_rgba(95,141,247,0.22)] backdrop-blur transition hover:-translate-y-0.5 hover:border-ocean hover:shadow-2xl lg:hidden"
+        className="fixed left-5 top-5 z-[70] grid h-14 w-14 place-items-center rounded-lg border border-white/80 bg-white/90 text-ink shadow-[0_18px_45px_rgba(95,141,247,0.22)] backdrop-blur transition hover:-translate-y-0.5 hover:border-ocean hover:shadow-2xl"
         onClick={() => setOpen((value) => !value)}
       >
         {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -105,7 +124,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <aside
         className={cn(
-          "theme-blue-panel fixed inset-y-0 left-0 z-[65] flex w-[322px] max-w-[88vw] flex-col border-r border-white/80 shadow-2xl transition-transform duration-300 lg:translate-x-0",
+          "theme-blue-panel fixed inset-y-0 left-0 z-[65] flex w-[322px] max-w-[88vw] flex-col border-r border-white/80 shadow-2xl transition-transform duration-300",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -166,7 +185,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="min-h-screen lg:pl-[322px]">
+      <main className={cn("min-h-screen transition-[padding] duration-300", open ? "lg:pl-[322px]" : "lg:pl-0")}>
         {children}
         <AppFooter />
       </main>

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { getSiteUrl, getTestAccessEmails, isSupabaseConfigured } from "@/lib/env";
+import { getSiteUrl, isSupabaseConfigured } from "@/lib/env";
 
 const appRoutes = ["/app", "/library", "/gear", "/account"];
 const authOnlyRoutes = ["/checkout"];
@@ -55,33 +55,6 @@ export async function middleware(request: NextRequest) {
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
-  }
-
-  if (requiresAuthOnly) {
-    return response;
-  }
-
-  const email = user.email?.toLowerCase();
-  if (email && getTestAccessEmails().has(email)) {
-    return response;
-  }
-
-  const { data: subscription } = await supabase
-    .from("subscriptions")
-    .select("status, plan_id")
-    .eq("user_id", user.id)
-    .in("status", ["active", "trialing"])
-    .in("plan_id", ["beginner", "expert"])
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!subscription) {
-    const plansUrl = request.nextUrl.clone();
-    plansUrl.pathname = "/plans";
-    plansUrl.searchParams.set("required", "subscription");
-    plansUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(plansUrl);
   }
 
   return response;

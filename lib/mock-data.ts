@@ -57,23 +57,77 @@ export type SongItem = {
 
 export const guitars: GearItem[] = [
   { id: "strat", name: "Fender Stratocaster", description: "Single coils, clear attack, bright neck and bridge positions." },
+  { id: "squier-strat", name: "Squier Stratocaster", description: "Classic Strat platform with bell-like cleans and affordable versatility." },
   { id: "les-paul", name: "Gibson Les Paul Standard", description: "Mahogany body, set neck, medium output humbuckers." },
+  { id: "epiphone-les-paul", name: "Epiphone Les Paul", description: "Affordable single-cut with thick humbucker sustain and classic rock feel." },
+  { id: "gibson-les-paul", name: "Gibson Les Paul", description: "Classic solid-body electric with dual humbuckers and rich midrange sustain." },
   { id: "prs-custom", name: "PRS Custom 24", description: "Balanced humbuckers with modern split-coil flexibility." },
+  { id: "prs-se-custom-24", name: "PRS SE Custom 24", description: "Warm but versatile dual-humbucker design with modern playability." },
   { id: "ibanez-rg", name: "Ibanez RG550", description: "Fast superstrat platform with high-output bridge tones." },
+  { id: "ibanez-rg-generic", name: "Ibanez RG", description: "High-output superstrat with fast neck and metal-friendly response." },
+  { id: "ibanez-gio", name: "Ibanez GIO GRX70QA", description: "Budget HSH guitar built for flexible clean and rock tones." },
+  { id: "ibanez-azes40", name: "Ibanez AZES40", description: "Modern AZ-style HSS guitar with versatile switching and balanced feel." },
   { id: "tele", name: "Fender Telecaster", description: "Tight bridge bite with a woody neck pickup." },
+  { id: "squier-tele", name: "Squier Telecaster", description: "Simple, rugged Tele-style platform with twangy bridge character." },
+  { id: "player-tele-hh", name: "Fender Player II Telecaster HH", description: "Dual-humbucker Tele with thicker mids and modern punch." },
   { id: "jazzmaster", name: "Fender Jazzmaster", description: "Wide single coils, airy mids, offset resonance." },
+  { id: "jaguar", name: "Fender Jaguar", description: "Short-scale offset with bright attack and percussive rhythm feel." },
   { id: "sg", name: "Gibson SG Standard", description: "Lightweight dual humbucker guitar with upper-mid snap." },
+  { id: "epiphone-sg", name: "Epiphone SG Standard", description: "Affordable SG-style guitar with bright humbuckers and classic hard-rock bite." },
   { id: "gretsch", name: "Gretsch G5420T", description: "Hollow body chime with Filter'Tron-style articulation." }
+  ,{ id: "epiphone-casino", name: "Epiphone Casino", description: "Fully hollow thinline with dogear P-90 pickups and airy attack." }
+  ,{ id: "es335", name: "Gibson ES-335", description: "Classic semi-hollow with warm sustain, punch, and wide dynamic range." }
+  ,{ id: "es339-p90", name: "Epiphone ES-339 P-90 PRO", description: "Compact semi-hollow feel with punchy dual P-90 response." }
+  ,{ id: "rickenbacker-330", name: "Rickenbacker 330", description: "Jangly semi-hollow double-cut prized for chime-rich cleans." }
+  ,{ id: "harley-benton-sc450", name: "Harley Benton SC-450 CS", description: "Single-cut dual-humbucker platform with classic Les Paul-style weight and sustain." }
+  ,{ id: "schecter-omen-extreme", name: "Schecter Omen Extreme-6", description: "Dual-humbucker rock guitar with coil-splitting and modern output." }
+  ,{ id: "schecter-demon", name: "Schecter Demon-6", description: "Metal-focused active-pickup guitar with tight lows and aggressive gain response." }
+  ,{ id: "schecter-c1-platinum", name: "Schecter C-1 Platinum", description: "Mahogany superstrat with high-output active voice and modern sustain." }
+  ,{ id: "jackson-dinky", name: "Jackson Dinky", description: "High-output superstrat with fast neck and sharp modern attack." }
+  ,{ id: "esp-mh10", name: "ESP LTD MH-10", description: "Entry-level superstrat geared toward driven rock and metal sounds." }
+  ,{ id: "esp-ec256", name: "ESP LTD EC-256", description: "Single-cut mahogany guitar with punchy humbuckers and modern comfort." }
+  ,{ id: "hss-strat", name: "HSS Stratocaster", description: "Versatile Strat layout with humbucker bridge and clear single-coil sparkle." }
+  ,{ id: "yamaha-pacifica-112v", name: "Yamaha Pacifica 112V", description: "Quality HSS solid-body with balanced cleans and usable rock tones." }
+  ,{ id: "yamaha-pacifica-012", name: "Yamaha Pacifica 012", description: "Entry-level HSS guitar with flexible clean-to-crunch range." }
 ];
 
 export const amps: GearItem[] = [
   { id: "deluxe", name: "Fender Deluxe Reverb", description: "Sparkly blackface clean tone and spring reverb." },
+  { id: "champion-20", name: "Fender Champion 20", description: "Compact modeling combo with multiple voices and built-in effects." },
+  { id: "champion-100", name: "Fender Champion 100", description: "Loud dual-channel combo with versatile clean and voiced gain modes." },
+  { id: "frontman-20g", name: "Fender Frontman 20G", description: "Simple practice combo with familiar Fender clean and a drive channel." },
+  { id: "mustang-lt25", name: "Fender Mustang LT25", description: "Small digital modeling combo with easy presets and headphone practice." },
+  { id: "mustang-lt50", name: "Fender Mustang LT50", description: "12-inch modeling combo with expanded presets and room-filling output." },
+  { id: "mustang-gtx50", name: "Fender Mustang GTX 50", description: "Wi-Fi-enabled 50-watt modeler with broad amp and effects coverage." },
+  { id: "mustang-gtx100", name: "Fender Mustang GTX 100", description: "100-watt stage-ready modeler with deep amp and cab options." },
+  { id: "mustang-micro", name: "Fender Mustang Micro", description: "Headphone amp with portable modeling tones and practice features." },
   { id: "plexi", name: "Marshall Super Lead 1959", description: "Classic Plexi crunch with vocal upper mids." },
   { id: "jcm800", name: "Marshall JCM800 2203", description: "Focused hard-rock gain with aggressive presence." },
+  { id: "dsl40cr", name: "Marshall DSL40CR", description: "All-valve combo with classic Marshall gain and flexible channel switching." },
+  { id: "mg30fx", name: "Marshall MG30FX", description: "Practice combo with onboard effects and classic Marshall-flavored voicing." },
+  { id: "code-25", name: "Marshall CODE 25", description: "Compact modeling combo with Marshall MST preamp and cab simulation." },
+  { id: "code-50", name: "Marshall CODE 50", description: "50-watt modeling combo with broad Marshall-inspired programmable tones." },
   { id: "ac30", name: "Vox AC30 Top Boost", description: "Chime, compression, and mid-forward breakup." },
+  { id: "vox-mini-go-50", name: "VOX Mini GO 50", description: "Portable modeling combo with VET amp sounds and practice tools." },
+  { id: "vox-vt40x", name: "Vox VT40X", description: "Valvetronix combo with tube-assisted preamp feel and flexible amp models." },
+  { id: "vox-pathfinder-10", name: "Vox Pathfinder 10", description: "Small solid-state combo with bright cleans and simple control layout." },
   { id: "rectifier", name: "Mesa/Boogie Dual Rectifier", description: "Thick modern high gain and deep low end." },
   { id: "slo", name: "Soldano SLO-100", description: "Saturated lead gain with smooth harmonic sustain." },
   { id: "katana", name: "Boss Katana Artist", description: "Flexible modeling combo with effects and power scaling." },
+  { id: "katana-gen3-50", name: "Boss Katana Gen 3 50W", description: "Updated 50-watt Katana combo with evolved Tube Logic response." },
+  { id: "line6-spider", name: "Line 6 Spider", description: "Classic modeling combo with multiple amp voices and effects." },
+  { id: "line6-spider-v20", name: "Line 6 Spider V 20", description: "Compact digital modeling combo with cab sims and practice features." },
+  { id: "blackstar-idcore-v4", name: "Blackstar ID:Core V4", description: "Stereo modeling combo with multiple amp voices and effects." },
+  { id: "orange-crush", name: "Orange Crush", description: "Solid-state combo with Orange-flavored clean and dirty channels." },
+  { id: "orange-crush-12", name: "Orange Crush 12", description: "Small analog practice combo with a direct and punchy Orange voice." },
+  { id: "positive-grid-spark", name: "Positive Grid Spark", description: "Desktop modeling amp with app-based preset control and practice tools." },
+  { id: "peavey-vypyr-15", name: "Peavey Vypyr 15", description: "Modeling combo with multiple amps, effects, and metal-friendly tones." },
+  { id: "joyo-dc-15", name: "Joyo DC-15", description: "Digital practice combo with multiple amp models and built-in rhythm functions." },
+  { id: "yamaha-ga15ii", name: "Yamaha GA15II", description: "Compact two-channel practice combo with simple controls and solid cleans." },
+  { id: "yamaha-thr", name: "Yamaha THR", description: "Desktop modeling amp known for polished low-volume tones and USB practice use." },
+  { id: "roland-cube-10gx", name: "Roland Cube-10GX", description: "Small high-gain-capable practice combo with COSM modeling and app support." },
+  { id: "nux-mighty-60", name: "Nux Mighty 60", description: "Affordable modeling combo with broad clean-to-high-gain coverage." },
+  { id: "harley-benton-hb40mfx", name: "Harley Benton HB-40MFX", description: "40-watt modeling combo with onboard effects and multiple voicings." },
   { id: "helix", name: "Line 6 Helix Native", description: "Multi-amp modeler and effects platform." }
 ];
 
@@ -184,12 +238,12 @@ export const plans = [
 export function lookupGear(items: GearItem[], query: string) {
   const normalized = query.toLowerCase().trim();
   if (!normalized) {
-    return items.slice(0, 6);
+    return items.slice(0, 60);
   }
 
   return items
     .filter((item) => `${item.name} ${item.description}`.toLowerCase().includes(normalized))
-    .slice(0, 8);
+    .slice(0, 60);
 }
 
 export function buildToneResult(request: ToneRequest, toneProfile?: ToneProfileInput | null) {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { type CSSProperties, FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -82,6 +83,7 @@ const trendingTones = [
 const AUTO_ADAPT_KEY = `${brand.storagePrefix}_auto_adapt_from_community`;
 
 export function ToneMatcher() {
+  const router = useRouter();
   const autoAdaptTriggeredRef = useRef(false);
   const resultRef = useRef<HTMLDivElement | null>(null);
   const [mode, setMode] = useState<"guitar" | "bass">("guitar");
@@ -150,6 +152,19 @@ export function ToneMatcher() {
           body: JSON.stringify({ ...payload, multiFx: options?.multiFx || multiFx, selectedFx: options?.selectedFx || selectedFx })
         });
         const data = await response.json();
+        if (response.status === 401) {
+          router.push(`/login?redirect=${encodeURIComponent("/app")}`);
+          return;
+        }
+        if (response.status === 402) {
+          const params = new URLSearchParams({
+            required: "subscription",
+            redirect: "/app",
+            source: "generate-tone"
+          });
+          router.push(`/plans?${params.toString()}`);
+          return;
+        }
         if (!response.ok) {
           throw new Error(data.error || "Tone adaptation failed.");
         }
@@ -163,7 +178,7 @@ export function ToneMatcher() {
         window.setTimeout(() => setLoading(false), 350);
       }
     },
-    [multiFx, selectedFx]
+    [multiFx, router, selectedFx]
   );
 
   useEffect(() => {
@@ -375,6 +390,28 @@ export function ToneMatcher() {
 
   const currentGuitars = mode === "bass" ? bassGuitarCatalog : guitarCatalog;
   const currentAmps = mode === "bass" ? bassAmpCatalog : ampCatalog;
+
+  useEffect(() => {
+    if (currentGuitars.length && !currentGuitars.some((item) => item.name === guitar)) {
+      setGuitar(currentGuitars[0].name);
+    }
+
+    if (currentAmps.length && !currentAmps.some((item) => item.name === amp)) {
+      setAmp(currentAmps[0].name);
+    }
+
+    if (pickupCatalog.length && !pickupCatalog.some((item) => item.name === pickup)) {
+      setPickup(pickupCatalog[0].name);
+    }
+
+    if (pedalCatalog.length && !pedalCatalog.some((item) => item.name === selectedFx)) {
+      setSelectedFx(pedalCatalog[0].name);
+    }
+
+    if (multiFxCatalog.length && !multiFxCatalog.some((item) => item.name === multiFx)) {
+      setMultiFx(multiFxCatalog[0].name);
+    }
+  }, [amp, currentAmps, currentGuitars, guitar, multiFx, multiFxCatalog, pedalCatalog, pickup, pickupCatalog, selectedFx]);
 
   function applySongPreset(preset: SongSuggestion) {
     setMode(preset.mode);
