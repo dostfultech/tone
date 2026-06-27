@@ -50,6 +50,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
+  const [planSummary, setPlanSummary] = useState<{
+    planId: "beginner" | "expert" | null;
+    status: string | null;
+    renewalDate: string | null;
+  }>({
+    planId: null,
+    status: null,
+    renewalDate: null
+  });
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -59,6 +68,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       const user = data.user;
       setEmail(user?.email || "");
       setName(user?.user_metadata?.full_name || user?.email?.split("@")[0] || "");
+
+      if (!user) {
+        setPlanSummary({ planId: null, status: null, renewalDate: null });
+        return;
+      }
+
+      supabase
+        .from("subscriptions")
+        .select("plan_id, status, current_period_end")
+        .eq("user_id", user.id)
+        .in("status", ["active", "trialing"])
+        .in("plan_id", ["beginner", "expert"])
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+        .then(({ data: subscription }) => {
+          setPlanSummary({
+            planId: subscription?.plan_id === "beginner" || subscription?.plan_id === "expert" ? subscription.plan_id : null,
+            status: subscription?.status || null,
+            renewalDate: subscription?.current_period_end || null
+          });
+        });
     });
   }, []);
 
@@ -138,9 +169,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="mt-5 rounded-lg border border-white/80 bg-white/75 p-4 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-bold text-ink">
               <Sparkles className="h-4 w-4" />
-              Subscription access
+              {planSummary.planId ? `Current plan: ${planSummary.planId === "expert" ? "Expert" : "Beginner"}` : "Subscription access"}
             </div>
-            <p className="mt-2 text-xs leading-5 text-slate-600">Your active plan unlocks the tone features, saved tones, presets, and gated access available for that tier.</p>
+            <p className="mt-2 text-xs leading-5 text-slate-600">
+              {planSummary.planId
+                ? `${planSummary.planId === "expert" ? "Premium features enabled with unlimited adaptations and saved tones." : "Your Beginner plan is active with saved tones, monthly adaptations, and upgrade access."}${planSummary.renewalDate ? ` Renews ${formatRenewalDate(planSummary.renewalDate)}.` : ""}`
+                : "Your active plan unlocks the tone features, saved tones, presets, and gated access available for that tier."}
+            </p>
           </div>
         </div>
       </aside>
@@ -151,6 +186,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
     </div>
   );
+}
+
+function formatRenewalDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "soon";
+  }
+
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  });
 }
 
 function AppFooter() {

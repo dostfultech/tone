@@ -1,20 +1,53 @@
-with upsert_artist as (
+with artist_rows(name, slug) as (
+  values
+    ('North Avenue', 'north-avenue'),
+    ('Silver Line', 'silver-line'),
+    ('Midnight Arcade', 'midnight-arcade'),
+    ('Velvet Echo', 'velvet-echo'),
+    ('Neon Harbour', 'neon-harbour'),
+    ('Atlas Fire', 'atlas-fire'),
+    ('Paper Satellites', 'paper-satellites'),
+    ('Golden Static', 'golden-static'),
+    ('Afterglow Parade', 'afterglow-parade'),
+    ('Hollow Avenue', 'hollow-avenue'),
+    ('Blue Cinema', 'blue-cinema'),
+    ('Signal Hearts', 'signal-hearts'),
+    ('Wild Meridian', 'wild-meridian'),
+    ('Electric Letters', 'electric-letters'),
+    ('The Last Seasons', 'the-last-seasons'),
+    ('Lowlight District', 'lowlight-district'),
+    ('Cassette Bloom', 'cassette-bloom'),
+    ('Crimson Youth', 'crimson-youth'),
+    ('Polar Fires', 'polar-fires'),
+    ('Sunday Lights', 'sunday-lights')
+),
+upsert_artists as (
   insert into public.artists (name, slug, country, search_text)
-  values ('Tonefex Session Library', 'tonefex-session-library', 'Global', 'Tonefex Session Library')
+  select name, slug, 'Global', name
+  from artist_rows
   on conflict (slug) do update set
     name = excluded.name,
     country = excluded.country,
     search_text = excluded.search_text
-  returning id, name
+  returning id, slug, name
 ),
 generated_song_rows as (
   select
     idx,
-    format('Tone Database Song %s', lpad(idx::text, 4, '0')) as title,
-    format('tone-database-song-%s', lpad(idx::text, 4, '0')) as slug,
-    format('Tonefex Session Pack %s', ((idx - 1) / 25) + 1) as album,
+    trim(
+      (array['Midnight','Silver','Golden','Electric','Quiet','Restless','Velvet','Neon','Falling','Broken','Static','Young','Wild','Secret','Blue','Crimson','Open','Dark','Shallow','Northern'])[((idx - 1) % 20) + 1]
+      || ' ' ||
+      (array['Horizon','Cinema','Signal','Letters','Highway','Ghost','River','Fever','Seasons','Dreams','Mercy','Thunder','Satellite','Mirrors','Motion','Fire','Crown','Ocean','Echo','Run','Silence','Street','Lights','Colour','Gravity'])[(((idx - 1) / 20) % 25) + 1]
+    ) as title,
+    lower(regexp_replace(trim(
+      (array['Midnight','Silver','Golden','Electric','Quiet','Restless','Velvet','Neon','Falling','Broken','Static','Young','Wild','Secret','Blue','Crimson','Open','Dark','Shallow','Northern'])[((idx - 1) % 20) + 1]
+      || ' ' ||
+      (array['Horizon','Cinema','Signal','Letters','Highway','Ghost','River','Fever','Seasons','Dreams','Mercy','Thunder','Satellite','Mirrors','Motion','Fire','Crown','Ocean','Echo','Run','Silence','Street','Lights','Colour','Gravity'])[(((idx - 1) / 20) % 25) + 1]
+    )), '[^a-zA-Z0-9]+', '-', 'g')) as slug,
+    format('Studio Sessions Vol. %s', ((idx - 1) / 25) + 1) as album,
     2010 + (idx % 15) as release_year,
-    150 + (idx % 120) as duration_seconds
+    150 + (idx % 120) as duration_seconds,
+    (array['north-avenue','silver-line','midnight-arcade','velvet-echo','neon-harbour','atlas-fire','paper-satellites','golden-static','afterglow-parade','hollow-avenue','blue-cinema','signal-hearts','wild-meridian','electric-letters','the-last-seasons','lowlight-district','cassette-bloom','crimson-youth','polar-fires','sunday-lights'])[((idx - 1) % 20) + 1] as artist_slug
   from generate_series(1, 500) as idx
 ),
 upsert_songs as (
@@ -38,7 +71,7 @@ upsert_songs as (
     concat_ws(' ', s.title, a.name, s.album, 'tone database'),
     true
   from generated_song_rows s
-  cross join upsert_artist a
+  join upsert_artists a on a.slug = s.artist_slug
   on conflict (artist_id, slug) do update set
     title = excluded.title,
     album = excluded.album,
@@ -134,7 +167,7 @@ upsert_profiles as (
     true as is_public
   from upsert_songs song
   join generated_song_rows generated on generated.slug = song.slug
-  cross join upsert_artist artist
+  join upsert_artists artist on artist.slug = generated.artist_slug
   on conflict (song_id, mode, part_type, tone_type, part_label) do update set
     song_title = excluded.song_title,
     artist_name = excluded.artist_name,

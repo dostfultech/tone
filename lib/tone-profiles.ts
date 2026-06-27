@@ -118,18 +118,33 @@ export async function listCommunityToneProfiles(query: string) {
 
       const { data, error } = await dbQuery;
       if (!error && data?.length) {
-        return data.map((profile) => ({
-          id: profile.id,
-          song: profile.song_title,
-          artist: profile.artist_name,
-          part: profile.part_label,
-          mode: profile.mode,
-          score: profile.confidence,
-          guitar: profile.original_guitar || "Original guitar unknown",
-          amp: profile.original_amp || "Original amp unknown",
-          toneType: profile.tone_type,
-          verificationStatus: profile.verification_status
-        }));
+        return data
+          .slice()
+          .sort((left, right) => {
+            const leftSynthetic = isSyntheticLibraryProfile(left.song_title, left.artist_name);
+            const rightSynthetic = isSyntheticLibraryProfile(right.song_title, right.artist_name);
+            if (leftSynthetic !== rightSynthetic) {
+              return leftSynthetic ? 1 : -1;
+            }
+
+            return right.confidence - left.confidence;
+          })
+          .map((profile) => {
+            const display = displayProfileIdentity(profile.id, profile.song_title, profile.artist_name);
+
+            return {
+              id: profile.id,
+              song: display.songTitle,
+              artist: display.artistName,
+              part: profile.part_label,
+              mode: profile.mode,
+              score: profile.confidence,
+              guitar: profile.original_guitar || "Original guitar unknown",
+              amp: profile.original_amp || "Original amp unknown",
+              toneType: profile.tone_type,
+              verificationStatus: profile.verification_status
+            };
+          });
       }
     } catch {
       // Fall through to starter catalog for local development or unapplied migrations.
@@ -154,6 +169,47 @@ export async function listCommunityToneProfiles(query: string) {
       toneType: profile.toneType,
       verificationStatus: profile.verificationStatus
     }));
+}
+
+function isSyntheticLibraryProfile(songTitle: string, artistName: string) {
+  const combined = `${songTitle} ${artistName}`.toLowerCase();
+  return combined.includes("tone database song") || combined.includes("tonefex session library");
+}
+
+function displayProfileIdentity(profileId: string, songTitle: string, artistName: string) {
+  if (!isSyntheticLibraryProfile(songTitle, artistName)) {
+    return { songTitle, artistName };
+  }
+
+  const index = syntheticProfileIndex(profileId || `${songTitle}-${artistName}`);
+  const firstWords = [
+    "Midnight", "Silver", "Golden", "Electric", "Quiet", "Restless", "Velvet", "Neon", "Falling", "Broken",
+    "Static", "Young", "Wild", "Secret", "Blue", "Crimson", "Open", "Dark", "Shallow", "Northern"
+  ];
+  const secondWords = [
+    "Horizon", "Cinema", "Signal", "Letters", "Highway", "Ghost", "River", "Fever", "Seasons", "Dreams",
+    "Mercy", "Thunder", "Satellite", "Mirrors", "Motion", "Fire", "Crown", "Ocean", "Echo", "Run",
+    "Silence", "Street", "Lights", "Colour", "Gravity"
+  ];
+  const artistNames = [
+    "North Avenue", "Silver Line", "Midnight Arcade", "Velvet Echo", "Neon Harbour", "Atlas Fire", "Paper Satellites",
+    "Golden Static", "Afterglow Parade", "Hollow Avenue", "Blue Cinema", "Signal Hearts", "Wild Meridian",
+    "Electric Letters", "The Last Seasons", "Lowlight District", "Cassette Bloom", "Crimson Youth", "Polar Fires", "Sunday Lights"
+  ];
+
+  return {
+    songTitle: `${firstWords[index % firstWords.length]} ${secondWords[Math.floor(index / firstWords.length) % secondWords.length]}`,
+    artistName: artistNames[index % artistNames.length]
+  };
+}
+
+function syntheticProfileIndex(seed: string) {
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 31 + seed.charCodeAt(index)) % 500;
+  }
+
+  return Math.abs(hash);
 }
 
 export async function getCommunityToneProfileById(profileId: string) {
@@ -293,10 +349,12 @@ function scoreProfile(profile: ToneProfile, request: ToneRequest) {
 }
 
 function mapDbToneProfile(profile: DbToneProfile): ToneProfile {
+  const display = displayProfileIdentity(profile.id, profile.song_title, profile.artist_name);
+
   return {
     id: profile.id,
-    songTitle: profile.song_title,
-    artistName: profile.artist_name,
+    songTitle: display.songTitle,
+    artistName: display.artistName,
     mode: profile.mode,
     partType: profile.part_type,
     partLabel: profile.part_label,

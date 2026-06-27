@@ -1,9 +1,10 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Chrome, Loader2, Music2 } from "lucide-react";
+import { Chrome, Loader2 } from "lucide-react";
 import { brand } from "@/lib/brand";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
@@ -32,6 +33,35 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
       setMessage(authMessage);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (mode !== "login" && mode !== "signup") {
+      return;
+    }
+
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+
+    const redirectTo = searchParams.get("redirect") || "/app";
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session?.user) {
+        window.location.replace(redirectTo);
+      }
+    });
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        window.location.replace(redirectTo);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [mode, searchParams]);
 
   useEffect(() => {
     if (mode !== "update") {
@@ -191,8 +221,8 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
     <div className="section grid min-h-[calc(100vh-4rem)] items-center py-12">
       <div className="mx-auto w-full max-w-md">
         <div className="compact-card p-6 shadow-soft">
-          <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-lg bg-ink text-white">
-            <Music2 className="h-6 w-6" />
+          <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-ink/5 p-2">
+            <Image src="/fretpilot-logo.svg" alt={brand.appName} width={40} height={40} priority />
           </div>
           <h1 className="text-2xl font-semibold">{title}</h1>
           <p className="mt-2 text-sm leading-6 text-neutral-600">{description}</p>
