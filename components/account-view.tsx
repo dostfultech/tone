@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Activity, Check, CreditCard, Guitar, Loader2, Music2, ShieldCheck, Trash2, UserCircle } from "lucide-react";
 import { brand } from "@/lib/brand";
@@ -125,10 +126,10 @@ export function AccountView() {
                 </span>
               </div>
             </div>
-            <a href="/app" className="button-primary">
+            <Link href="/app" className="button-primary">
               <Guitar className="h-4 w-4" />
               Adapt Tone
-            </a>
+            </Link>
           </div>
         </section>
 
@@ -209,14 +210,14 @@ export function AccountView() {
                         Manage Subscription
                       </button>
                     ) : (
-                      <a className="button-primary" href="/plans">
+                      <Link className="button-primary" href="/plans">
                         View Plans
-                      </a>
+                      </Link>
                     )}
                     {snapshot?.planId === "beginner" ? (
-                      <a className="button-secondary" href="/plans">
+                      <Link className="button-secondary" href="/plans">
                         Upgrade to Expert
-                      </a>
+                      </Link>
                     ) : null}
                   </div>
                 </div>

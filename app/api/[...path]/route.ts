@@ -4,6 +4,7 @@ import {
   amps,
   bassAmps,
   bassGuitars,
+  type GearItem,
   guitars,
   lookupGear,
   multiFxUnits,
@@ -40,44 +41,45 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   if (route === "amps/lookup") {
     const dbResults = await lookupGearFromSupabase(["amp"], query, { limit: 60 });
-    if (dbResults) return json({ results: dbResults });
-    return json({ results: lookupGear(amps, query) });
+    return json({ results: mergeCatalogResults(dbResults, buildGearFallbackResults(lookupGear(amps, query), "amp")) });
   }
 
   if (route === "guitars/lookup") {
     const dbResults = await lookupGearFromSupabase(["guitar", "acoustic_guitar"], query, { limit: 80 });
-    if (dbResults) return json({ results: dbResults });
-    return json({ results: lookupGear(guitars, query), pickups });
+    return json({
+      results: mergeCatalogResults(dbResults, buildGearFallbackResults(lookupGear(guitars, query), "guitar")),
+      pickups
+    });
   }
 
   if (route === "bass-amps/lookup") {
     const dbResults = await lookupGearFromSupabase(["bass_amp"], query, { limit: 40 });
-    if (dbResults) return json({ results: dbResults });
-    return json({ results: lookupGear(bassAmps, query) });
+    return json({ results: mergeCatalogResults(dbResults, buildGearFallbackResults(lookupGear(bassAmps, query), "bass_amp")) });
   }
 
   if (route === "bass-guitars/lookup") {
     const dbResults = await lookupGearFromSupabase(["bass_guitar"], query, { limit: 40 });
-    if (dbResults) return json({ results: dbResults });
-    return json({ results: lookupGear(bassGuitars, query) });
+    return json({ results: mergeCatalogResults(dbResults, buildGearFallbackResults(lookupGear(bassGuitars, query), "bass_guitar")) });
   }
 
   if (route === "acoustic-guitars/lookup") {
     const dbResults = await lookupGearFromSupabase(["acoustic_guitar"], query, { limit: 40 });
-    if (dbResults) return json({ results: dbResults });
-    return json({ results: lookupGear(guitars, query) });
+    return json({ results: mergeCatalogResults(dbResults, buildGearFallbackResults(lookupGear(guitars, query), "acoustic_guitar")) });
   }
 
   if (route === "pickups/catalog") {
     const dbResults = await lookupGearFromSupabase(["pickup"], query, { limit: 40 });
-    if (dbResults) return json({ results: dbResults });
     return json({
-      results: pickups.map((item) => ({
-        id: item.id,
-        name: item.name,
-        category: item.category,
-        description: item.category
-      }))
+      results: mergeCatalogResults(
+        dbResults,
+        pickups.map((item) => ({
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          description: item.category,
+          details: item.category ? [item.category] : []
+        }))
+      )
     });
   }
 
@@ -100,21 +102,36 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   if (route === "pedals/user" || route === "pedals/presets" || route === "pedals/catalog") {
     const dbResults = await lookupGearFromSupabase(["pedal", "effect"], query, { limit: 80 });
-    if (dbResults) return json({ results: dbResults });
     return json({
-      results: pedalPresets.map((preset) => ({
-        id: preset.id,
-        name: preset.name,
-        category: preset.category,
-        details: preset.pedals
-      }))
+      results: mergeCatalogResults(
+        dbResults,
+        pedalPresets.map((preset) => ({
+          id: preset.id,
+          name: preset.name,
+          category: preset.category,
+          description: preset.pedals.join(" | "),
+          details: preset.pedals
+        }))
+      )
     });
   }
 
   if (route === "multi-fx/user" || route === "multi-fx/catalog") {
     const dbResults = await lookupGearFromSupabase(["multi_fx"], query, { limit: 40 });
-    if (dbResults) return json({ results: dbResults });
-    return json({ results: multiFxUnits.filter((unit) => `${unit.brand} ${unit.name}`.toLowerCase().includes(query.toLowerCase())) });
+    return json({
+      results: mergeCatalogResults(
+        dbResults,
+        multiFxUnits
+          .filter((unit) => `${unit.brand} ${unit.name}`.toLowerCase().includes(query.toLowerCase()))
+          .map((unit) => ({
+            id: unit.id,
+            name: unit.name,
+            category: "multi_fx",
+            description: unit.brand,
+            details: [unit.brand]
+          }))
+      )
+    });
   }
 
   if (route === "cabinets/catalog") {
@@ -567,4 +584,54 @@ function colorFromText(value: string) {
   const palette = ["#42a5c8", "#b64a33", "#8a5a44", "#62656a", "#e75f70", "#536b3d", "#155e75", "#d7482f"];
   const score = value.split("").reduce((total, char) => total + char.charCodeAt(0), 0);
   return palette[score % palette.length];
+}
+
+function buildGearFallbackResults(items: GearItem[], itemType: string) {
+  return items.map((item) => ({
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    category: item.category || itemType,
+    itemType,
+    details: item.description
+      .split(".")
+      .map((detail) => detail.trim())
+      .filter(Boolean)
+  }));
+}
+
+function mergeCatalogResults(
+  primary: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    category?: string;
+    itemType?: string;
+    details?: string[];
+  }> | null,
+  fallback: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    category?: string;
+    itemType?: string;
+    details?: string[];
+  }>
+) {
+  const merged: typeof fallback = [];
+  const seen = new Set<string>();
+
+  for (const item of [...(primary || []), ...fallback]) {
+    const normalizedName = item.name.trim().toLowerCase();
+    if (!normalizedName || seen.has(normalizedName)) {
+      continue;
+    }
+    seen.add(normalizedName);
+    merged.push({
+      ...item,
+      details: Array.isArray(item.details) ? item.details.filter(Boolean) : []
+    });
+  }
+
+  return merged;
 }

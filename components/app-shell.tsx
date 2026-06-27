@@ -52,6 +52,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [snapshot, setSnapshot] = useState<ClientSubscriptionSnapshot | null>(null);
+  const closeForNavigation = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      setOpen(false);
+    }
+  };
 
   useEffect(() => {
     const saved = localStorage.getItem(`${brand.storagePrefix}_sidebar_open`);
@@ -108,7 +113,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <button
         type="button"
         aria-label={open ? "Close navigation" : "Open navigation"}
-        className="fixed left-5 top-5 z-[70] grid h-14 w-14 place-items-center rounded-lg border border-white/80 bg-white/90 text-ink shadow-[0_18px_45px_rgba(95,141,247,0.22)] backdrop-blur transition hover:-translate-y-0.5 hover:border-ocean hover:shadow-2xl"
+        className={cn(
+          "fixed left-5 top-5 z-[70] grid h-14 w-14 place-items-center rounded-lg border border-white/80 bg-white/90 text-ink shadow-[0_18px_45px_rgba(95,141,247,0.22)] backdrop-blur transition hover:-translate-y-0.5 hover:border-ocean hover:shadow-2xl",
+          open ? "pointer-events-none opacity-0" : "pointer-events-auto opacity-100"
+        )}
         onClick={() => setOpen((value) => !value)}
       >
         {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -125,11 +133,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <aside
         className={cn(
           "theme-blue-panel fixed inset-y-0 left-0 z-[65] flex w-[322px] max-w-[88vw] flex-col border-r border-white/80 shadow-2xl transition-transform duration-300",
-          open ? "translate-x-0" : "-translate-x-full"
+          open ? "pointer-events-auto translate-x-0" : "pointer-events-none -translate-x-full"
         )}
       >
         <div className="flex h-24 items-center justify-between border-b border-white/70 px-8">
-          <Link href="/app" className="flex items-center gap-4" onClick={() => setOpen(false)}>
+          <Link href="/app" className="flex items-center gap-4" onClick={closeForNavigation}>
             <Image src="/tonefex-logo.svg" alt={brand.appName} width={48} height={48} className="rounded-lg" />
             <div>
               <div className="text-xl font-bold text-ink">Tone<span className="lime-highlight ml-0.5">fex</span></div>
@@ -152,10 +160,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          <NavSection title="My Collection" items={collectionNav} pathname={pathname} close={() => setOpen(false)} />
-          <NavSection title="Discover" items={discoveryNav} pathname={pathname} close={() => setOpen(false)} />
-          <NavSection title="Account" items={accountNav} pathname={pathname} close={() => setOpen(false)} />
-          <NavSection title="Feedback" items={feedbackNav} pathname={pathname} close={() => setOpen(false)} />
+          <NavSection title="My Collection" items={collectionNav} pathname={pathname} close={closeForNavigation} />
+          <NavSection title="Discover" items={discoveryNav} pathname={pathname} close={closeForNavigation} />
+          <NavSection title="Account" items={accountNav} pathname={pathname} close={closeForNavigation} />
+          <NavSection title="Feedback" items={feedbackNav} pathname={pathname} close={closeForNavigation} />
         </div>
 
         <div className="border-t border-white/70 p-7">
@@ -165,7 +173,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               Logout
             </button>
           ) : (
-            <Link href="/login" className="button-secondary w-full justify-start" onClick={() => setOpen(false)}>
+            <Link href="/login" className="button-secondary w-full justify-start" onClick={closeForNavigation}>
               <LogIn className="h-5 w-5" />
               Login
             </Link>

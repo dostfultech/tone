@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type CSSProperties, FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -886,9 +887,9 @@ export function ToneMatcher() {
                   <h3 className="mt-2 text-3xl font-bold">Unlock full Tonefex access</h3>
                   <p className="mt-2 text-lg font-semibold text-emerald-700">Choose a plan to unlock full adaptations, tone saving, and presets.</p>
                   <div className="mt-6 flex flex-col items-center justify-center gap-4 sm:flex-row">
-                    <a className="button-primary min-h-14 rounded-lg px-8 text-lg" href="/plans">
+                    <Link className="button-primary min-h-14 rounded-lg px-8 text-lg" href="/plans">
                       View Plans
-                    </a>
+                    </Link>
                     <span className="text-sm font-medium text-slate-600">Manage billing anytime from the customer portal.</span>
                   </div>
                 </div>
