@@ -193,7 +193,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className={cn("min-h-screen transition-[padding] duration-300", open ? "lg:pl-[322px]" : "lg:pl-0")}>
+      <main className={cn("min-h-screen", open ? "lg:pl-[322px]" : "lg:pl-0")}>
         {children}
         <AppFooter />
       </main>

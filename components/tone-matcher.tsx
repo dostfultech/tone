@@ -86,6 +86,7 @@ const AUTO_ADAPT_KEY = `${brand.storagePrefix}_auto_adapt_from_community`;
 export function ToneMatcher() {
   const router = useRouter();
   const autoAdaptTriggeredRef = useRef(false);
+  const hasLoadedPreferencesRef = useRef(false);
   const resultRef = useRef<HTMLDivElement | null>(null);
   const [mode, setMode] = useState<"guitar" | "bass">("guitar");
   const [song, setSong] = useState("Comfortably Numb");
@@ -205,53 +206,61 @@ export function ToneMatcher() {
     });
 
     const shouldAutoAdapt = sessionStorage.getItem(AUTO_ADAPT_KEY) === "1";
-    if (!shouldAutoAdapt || autoAdaptTriggeredRef.current) {
-      return;
+    if (shouldAutoAdapt && !autoAdaptTriggeredRef.current) {
+      autoAdaptTriggeredRef.current = true;
+      sessionStorage.removeItem(AUTO_ADAPT_KEY);
+
+      const storedPart = localStorage.getItem("toneMatch_part") || "main part";
+      const storedPartType = localStorage.getItem("toneMatch_partType") || "main";
+      const storedToneType = localStorage.getItem("toneMatch_toneType") || "auto";
+      const storedMode = inferStoredMode(storedPartType, storedToneType);
+      const payload: ToneRequest = {
+        mode: storedMode,
+        song: localStorage.getItem("toneMatch_song") || "Unknown Song",
+        artist: localStorage.getItem("toneMatch_artist") || "Unknown Artist",
+        part: storedPart,
+        partType: normalizePartType(storedPartType, storedPart),
+        toneType: normalizeToneType(storedToneType),
+        guitar: localStorage.getItem("toneMatch_guitar") || (storedMode === "bass" ? "Fender Precision Bass" : "Fender Stratocaster"),
+        amp: localStorage.getItem("toneMatch_amp") || (storedMode === "bass" ? "Ampeg SVT-CL" : "Boss Katana Artist"),
+        pickup: localStorage.getItem("toneMatch_pickup") || "Vintage Single Coil",
+        effectsMode: localStorage.getItem("toneMatch_effectsMode") || "manual"
+      };
+
+      void runAdaptation(payload, {
+        multiFx: localStorage.getItem("toneMatch_multiFx") || "Line 6 Helix Floor",
+        selectedFx: localStorage.getItem("toneMatch_selectedEffects") || "ambient-lead"
+      });
     }
 
-    autoAdaptTriggeredRef.current = true;
-    sessionStorage.removeItem(AUTO_ADAPT_KEY);
-
-    const storedPart = localStorage.getItem("toneMatch_part") || "main part";
-    const storedPartType = localStorage.getItem("toneMatch_partType") || "main";
-    const storedToneType = localStorage.getItem("toneMatch_toneType") || "auto";
-    const storedMode = inferStoredMode(storedPartType, storedToneType);
-    const payload: ToneRequest = {
-      mode: storedMode,
-      song: localStorage.getItem("toneMatch_song") || "Unknown Song",
-      artist: localStorage.getItem("toneMatch_artist") || "Unknown Artist",
-      part: storedPart,
-      partType: normalizePartType(storedPartType, storedPart),
-      toneType: normalizeToneType(storedToneType),
-      guitar: localStorage.getItem("toneMatch_guitar") || (storedMode === "bass" ? "Fender Precision Bass" : "Fender Stratocaster"),
-      amp: localStorage.getItem("toneMatch_amp") || (storedMode === "bass" ? "Ampeg SVT-CL" : "Boss Katana Artist"),
-      pickup: localStorage.getItem("toneMatch_pickup") || "Vintage Single Coil",
-      effectsMode: localStorage.getItem("toneMatch_effectsMode") || "manual"
-    };
-
-    void runAdaptation(payload, {
-      multiFx: localStorage.getItem("toneMatch_multiFx") || "Line 6 Helix Floor",
-      selectedFx: localStorage.getItem("toneMatch_selectedEffects") || "ambient-lead"
-    });
+    hasLoadedPreferencesRef.current = true;
   }, [runAdaptation]);
 
   useEffect(() => {
-    localStorage.setItem("toneMatch_song", song);
-    localStorage.setItem("toneMatch_artist", artist);
-    localStorage.setItem("toneMatch_part", part);
-    localStorage.setItem("toneMatch_partType", partType);
-    localStorage.setItem("toneMatch_toneType", toneType);
-    localStorage.setItem("toneMatch_guitar", guitar);
-    localStorage.setItem("toneMatch_amp", amp);
-    localStorage.setItem("toneMatch_pickup", pickup);
-    localStorage.setItem("toneMatch_multiFx", multiFx);
-    localStorage.setItem("toneMatch_effectsMode", effectsMode);
-    localStorage.setItem("toneMatch_selectedEffects", selectedFx);
+    if (!hasLoadedPreferencesRef.current) {
+      return;
+    }
+
+    const persistTimeout = window.setTimeout(() => {
+      localStorage.setItem("toneMatch_song", song);
+      localStorage.setItem("toneMatch_artist", artist);
+      localStorage.setItem("toneMatch_part", part);
+      localStorage.setItem("toneMatch_partType", partType);
+      localStorage.setItem("toneMatch_toneType", toneType);
+      localStorage.setItem("toneMatch_guitar", guitar);
+      localStorage.setItem("toneMatch_amp", amp);
+      localStorage.setItem("toneMatch_pickup", pickup);
+      localStorage.setItem("toneMatch_multiFx", multiFx);
+      localStorage.setItem("toneMatch_effectsMode", effectsMode);
+      localStorage.setItem("toneMatch_selectedEffects", selectedFx);
+    }, 220);
+
+    return () => window.clearTimeout(persistTimeout);
   }, [song, artist, part, partType, toneType, guitar, amp, pickup, multiFx, effectsMode, selectedFx]);
 
   useEffect(() => {
     const query = song.trim();
-    if (!songSearchTouched || query.length < 2) {
+    if (!songSearchTouched || query.length < 3) {
       setSongSuggestions([]);
       setSongSearchLoading(false);
       setHighlightedSongIndex(0);
@@ -433,7 +442,7 @@ export function ToneMatcher() {
   }
 
   function handleSongKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
-    const canOpenSuggestions = songSearchTouched && song.trim().length >= 2;
+    const canOpenSuggestions = songSearchTouched && song.trim().length >= 3;
     if (!songSearchOpen && (event.key === "ArrowDown" || event.key === "Enter")) {
       if (canOpenSuggestions) {
         setSongSearchOpen(true);
@@ -749,9 +758,9 @@ export function ToneMatcher() {
                       const nextSong = event.target.value;
                       setSong(nextSong);
                       setSongSearchTouched(true);
-                      setSongSearchOpen(nextSong.trim().length >= 2);
+                      setSongSearchOpen(nextSong.trim().length >= 3);
                     }}
-                    onFocus={() => setSongSearchOpen(songSearchTouched && song.trim().length >= 2)}
+                    onFocus={() => setSongSearchOpen(songSearchTouched && song.trim().length >= 3)}
                     onKeyDown={handleSongKeyDown}
                     onBlur={() => window.setTimeout(() => setSongSearchOpen(false), 140)}
                     placeholder="Search any song..."
