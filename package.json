@@ -7,7 +7,6 @@
   },
   "scripts": {
     "clean": "node scripts/clean-next.mjs",
-    "predev": "node scripts/clean-next.mjs",
     "dev": "next dev",
     "prebuild": "node scripts/clean-next.mjs",
     "build": "next build",

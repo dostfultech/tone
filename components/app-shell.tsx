@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   BarChart3,
@@ -50,6 +50,7 @@ const feedbackNav = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [snapshot, setSnapshot] = useState<ClientSubscriptionSnapshot | null>(null);
   const closeForNavigation = () => {
@@ -103,6 +104,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const supabase = createSupabaseBrowserClient();
     await supabase?.auth.signOut();
     window.location.href = "/login";
+  }
+
+  function navigate(href: string) {
+    closeForNavigation();
+    router.push(href);
   }
 
   const email = snapshot?.user?.email || "";
@@ -160,10 +166,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          <NavSection title="My Collection" items={collectionNav} pathname={pathname} close={closeForNavigation} />
-          <NavSection title="Discover" items={discoveryNav} pathname={pathname} close={closeForNavigation} />
-          <NavSection title="Account" items={accountNav} pathname={pathname} close={closeForNavigation} />
-          <NavSection title="Feedback" items={feedbackNav} pathname={pathname} close={closeForNavigation} />
+          <NavSection title="My Collection" items={collectionNav} pathname={pathname} onNavigate={navigate} />
+          <NavSection title="Discover" items={discoveryNav} pathname={pathname} onNavigate={navigate} />
+          <NavSection title="Account" items={accountNav} pathname={pathname} onNavigate={navigate} />
+          <NavSection title="Feedback" items={feedbackNav} pathname={pathname} onNavigate={navigate} />
         </div>
 
         <div className="border-t border-white/70 p-7">
@@ -252,12 +258,12 @@ function NavSection({
   title,
   items,
   pathname,
-  close
+  onNavigate
 }: {
   title: string;
   items: Array<{ href: string; label: string; icon: React.ComponentType<{ className?: string }> }>;
   pathname: string;
-  close: () => void;
+  onNavigate: (href: string) => void;
 }) {
   return (
     <div className="mb-8">
@@ -268,18 +274,18 @@ function NavSection({
           const baseHref = item.href.split("?")[0];
           const active = pathname === baseHref;
           return (
-            <Link
+            <button
               key={item.href}
-              href={item.href}
+              type="button"
               className={cn(
-                "flex min-h-12 items-center gap-4 rounded-lg px-3 text-base font-semibold transition",
+                "flex min-h-12 w-full items-center gap-4 rounded-lg px-3 text-left text-base font-semibold transition",
                 active ? "bg-ink text-white shadow-lg shadow-slate-900/10" : "text-slate-700 hover:bg-white/70 hover:text-ink"
               )}
-              onClick={close}
+              onClick={() => onNavigate(item.href)}
             >
               <Icon className="h-5 w-5" />
               {item.label}
-            </Link>
+            </button>
           );
         })}
       </nav>

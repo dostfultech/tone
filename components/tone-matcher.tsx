@@ -90,6 +90,7 @@ export function ToneMatcher() {
   const resultRef = useRef<HTMLDivElement | null>(null);
   const [mode, setMode] = useState<"guitar" | "bass">("guitar");
   const [song, setSong] = useState("Comfortably Numb");
+  const [songDraft, setSongDraft] = useState("Comfortably Numb");
   const [artist, setArtist] = useState("Pink Floyd");
   const [part, setPart] = useState("second solo");
   const [partType, setPartType] = useState<TonePartType>("solo");
@@ -185,7 +186,13 @@ export function ToneMatcher() {
 
   useEffect(() => {
     const fields = [
-      ["toneMatch_song", setSong],
+      [
+        "toneMatch_song",
+        (value: string) => {
+          setSong(value);
+          setSongDraft(value);
+        }
+      ],
       ["toneMatch_artist", setArtist],
       ["toneMatch_part", setPart],
       ["toneMatch_partType", (value: string) => setPartType(normalizePartType(value))],
@@ -242,7 +249,7 @@ export function ToneMatcher() {
     }
 
     const persistTimeout = window.setTimeout(() => {
-      localStorage.setItem("toneMatch_song", song);
+      localStorage.setItem("toneMatch_song", songDraft);
       localStorage.setItem("toneMatch_artist", artist);
       localStorage.setItem("toneMatch_part", part);
       localStorage.setItem("toneMatch_partType", partType);
@@ -256,10 +263,10 @@ export function ToneMatcher() {
     }, 220);
 
     return () => window.clearTimeout(persistTimeout);
-  }, [song, artist, part, partType, toneType, guitar, amp, pickup, multiFx, effectsMode, selectedFx]);
+  }, [songDraft, artist, part, partType, toneType, guitar, amp, pickup, multiFx, effectsMode, selectedFx]);
 
   useEffect(() => {
-    const query = song.trim();
+    const query = songDraft.trim();
     if (!songSearchTouched || query.length < 3) {
       setSongSuggestions([]);
       setSongSearchLoading(false);
@@ -295,7 +302,7 @@ export function ToneMatcher() {
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [song, songSearchTouched]);
+  }, [songDraft, songSearchTouched]);
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -426,6 +433,7 @@ export function ToneMatcher() {
   function applySongPreset(preset: SongSuggestion) {
     setMode(preset.mode);
     setSong(preset.song);
+    setSongDraft(preset.song);
     setArtist(preset.artist);
     setPart(preset.part);
     setPartType(normalizePartType(preset.part, preset.mode === "bass" ? "bassline" : undefined));
@@ -442,7 +450,7 @@ export function ToneMatcher() {
   }
 
   function handleSongKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
-    const canOpenSuggestions = songSearchTouched && song.trim().length >= 3;
+    const canOpenSuggestions = songSearchTouched && songDraft.trim().length >= 3;
     if (!songSearchOpen && (event.key === "ArrowDown" || event.key === "Enter")) {
       if (canOpenSuggestions) {
         setSongSearchOpen(true);
@@ -472,7 +480,9 @@ export function ToneMatcher() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const payload: ToneRequest = { mode, song, artist, part, partType, toneType, guitar, amp, pickup, effectsMode };
+    const normalizedSong = songDraft.trim() || song.trim() || "Unknown Song";
+    setSong(normalizedSong);
+    const payload: ToneRequest = { mode, song: normalizedSong, artist, part, partType, toneType, guitar, amp, pickup, effectsMode };
     await runAdaptation(payload);
   }
 
@@ -517,9 +527,9 @@ export function ToneMatcher() {
     if (mode === "bass") return option.value === "auto" || option.value === "bass_clean" || option.value === "bass_drive" || option.value === "clean" || option.value === "distorted";
     return option.value !== "bass_clean" && option.value !== "bass_drive";
   });
-  const songsterrUrl = `https://www.songsterr.com/a/wa/search?pattern=${encodeURIComponent(`${song} ${artist}`)}`;
-  const backingTrackUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`${song} ${artist} backing track`)}`;
-  const selectedSongLabel = song.trim() || "selected song";
+  const songsterrUrl = `https://www.songsterr.com/a/wa/search?pattern=${encodeURIComponent(`${songDraft || song} ${artist}`)}`;
+  const backingTrackUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`${songDraft || song} ${artist} backing track`)}`;
+  const selectedSongLabel = songDraft.trim() || song.trim() || "selected song";
   const selectedArtistLabel = artist.trim();
   const songLinkLabel = song.trim() ? `"${song.trim()}"` : "this song";
 
@@ -753,27 +763,28 @@ export function ToneMatcher() {
                   <input
                     id="song-search"
                     className="field h-16 rounded-lg px-5 pr-14 text-xl"
-                    value={song}
+                    value={songDraft}
                     onChange={(event) => {
                       const nextSong = event.target.value;
-                      setSong(nextSong);
+                      setSongDraft(nextSong);
                       setSongSearchTouched(true);
                       setSongSearchOpen(nextSong.trim().length >= 3);
                     }}
-                    onFocus={() => setSongSearchOpen(songSearchTouched && song.trim().length >= 3)}
+                    onFocus={() => setSongSearchOpen(songSearchTouched && songDraft.trim().length >= 3)}
                     onKeyDown={handleSongKeyDown}
                     onBlur={() => window.setTimeout(() => setSongSearchOpen(false), 140)}
                     placeholder="Search any song..."
                     autoComplete="off"
                     required
                   />
-                  {song ? (
+                  {songDraft ? (
                     <button
                       type="button"
                       aria-label="Clear song search"
                       className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-md p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => {
+                        setSongDraft("");
                         setSong("");
                         setArtist("");
                         setPart("");
@@ -929,7 +940,7 @@ export function ToneMatcher() {
 
           <div ref={resultRef}>
             <WorkflowCard step="3" title="Results">
-              {result ? <ResultPanel result={result} onSave={saveTone} /> : <EmptySplitResult song={song} artist={artist} guitar={guitar} amp={amp} />}
+              {result ? <ResultPanel result={result} onSave={saveTone} /> : <EmptySplitResult song={songDraft || song} artist={artist} guitar={guitar} amp={amp} />}
             </WorkflowCard>
           </div>
         </form>

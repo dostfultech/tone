@@ -1,8 +1,4 @@
 
-> tonefex@0.1.0 predev
-> node scripts/clean-next.mjs
-
-
 > tonefex@0.1.0 dev
 > next dev --hostname 127.0.0.1 --port 3001
 
@@ -12,39 +8,10 @@
    - Environments: .env.local
 
  ✓ Starting...
- ✓ Ready in 2.8s
- ○ Compiling /api/[...path] ...
-<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (102kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
-<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (250kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
- ✓ Compiled /api/[...path] in 4.2s (689 modules)
- ○ Compiling /api/[...path] ...
- ✓ Compiled /api/[...path] in 5.8s (1088 modules)
- HEAD /plans 200 in 5749ms
- GET /api/guitars/lookup 200 in 6332ms
- GET / 200 in 165ms
- ✓ Compiled /icon.svg in 342ms (513 modules)
- GET /icon.svg?6f84e44e2d74d11e 200 in 517ms
- GET / 200 in 641ms
- GET /icon.svg?6f84e44e2d74d11e 200 in 26ms
- ○ Compiling /login ...
- ✓ Compiled /login in 781ms (877 modules)
- GET /login 200 in 1109ms
- GET /login 200 in 150ms
- GET / 200 in 191ms
- ✓ Compiled /auth/callback in 408ms (927 modules)
-TypeError: fetch failed
-    at async GET (app\auth\callback\route.ts:24:23)
-  22 |   if (code) {
-  23 |     const supabase = await createSupabaseServerClient();
-> 24 |     const { error } = (await supabase?.auth.exchangeCodeForSession(code)) || {};
-     |                       ^
-  25 |     if (error) {
-  26 |       const loginUrl = new URL("/login", origin);
-  27 |       loginUrl.searchParams.set("error", "callback_failed"); {
-  [cause]: [Error: unable to verify the first certificate; if the root CA is installed locally, try running Node.js with --use-system-ca] {
-    code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
-  }
-}
- GET /auth/callback?code=7d0cdbd1-bc69-46ae-a0db-58b40115ad3f&next=%2Fapp 307 in 1061ms
- GET /login?error=callback_failed&message=fetch+failed 200 in 476ms
- GET /icon.svg?6f84e44e2d74d11e 200 in 36ms
+ ✓ Ready in 4s
+ ○ Compiling /middleware ...
+ ✓ Compiled /middleware in 2.2s (169 modules)
+ ○ Compiling / ...
+ ✓ Compiled / in 9.2s (819 modules)
+ GET / 200 in 10687ms
+ GET / 200 in 276ms
