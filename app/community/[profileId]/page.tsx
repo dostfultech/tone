@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Database, Gauge, Guitar, Link2, Music2, ShieldCheck, SlidersHorizontal, Sparkles, Volume2 } from "lucide-react";
+import { ArrowLeft, Database, Gauge, Guitar, Link2, Lock, Music2, ShieldCheck, SlidersHorizontal, Sparkles, Volume2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { CommunityToneCta } from "@/components/community-tone-cta";
 import { getCurrentSession, getEntitlement } from "@/lib/server-access";
@@ -35,14 +35,14 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
   }
 
   const settings = Object.entries(profile.originalSettings || {});
-  const visibleSettings = settings.slice(0, 3);
-  const lockedSettings = settings.slice(3);
   const researchCount = Math.max(24, profile.confidence * 4);
   const likes = Math.max(10, Math.round(profile.confidence / 1.35));
   const hasPremiumAccess = entitlement.hasAccess;
   const userLoggedIn = Boolean(user);
   const canAdapt = userLoggedIn && hasPremiumAccess;
   const redirectTarget = `/community/${profile.id}`;
+  const visibleSettings = hasPremiumAccess ? settings : settings.slice(0, 2);
+  const lockedSettings = hasPremiumAccess ? [] : settings.slice(2);
 
   return (
     <AppShell>
@@ -119,51 +119,77 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
                   <p className="text-sm text-slate-500">No structured amp settings are stored for this profile yet.</p>
                 )}
                 {lockedSettings.length ? (
-                  <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {lockedSettings.map(([key, value]) => (
-                      <div key={key} className="compact-card p-5 text-center">
-                        <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{prettifyKey(key)}</div>
-                        <div className="mt-3 text-4xl font-bold text-ink">{value}</div>
-                      </div>
-                    ))}
-                  </div>
+                  <LockedContent
+                    className="mt-6"
+                    redirectTarget={redirectTarget}
+                    userLoggedIn={userLoggedIn}
+                    title="Unlock full amp settings"
+                    body="Beginner and Expert plans reveal every stored setting for this tone profile."
+                  >
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                      {lockedSettings.map(([key, value]) => (
+                        <div key={key} className="compact-card p-5 text-center">
+                          <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{prettifyKey(key)}</div>
+                          <div className="mt-3 text-4xl font-bold text-ink">{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </LockedContent>
                 ) : null}
               </section>
 
               <section className="grid gap-8 xl:grid-cols-2">
                 <div className="theme-panel min-h-[420px] p-8">
                   <h2 className="text-2xl font-bold">Effects & Signal Chain</h2>
-                  <div className="mt-6 grid gap-3">
-                    {profile.effects.length ? (
-                      profile.effects.map((effect) => (
-                        <div key={`${effect.effectOrder}-${effect.effectName}`} className="rounded-lg border border-white/80 bg-white/80 p-4">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="font-bold">{effect.effectOrder}. {effect.effectName}</div>
-                            <span className="rounded-md bg-neutral-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{effect.placement}</span>
-                          </div>
-                          {Object.keys(effect.settings || {}).length ? (
-                            <div className="mt-3 flex flex-wrap gap-2 text-sm text-slate-600">
-                              {Object.entries(effect.settings).map(([key, value]) => (
-                                <span key={key} className="rounded-full bg-neutral-100 px-3 py-1 font-semibold">
-                                  {prettifyKey(key)}: {String(value)}
-                                </span>
-                              ))}
+                  <LockedContent
+                    locked={!hasPremiumAccess}
+                    className="mt-6"
+                    redirectTarget={redirectTarget}
+                    userLoggedIn={userLoggedIn}
+                    title="Unlock effects and signal chain"
+                    body="Upgrade to see the complete pedal order, placement, and stored effect settings."
+                  >
+                    <div className="grid gap-3">
+                      {profile.effects.length ? (
+                        profile.effects.map((effect) => (
+                          <div key={`${effect.effectOrder}-${effect.effectName}`} className="rounded-lg border border-white/80 bg-white/80 p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="font-bold">{effect.effectOrder}. {effect.effectName}</div>
+                              <span className="rounded-md bg-neutral-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{effect.placement}</span>
                             </div>
-                          ) : null}
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-slate-500">No effect chain recorded for this profile yet.</p>
-                    )}
-                  </div>
+                            {Object.keys(effect.settings || {}).length ? (
+                              <div className="mt-3 flex flex-wrap gap-2 text-sm text-slate-600">
+                                {Object.entries(effect.settings).map(([key, value]) => (
+                                  <span key={key} className="rounded-full bg-neutral-100 px-3 py-1 font-semibold">
+                                    {prettifyKey(key)}: {String(value)}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-500">No effect chain recorded for this profile yet.</p>
+                      )}
+                    </div>
+                  </LockedContent>
                 </div>
 
                 <div className="theme-panel min-h-[420px] p-8">
                   <h2 className="text-2xl font-bold">Playing & Adaptation Notes</h2>
-                  <div className="mt-6 grid gap-6">
-                    <NotesBlock title="Playing Notes" items={profile.playingNotes} emptyLabel="No playing notes stored yet." />
-                    <NotesBlock title="Adaptation Notes" items={profile.adaptationNotes} emptyLabel="No adaptation notes stored yet." />
-                  </div>
+                  <LockedContent
+                    locked={!hasPremiumAccess}
+                    className="mt-6"
+                    redirectTarget={redirectTarget}
+                    userLoggedIn={userLoggedIn}
+                    title="Unlock playing notes"
+                    body="Beginner and Expert plans include the full playing guidance and adaptation notes."
+                  >
+                    <div className="grid gap-6">
+                      <NotesBlock title="Playing Notes" items={profile.playingNotes} emptyLabel="No playing notes stored yet." />
+                      <NotesBlock title="Adaptation Notes" items={profile.adaptationNotes} emptyLabel="No adaptation notes stored yet." />
+                    </div>
+                  </LockedContent>
                 </div>
               </section>
             </div>
@@ -181,35 +207,55 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
 
               <div className="theme-panel p-6">
                 <h2 className="text-lg font-bold">Tone Character</h2>
-                <div className="mt-5 grid gap-3">
-                  <CharacterMeter label="Authenticity" value={profile.confidence} />
-                  <CharacterMeter label="Playability" value={Math.min(96, profile.confidence + 10)} />
-                  <CharacterMeter label="Adaptability" value={Math.min(94, profile.confidence + 6)} />
-                </div>
+                <LockedContent
+                  locked={!hasPremiumAccess}
+                  className="mt-5"
+                  redirectTarget={redirectTarget}
+                  userLoggedIn={userLoggedIn}
+                  title="Unlock tone character"
+                  body="See full authenticity, playability, and adaptability scoring with a paid plan."
+                  compact
+                >
+                  <div className="grid gap-3">
+                    <CharacterMeter label="Authenticity" value={profile.confidence} />
+                    <CharacterMeter label="Playability" value={Math.min(96, profile.confidence + 10)} />
+                    <CharacterMeter label="Adaptability" value={Math.min(94, profile.confidence + 6)} />
+                  </div>
+                </LockedContent>
               </div>
 
               <div className="theme-panel p-6">
                 <h2 className="text-lg font-bold">Sources</h2>
-                <div className="mt-5 grid gap-4">
-                  {profile.sources.length ? (
-                    profile.sources.map((source) => (
-                      <div key={`${source.sourceType}-${source.title}`} className="rounded-lg border border-white/80 bg-white/80 p-4">
-                        <div className="text-sm font-bold uppercase tracking-[0.12em] text-ocean">{source.sourceType.replaceAll("_", " ")}</div>
-                        <div className="mt-2 font-semibold">{source.title}</div>
-                        <div className="mt-2 text-sm text-slate-500">Credibility: {source.credibility}%</div>
-                        {source.notes ? <p className="mt-2 text-sm leading-6 text-slate-600">{source.notes}</p> : null}
-                        {source.url ? (
-                          <a href={source.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-ocean">
-                            <Link2 className="h-4 w-4" />
-                            Open source
-                          </a>
-                        ) : null}
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-slate-500">No sources are stored for this profile yet.</p>
-                  )}
-                </div>
+                <LockedContent
+                  locked={!hasPremiumAccess}
+                  className="mt-5"
+                  redirectTarget={redirectTarget}
+                  userLoggedIn={userLoggedIn}
+                  title="Unlock sources"
+                  body="Paid plans reveal source notes and credibility details for each profile."
+                  compact
+                >
+                  <div className="grid gap-4">
+                    {profile.sources.length ? (
+                      profile.sources.map((source) => (
+                        <div key={`${source.sourceType}-${source.title}`} className="rounded-lg border border-white/80 bg-white/80 p-4">
+                          <div className="text-sm font-bold uppercase tracking-[0.12em] text-ocean">{source.sourceType.replaceAll("_", " ")}</div>
+                          <div className="mt-2 font-semibold">{source.title}</div>
+                          <div className="mt-2 text-sm text-slate-500">Credibility: {source.credibility}%</div>
+                          {source.notes ? <p className="mt-2 text-sm leading-6 text-slate-600">{source.notes}</p> : null}
+                          {source.url ? (
+                            <a href={source.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-ocean">
+                              <Link2 className="h-4 w-4" />
+                              Open source
+                            </a>
+                          ) : null}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-slate-500">No sources are stored for this profile yet.</p>
+                    )}
+                  </div>
+                </LockedContent>
               </div>
 
               <div className="theme-panel p-6">
@@ -268,6 +314,59 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
         </div>
       </div>
     </AppShell>
+  );
+}
+
+function LockedContent({
+  children,
+  className = "",
+  locked = true,
+  redirectTarget,
+  userLoggedIn,
+  title,
+  body,
+  compact = false
+}: {
+  children: React.ReactNode;
+  className?: string;
+  locked?: boolean;
+  redirectTarget: string;
+  userLoggedIn: boolean;
+  title: string;
+  body: string;
+  compact?: boolean;
+}) {
+  if (!locked) {
+    return <div className={className}>{children}</div>;
+  }
+
+  return (
+    <div className={`relative overflow-hidden rounded-xl ${className}`}>
+      <div className="pointer-events-none select-none blur-sm opacity-55" aria-hidden="true">
+        {children}
+      </div>
+      <div className="absolute inset-0 grid place-items-center bg-white/65 p-4 backdrop-blur-[1px]">
+        <div className={`max-w-sm rounded-lg border border-white/90 bg-white/95 text-center shadow-xl ${compact ? "p-4" : "p-5"}`}>
+          <div className="mx-auto grid h-10 w-10 place-items-center rounded-lg bg-ink text-moss">
+            <Lock className="h-5 w-5" />
+          </div>
+          <h3 className={`${compact ? "mt-3 text-base" : "mt-4 text-lg"} font-bold text-ink`}>{title}</h3>
+          <p className={`${compact ? "mt-2 text-xs leading-5" : "mt-2 text-sm leading-6"} text-slate-600`}>{body}</p>
+          <div className="mt-4 grid gap-2">
+            <Link href={`/plans?required=subscription&redirect=${encodeURIComponent(redirectTarget)}`} className="button-primary min-h-10 justify-center rounded-lg px-4 text-sm">
+              <Sparkles className="h-4 w-4" />
+              View Plans
+            </Link>
+            {!userLoggedIn ? (
+              <Link href={`/login?redirect=${encodeURIComponent(redirectTarget)}`} className="button-secondary min-h-10 justify-center rounded-lg px-4 text-sm">
+                <ShieldCheck className="h-4 w-4" />
+                Sign In
+              </Link>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type CSSProperties, FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type CSSProperties, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BadgeCheck,
@@ -32,6 +32,11 @@ import {
 import { brand } from "@/lib/brand";
 import { loadClientSubscriptionSnapshot, type ClientSubscriptionSnapshot } from "@/lib/subscription-client";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import {
+  extractToneControls,
+  formatToneControlName,
+  useAnimatedToneControls
+} from "@/components/tone-control-animation";
 
 type ToneResult = {
   id: string;
@@ -106,7 +111,7 @@ export function ToneMatcher() {
   const [pickup, setPickup] = useState("Vintage Single Coil");
   const [effectsMode, setEffectsMode] = useState("manual");
   const [goingDirect, setGoingDirect] = useState(false);
-  const [selectedFx, setSelectedFx] = useState("ambient-lead");
+  const [selectedFx, setSelectedFx] = useState("Ambient Lead");
   const [multiFx, setMultiFx] = useState("Line 6 Helix Floor");
   const [result, setResult] = useState<ToneResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -191,17 +196,41 @@ export function ToneMatcher() {
     [multiFx, router, selectedFx]
   );
 
+  const runAdaptationRef = useRef(runAdaptation);
+
   useEffect(() => {
+    runAdaptationRef.current = runAdaptation;
+  }, [runAdaptation]);
+
+  useEffect(() => {
+    if (hasLoadedPreferencesRef.current) {
+      return;
+    }
+
     const fields = [
-      ["toneMatch_partType", (value: string) => setPartType(normalizePartType(value))],
-      ["toneMatch_toneType", (value: string) => setToneType(normalizeToneType(value))],
-      ["toneMatch_guitar", setGuitar],
-      ["toneMatch_amp", setAmp],
-      ["toneMatch_cabinet", setCabinet],
-      ["toneMatch_pickup", setPickup],
-      ["toneMatch_multiFx", setMultiFx],
-      ["toneMatch_effectsMode", setEffectsMode],
-      ["toneMatch_selectedEffects", setSelectedFx]
+      [
+        "toneMatch_partType",
+        (value: string) =>
+          setPartType((current) => {
+            const next = normalizePartType(value);
+            return current === next ? current : next;
+          })
+      ],
+      [
+        "toneMatch_toneType",
+        (value: string) =>
+          setToneType((current) => {
+            const next = normalizeToneType(value);
+            return current === next ? current : next;
+          })
+      ],
+      ["toneMatch_guitar", (value: string) => setGuitar((current) => (current === value ? current : value))],
+      ["toneMatch_amp", (value: string) => setAmp((current) => (current === value ? current : value))],
+      ["toneMatch_cabinet", (value: string) => setCabinet((current) => (current === value ? current : value))],
+      ["toneMatch_pickup", (value: string) => setPickup((current) => (current === value ? current : value))],
+      ["toneMatch_multiFx", (value: string) => setMultiFx((current) => (current === value ? current : value))],
+      ["toneMatch_effectsMode", (value: string) => setEffectsMode((current) => (current === value ? current : value))],
+      ["toneMatch_selectedEffects", (value: string) => setSelectedFx((current) => (current === value ? current : value))]
     ] as const;
 
     fields.forEach(([key, setter]) => {
@@ -249,14 +278,14 @@ export function ToneMatcher() {
         effectsMode: payloadFromSession?.effectsMode || localStorage.getItem("toneMatch_effectsMode") || "manual"
       };
 
-      void runAdaptation(payload, {
+      void runAdaptationRef.current(payload, {
         multiFx: payloadFromSession?.multiFx || localStorage.getItem("toneMatch_multiFx") || "Line 6 Helix Floor",
-        selectedFx: payloadFromSession?.selectedFx || localStorage.getItem("toneMatch_selectedEffects") || "ambient-lead"
+        selectedFx: payloadFromSession?.selectedFx || localStorage.getItem("toneMatch_selectedEffects") || "Ambient Lead"
       });
     }
 
     hasLoadedPreferencesRef.current = true;
-  }, [runAdaptation]);
+  }, []);
 
   useEffect(() => {
     if (!hasLoadedPreferencesRef.current) {
@@ -365,7 +394,7 @@ export function ToneMatcher() {
       const storedAmp = localStorage.getItem("toneMatch_amp") || "Boss Katana Artist";
       const storedCabinet = localStorage.getItem("toneMatch_cabinet") || "Mesa/Boogie Rectifier 4x12";
       const storedPickup = localStorage.getItem("toneMatch_pickup") || "Vintage Single Coil";
-      const storedSelectedFx = localStorage.getItem("toneMatch_selectedEffects") || "ambient-lead";
+      const storedSelectedFx = localStorage.getItem("toneMatch_selectedEffects") || "Ambient Lead";
       const storedMultiFx = localStorage.getItem("toneMatch_multiFx") || "Line 6 Helix Floor";
       const storedMode = inferStoredMode(localStorage.getItem("toneMatch_partType"), localStorage.getItem("toneMatch_toneType"));
 
@@ -402,8 +431,11 @@ export function ToneMatcher() {
         setPickup(pickupsResponse[0].name);
       }
 
-      if (pedalsResponse.length && !pedalsResponse.some((item) => item.name === storedSelectedFx)) {
-        setSelectedFx(pedalsResponse[0].name);
+      if (pedalsResponse.length) {
+        const nextSelectedFx = resolveCatalogSelection(storedSelectedFx, pedalsResponse, pedalsResponse[0].name);
+        if (nextSelectedFx !== storedSelectedFx || !pedalsResponse.some((item) => item.name === storedSelectedFx)) {
+          setSelectedFx(nextSelectedFx);
+        }
       }
 
       if (multiFxResponse.length && !multiFxResponse.some((item) => item.name === storedMultiFx)) {
@@ -449,7 +481,8 @@ export function ToneMatcher() {
     }
 
     if (pedalCatalog.length && !pedalCatalog.some((item) => item.name === selectedFx)) {
-      setSelectedFx(pedalCatalog[0].name);
+      const nextSelectedFx = resolveCatalogSelection(selectedFx, pedalCatalog, pedalCatalog[0].name);
+      setSelectedFx((current) => (current === nextSelectedFx ? current : nextSelectedFx));
     }
 
     if (multiFxCatalog.length && !multiFxCatalog.some((item) => item.name === multiFx)) {
@@ -559,7 +592,7 @@ export function ToneMatcher() {
   const selectedAmp = currentAmps.find((item) => item.name === amp);
   const selectedCabinet = cabinetCatalog.find((item) => item.name === cabinet);
   const selectedPickup = pickupCatalog.find((item) => item.name === pickup);
-  const selectedPreset = pedalCatalog.find((item) => item.name === selectedFx);
+  const selectedPreset = pedalCatalog.find((item) => item.name === selectedFx || item.id === selectedFx);
   useEffect(() => {
     if (selectedPreset) {
       lastSelectedPresetRef.current = selectedPreset;
@@ -763,7 +796,10 @@ export function ToneMatcher() {
                         className={`flex min-h-16 items-center justify-center gap-3 rounded-md text-base font-bold transition ${
                           effectsMode === value ? "bg-white text-ink shadow-lg" : "text-slate-700 hover:bg-white/70"
                         }`}
-                        onClick={() => setEffectsMode(value as string)}
+                        onClick={() => {
+                          const nextMode = value as string;
+                          setEffectsMode((current) => (current === nextMode ? current : nextMode));
+                        }}
                       >
                         <ActiveIcon className="h-5 w-5" />
                         {label as string}
@@ -784,7 +820,12 @@ export function ToneMatcher() {
                   </div>
                 ) : (
                   <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.55fr)]">
-                    <SelectField label="Effect preset" value={selectedFx} onChange={setSelectedFx} options={pedalCatalog.map((preset) => preset.name)} />
+                    <SelectField
+                      label="Effect preset"
+                      value={selectedFx}
+                      onChange={(value) => setSelectedFx((current) => (current === value ? current : value))}
+                      options={pedalCatalog.map((preset) => preset.name)}
+                    />
                     <div className="flex min-h-[112px] flex-col rounded-lg border border-white/80 bg-blue-50/70 p-4">
                       <div className="text-sm font-bold">{visiblePreset?.name ?? ""}</div>
                       <div className="mt-2 flex flex-1 flex-wrap content-start gap-2 overflow-hidden">
@@ -1134,7 +1175,16 @@ function SelectField({ label, value, onChange, options }: { label: string; value
   return (
     <div>
       <label className="label">{label}</label>
-      <select className="field mt-1" value={value} onChange={(event) => onChange(event.target.value)}>
+      <select
+        className="field mt-1"
+        value={value}
+        onChange={(event) => {
+          const nextValue = event.target.value;
+          if (nextValue !== value) {
+            onChange(nextValue);
+          }
+        }}
+      >
         {options.length ? (
           options.map((option) => (
             <option key={option} value={option}>
@@ -1203,6 +1253,10 @@ function normalizeToneType(value: string): ToneType {
   return allowed.includes(value as ToneType) ? (value as ToneType) : "auto";
 }
 
+function resolveCatalogSelection(value: string, catalog: CatalogEntry[], fallback: string) {
+  return catalog.find((item) => item.name === value || item.id === value)?.name || fallback;
+}
+
 async function fetchCatalog(url: string): Promise<CatalogEntry[]> {
   try {
     const response = await fetch(url, { cache: "no-store" });
@@ -1264,7 +1318,6 @@ function EmptySplitResult({ song, artist, guitar, amp }: { song: string; artist:
 }
 
 function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => void }) {
-  const targetSettings = Object.entries(result.targetSettings);
   const profile = result.sourceProfile;
 
   return (
@@ -1304,7 +1357,7 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => voi
 
       <div className="grid gap-5 p-5">
         <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}>
-          <SettingsBlock title="Your adapted tone" icon={<Gauge className="h-4 w-4 text-ocean" />} settings={targetSettings} empty="No target settings returned" />
+          <SettingsBlock title="Your adapted tone" icon={<Gauge className="h-4 w-4 text-ocean" />} settings={result.targetSettings} empty="No target settings returned" />
         </motion.section>
 
         <motion.section className="grid gap-4 lg:grid-cols-2" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.12 }}>
@@ -1343,33 +1396,11 @@ function knobStyle(value: number): CSSProperties {
   return { "--knob-angle": `${-135 + boundedValue * 27}deg` } as CSSProperties;
 }
 
-function SettingsBlock({ title, icon, settings, empty }: { title: string; icon: React.ReactNode; settings: Array<[string, number]>; empty: string }) {
-  const [animatedValues, setAnimatedValues] = useState<Record<string, number>>({});
-
-  useEffect(() => {
-    let frame = 0;
-    const startedAt = performance.now();
-    const durationMs = 900;
-
-    const animate = (now: number) => {
-      const progress = Math.min((now - startedAt) / durationMs, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const nextValues = Object.fromEntries(
-        settings.map(([name, value]) => [name, Number((value * eased).toFixed(1))])
-      );
-
-      setAnimatedValues(nextValues);
-
-      if (progress < 1) {
-        frame = requestAnimationFrame(animate);
-      }
-    };
-
-    setAnimatedValues({});
-    frame = requestAnimationFrame(animate);
-
-    return () => cancelAnimationFrame(frame);
-  }, [settings]);
+function SettingsBlock({ title, icon, settings, empty }: { title: string; icon: React.ReactNode; settings: Record<string, number>; empty: string }) {
+  const hasSettings = Object.keys(settings).length > 0;
+  const controls = useMemo(() => (hasSettings ? extractToneControls({ targetSettings: settings }) : {}), [hasSettings, settings]);
+  const animatedValues = useAnimatedToneControls(controls, 900);
+  const entries = Object.entries(controls);
 
   return (
     <div>
@@ -1377,23 +1408,31 @@ function SettingsBlock({ title, icon, settings, empty }: { title: string; icon: 
         {icon}
         {title}
       </h3>
-      {settings.length ? (
+      {entries.length ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {settings.map(([name, value]) => (
-            <div key={name} className="rounded-lg border border-white/80 bg-white/90 p-4 text-center shadow-sm transition-shadow hover:shadow-lg">
-              <div className="knob-shell mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full" style={knobStyle(animatedValues[name] ?? 0)} aria-label={`${name} ${value}`}>
-                <div className="knob h-12 w-12 rounded-full" />
+          {entries.map(([name, value]) => {
+            const animatedValue = animatedValues[name] ?? 0;
+
+            return (
+              <div key={name} className="rounded-lg border border-white/80 bg-white/90 p-4 text-center shadow-sm transition-shadow hover:shadow-lg">
+                <div className="knob-shell mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full" style={knobStyle(animatedValue)} aria-label={`${formatToneControlName(name)} ${value}`}>
+                  <div className="knob h-12 w-12 rounded-full" />
+                </div>
+                <div className="text-xs text-slate-500">{formatToneControlName(name)}</div>
+                <div className="text-lg font-semibold">{formatDisplayValue(animatedValue)}</div>
               </div>
-              <div className="text-xs capitalize text-slate-500">{name.replace("_", " ")}</div>
-              <div className="text-lg font-semibold">{animatedValues[name] ?? 0}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="rounded-lg border border-dashed border-blue-100 bg-white/80 p-4 text-sm text-slate-500">{empty}</div>
       )}
     </div>
   );
+}
+
+function formatDisplayValue(value: number) {
+  return Number.isInteger(value) ? value : value.toFixed(1);
 }
 
 function InfoBlock({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {

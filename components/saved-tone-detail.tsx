@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import {
+  extractToneControls,
+  formatToneControlName,
+  useAnimatedToneControls
+} from "@/components/tone-control-animation";
 
 type SavedToneDetailProps = {
   song: string;
@@ -11,33 +16,9 @@ type SavedToneDetailProps = {
   result: Record<string, unknown>;
 };
 
-const knobOrder = ["gain", "bass", "mids", "mid", "treble", "presence", "reverb", "delay", "master", "volume", "tone", "compression"];
-
 export function SavedToneDetail({ song, artist, part, mode, notes, result }: SavedToneDetailProps) {
-  const controls = useMemo(() => extractControls(result), [result]);
-  const [animatedValues, setAnimatedValues] = useState<Record<string, number>>({});
-
-  useEffect(() => {
-    let frame = 0;
-    const startedAt = performance.now();
-    const durationMs = 800;
-
-    const animate = (now: number) => {
-      const progress = Math.min((now - startedAt) / durationMs, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const nextValues = Object.fromEntries(
-        Object.entries(controls).map(([key, value]) => [key, Number((value * eased).toFixed(1))])
-      );
-      setAnimatedValues(nextValues);
-
-      if (progress < 1) {
-        frame = requestAnimationFrame(animate);
-      }
-    };
-
-    frame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frame);
-  }, [controls]);
+  const controls = useMemo(() => extractToneControls(result), [result]);
+  const animatedValues = useAnimatedToneControls(controls, 800);
 
   return (
     <section className="section py-10">
@@ -53,11 +34,11 @@ export function SavedToneDetail({ song, artist, part, mode, notes, result }: Sav
           <div className="mt-8">
             <div className="mb-5 text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">Your Adapted Tone</div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {Object.entries(controls).map(([name, target]) => (
+              {Object.entries(controls).map(([name]) => (
                 <div key={name} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold capitalize text-ink">{name === "mid" ? "Mids" : name}</div>
-                    <div className="text-sm font-bold text-ocean">{animatedValues[name] ?? 0}</div>
+                    <div className="text-sm font-semibold text-ink">{formatToneControlName(name)}</div>
+                    <div className="text-sm font-bold text-ocean">{formatDisplayValue(animatedValues[name] ?? 0)}</div>
                   </div>
                   <div className="mt-4 flex justify-center">
                     <div
@@ -83,42 +64,6 @@ export function SavedToneDetail({ song, artist, part, mode, notes, result }: Sav
   );
 }
 
-function extractControls(result: Record<string, unknown>) {
-  const discovered = new Map<string, number>();
-
-  const visit = (value: unknown) => {
-    if (!value) {
-      return;
-    }
-
-    if (Array.isArray(value)) {
-      value.forEach(visit);
-      return;
-    }
-
-    if (typeof value !== "object") {
-      return;
-    }
-
-    for (const [key, nestedValue] of Object.entries(value)) {
-      const normalizedKey = key.toLowerCase();
-      if (typeof nestedValue === "number" && knobOrder.includes(normalizedKey) && !discovered.has(normalizedKey)) {
-        discovered.set(normalizedKey, clampControlValue(nestedValue));
-      } else {
-        visit(nestedValue);
-      }
-    }
-  };
-
-  visit(result);
-
-  const entries = knobOrder
-    .filter((key) => discovered.has(key))
-    .map((key) => [key, discovered.get(key) || 0] as const);
-
-  return Object.fromEntries(entries.length ? entries : [["gain", 0], ["bass", 0], ["mids", 0], ["treble", 0], ["presence", 0], ["reverb", 0]]);
-}
-
-function clampControlValue(value: number) {
-  return Math.max(0, Math.min(10, Number(value)));
+function formatDisplayValue(value: number) {
+  return Number.isInteger(value) ? value : value.toFixed(1);
 }
