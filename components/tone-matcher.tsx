@@ -777,9 +777,9 @@ export function ToneMatcher() {
                 ) : (
                   <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.55fr)]">
                     <SelectField label="Effect preset" value={selectedFx} onChange={setSelectedFx} options={pedalCatalog.map((preset) => preset.name)} />
-                    <div className="rounded-lg border border-white/80 bg-blue-50/70 p-4">
+                    <div className="flex min-h-[112px] flex-col rounded-lg border border-white/80 bg-blue-50/70 p-4">
                       <div className="text-sm font-bold">{selectedPreset?.name || "Custom chain"}</div>
-                      <div className="mt-2 flex flex-wrap gap-2">
+                      <div className="mt-2 flex flex-1 flex-wrap content-start gap-2 overflow-hidden">
                         {(selectedPreset?.details || selectedPreset?.description?.split(" | ") || ["Amp effects"]).map((pedal) => (
                           <span key={pedal} className="rounded-md bg-white px-3 py-1 text-xs font-semibold text-slate-600">
                             {pedal}
