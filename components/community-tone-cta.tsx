@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { brand } from "@/lib/brand";
 
 const AUTO_ADAPT_KEY = `${brand.storagePrefix}_auto_adapt_from_community`;
+const AUTO_ADAPT_PAYLOAD_KEY = `${brand.storagePrefix}_auto_adapt_payload`;
 
 type CommunityToneCtaProps = {
   song: string;
@@ -19,13 +20,18 @@ export function CommunityToneCta({ song, artist, part, partType, toneType, guita
   const router = useRouter();
 
   function adaptTone() {
-    localStorage.setItem("toneMatch_song", song);
-    localStorage.setItem("toneMatch_artist", artist);
-    localStorage.setItem("toneMatch_part", part);
-    localStorage.setItem("toneMatch_partType", partType);
-    localStorage.setItem("toneMatch_toneType", toneType || "auto");
-    localStorage.setItem("toneMatch_guitar", guitar);
-    localStorage.setItem("toneMatch_amp", amp);
+    sessionStorage.setItem(
+      AUTO_ADAPT_PAYLOAD_KEY,
+      JSON.stringify({
+        song,
+        artist,
+        part,
+        partType,
+        toneType: toneType || "auto",
+        guitar,
+        amp
+      })
+    );
     sessionStorage.setItem(AUTO_ADAPT_KEY, "1");
     router.push("/app");
   }

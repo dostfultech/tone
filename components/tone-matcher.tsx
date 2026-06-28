@@ -82,6 +82,10 @@ const trendingTones = [
 ];
 
 const AUTO_ADAPT_KEY = `${brand.storagePrefix}_auto_adapt_from_community`;
+const AUTO_ADAPT_PAYLOAD_KEY = `${brand.storagePrefix}_auto_adapt_payload`;
+const LEGACY_DEFAULT_SONG = "Comfortably Numb";
+const LEGACY_DEFAULT_ARTIST = "Pink Floyd";
+const LEGACY_DEFAULT_PART = "second solo";
 
 export function ToneMatcher() {
   const router = useRouter();
@@ -89,11 +93,11 @@ export function ToneMatcher() {
   const hasLoadedPreferencesRef = useRef(false);
   const resultRef = useRef<HTMLDivElement | null>(null);
   const [mode, setMode] = useState<"guitar" | "bass">("guitar");
-  const [song, setSong] = useState("Comfortably Numb");
-  const [songDraft, setSongDraft] = useState("Comfortably Numb");
-  const [artist, setArtist] = useState("Pink Floyd");
-  const [part, setPart] = useState("second solo");
-  const [partType, setPartType] = useState<TonePartType>("solo");
+  const [song, setSong] = useState("");
+  const [songDraft, setSongDraft] = useState("");
+  const [artist, setArtist] = useState("");
+  const [part, setPart] = useState("");
+  const [partType, setPartType] = useState<TonePartType>("main");
   const [toneType, setToneType] = useState<ToneType>("auto");
   const [guitar, setGuitar] = useState("Fender Stratocaster");
   const [amp, setAmp] = useState("Boss Katana Artist");
@@ -188,15 +192,6 @@ export function ToneMatcher() {
 
   useEffect(() => {
     const fields = [
-      [
-        "toneMatch_song",
-        (value: string) => {
-          setSong(value);
-          setSongDraft(value);
-        }
-      ],
-      ["toneMatch_artist", setArtist],
-      ["toneMatch_part", setPart],
       ["toneMatch_partType", (value: string) => setPartType(normalizePartType(value))],
       ["toneMatch_toneType", (value: string) => setToneType(normalizeToneType(value))],
       ["toneMatch_guitar", setGuitar],
@@ -215,32 +210,47 @@ export function ToneMatcher() {
       }
     });
 
+    const storedSong = localStorage.getItem("toneMatch_song") || "";
+    const storedArtist = localStorage.getItem("toneMatch_artist") || "";
+    const storedPart = localStorage.getItem("toneMatch_part") || "";
+    const hasLegacySeed =
+      storedSong === LEGACY_DEFAULT_SONG &&
+      storedArtist === LEGACY_DEFAULT_ARTIST &&
+      storedPart === LEGACY_DEFAULT_PART;
+
+    if (hasLegacySeed) {
+      localStorage.removeItem("toneMatch_song");
+      localStorage.removeItem("toneMatch_artist");
+      localStorage.removeItem("toneMatch_part");
+    }
+
     const shouldAutoAdapt = sessionStorage.getItem(AUTO_ADAPT_KEY) === "1";
     if (shouldAutoAdapt && !autoAdaptTriggeredRef.current) {
       autoAdaptTriggeredRef.current = true;
       sessionStorage.removeItem(AUTO_ADAPT_KEY);
+      const payloadFromSession = readAutoAdaptPayload();
 
-      const storedPart = localStorage.getItem("toneMatch_part") || "main part";
-      const storedPartType = localStorage.getItem("toneMatch_partType") || "main";
-      const storedToneType = localStorage.getItem("toneMatch_toneType") || "auto";
+      const storedPart = payloadFromSession?.part || localStorage.getItem("toneMatch_part") || "main part";
+      const storedPartType = payloadFromSession?.partType || localStorage.getItem("toneMatch_partType") || "main";
+      const storedToneType = payloadFromSession?.toneType || localStorage.getItem("toneMatch_toneType") || "auto";
       const storedMode = inferStoredMode(storedPartType, storedToneType);
       const payload: ToneRequest = {
         mode: storedMode,
-        song: localStorage.getItem("toneMatch_song") || "Unknown Song",
-        artist: localStorage.getItem("toneMatch_artist") || "Unknown Artist",
+        song: payloadFromSession?.song || localStorage.getItem("toneMatch_song") || "Unknown Song",
+        artist: payloadFromSession?.artist || localStorage.getItem("toneMatch_artist") || "Unknown Artist",
         part: storedPart,
         partType: normalizePartType(storedPartType, storedPart),
         toneType: normalizeToneType(storedToneType),
-        guitar: localStorage.getItem("toneMatch_guitar") || (storedMode === "bass" ? "Fender Precision Bass" : "Fender Stratocaster"),
-        amp: localStorage.getItem("toneMatch_amp") || (storedMode === "bass" ? "Ampeg SVT-CL" : "Boss Katana Artist"),
-        cabinet: localStorage.getItem("toneMatch_cabinet") || (storedMode === "bass" ? "Ampeg SVT-410HLF" : "Mesa/Boogie Rectifier 4x12"),
-        pickup: localStorage.getItem("toneMatch_pickup") || "Vintage Single Coil",
-        effectsMode: localStorage.getItem("toneMatch_effectsMode") || "manual"
+        guitar: payloadFromSession?.guitar || localStorage.getItem("toneMatch_guitar") || (storedMode === "bass" ? "Fender Precision Bass" : "Fender Stratocaster"),
+        amp: payloadFromSession?.amp || localStorage.getItem("toneMatch_amp") || (storedMode === "bass" ? "Ampeg SVT-CL" : "Boss Katana Artist"),
+        cabinet: payloadFromSession?.cabinet || localStorage.getItem("toneMatch_cabinet") || (storedMode === "bass" ? "Ampeg SVT-410HLF" : "Mesa/Boogie Rectifier 4x12"),
+        pickup: payloadFromSession?.pickup || localStorage.getItem("toneMatch_pickup") || "Vintage Single Coil",
+        effectsMode: payloadFromSession?.effectsMode || localStorage.getItem("toneMatch_effectsMode") || "manual"
       };
 
       void runAdaptation(payload, {
-        multiFx: localStorage.getItem("toneMatch_multiFx") || "Line 6 Helix Floor",
-        selectedFx: localStorage.getItem("toneMatch_selectedEffects") || "ambient-lead"
+        multiFx: payloadFromSession?.multiFx || localStorage.getItem("toneMatch_multiFx") || "Line 6 Helix Floor",
+        selectedFx: payloadFromSession?.selectedFx || localStorage.getItem("toneMatch_selectedEffects") || "ambient-lead"
       });
     }
 
@@ -819,9 +829,14 @@ export function ToneMatcher() {
                         setSong("");
                         setArtist("");
                         setPart("");
+                        setPartType("main");
+                        setToneType(mode === "bass" ? "bass_clean" : "auto");
                         setSongSuggestions([]);
                         setSongSearchTouched(true);
                         setSongSearchOpen(false);
+                        localStorage.removeItem("toneMatch_song");
+                        localStorage.removeItem("toneMatch_artist");
+                        localStorage.removeItem("toneMatch_part");
                       }}
                     >
                       <X className="h-5 w-5" />
@@ -1007,6 +1022,34 @@ function inferStoredMode(partType: string | null, toneType: string | null): "gui
   }
 
   return "guitar";
+}
+
+function readAutoAdaptPayload() {
+  try {
+    const raw = sessionStorage.getItem(AUTO_ADAPT_PAYLOAD_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    sessionStorage.removeItem(AUTO_ADAPT_PAYLOAD_KEY);
+    return JSON.parse(raw) as Partial<ToneRequest> & {
+      song?: string;
+      artist?: string;
+      part?: string;
+      partType?: string;
+      toneType?: string;
+      guitar?: string;
+      amp?: string;
+      cabinet?: string;
+      pickup?: string;
+      effectsMode?: string;
+      multiFx?: string;
+      selectedFx?: string;
+    };
+  } catch {
+    sessionStorage.removeItem(AUTO_ADAPT_PAYLOAD_KEY);
+    return null;
+  }
 }
 
 function StepProgress() {
