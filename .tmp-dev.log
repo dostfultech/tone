@@ -15,3 +15,481 @@
  ✓ Compiled / in 9.2s (819 modules)
  GET / 200 in 10687ms
  GET / 200 in 276ms
+ GET / 200 in 460ms
+ ○ Compiling /login ...
+ ✓ Compiled /login in 1422ms (835 modules)
+ GET /login 200 in 1978ms
+ GET /login 200 in 122ms
+ ○ Compiling /auth/callback ...
+ ✓ Compiled /auth/callback in 1981ms (901 modules)
+TypeError: fetch failed
+    at async GET (app\auth\callback\route.ts:24:23)
+  22 |   if (code) {
+  23 |     const supabase = await createSupabaseServerClient();
+> 24 |     const { error } = (await supabase?.auth.exchangeCodeForSession(code)) || {};
+     |                       ^
+  25 |     if (error) {
+  26 |       const loginUrl = new URL("/login", origin);
+  27 |       loginUrl.searchParams.set("error", "callback_failed"); {
+  [cause]: [Error: unable to verify the first certificate; if the root CA is installed locally, try running Node.js with --use-system-ca] {
+    code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
+  }
+}
+ GET /auth/callback?code=6c2af912-4149-4e14-bb1c-b100f06b8a49&next=%2Fapp 307 in 3085ms
+ GET /login?error=callback_failed&message=fetch+failed 200 in 768ms
+ GET / 200 in 451ms
+ GET /login 200 in 83ms
+ ○ Compiling /signup ...
+ ✓ Compiled /signup in 914ms (903 modules)
+ GET /signup 200 in 1201ms
+ GET /signup 200 in 89ms
+ GET /login 200 in 106ms
+ GET /signup 200 in 80ms
+ GET /signup 200 in 96ms
+ GET /auth/callback?code=1b7c5f67-69a1-48f1-bb80-63d8eea2e47b&next=%2Fplans 307 in 220ms
+ GET /login?error=callback_failed&message=PKCE+code+verifier+not+found+in+storage.+This+can+happen+if+the+auth+flow+was+initiated+in+a+different+browser+or+device%2C+or+if+the+storage+was+cleared.+For+SSR+frameworks+%28Next.js%2C+SvelteKit%2C+etc.%29%2C+use+%40supabase%2Fssr+on+both+the+server+and+client+to+store+the+code+verifier+in+cookies. 200 in 516ms
+ ○ Compiling /icon.svg ...
+ ✓ Compiled /icon.svg in 681ms (558 modules)
+ GET /icon.svg?6f84e44e2d74d11e 200 in 1018ms
+Error: fetch failed
+    at context.fetch (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\context.js:321:60)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/helpers.js:121:25)
+    at _handleRequest (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:124:24)
+    at _request (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:114:24)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2643:82)
+    at SupabaseAuthClient._useSession (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2433:26)
+    at async SupabaseAuthClient._getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2633:20)
+    at async SupabaseAuthClient.getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2617:22)
+    at async middleware (webpack-internal:///(middleware)/./middleware.ts:54:32)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/build/webpack/loaders/next-middleware-loader.js?absolutePagePath=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone%5Cmiddleware.ts&page=%2Fmiddleware&rootDir=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone&matchers=&preferredRegion=&middlewareConfig=e30%3D!:32:20)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:257:28)
+    at async adapter (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:212:16)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:112:26
+    at async runWithTaggedErrors (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:109:9)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:1262:22)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:298:28)
+    at async NextNodeServer.handleCatchallMiddlewareRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:448:26)
+    at async DevServer.handleRequestImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\base-server.js:923:28)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async handleRoute (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:338:33)
+    at async resolveRoutes (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:601:28)
+    at async handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:288:96)
+    at async requestHandlerImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\start-server.js:226:13) {
+  
+}
+ GET /login?redirect=%2Fapp 200 in 684ms
+Error: fetch failed
+    at context.fetch (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\context.js:321:60)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/helpers.js:121:25)
+    at _handleRequest (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:124:24)
+    at _request (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:114:24)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2643:82)
+    at SupabaseAuthClient._useSession (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2433:26)
+    at async SupabaseAuthClient._getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2633:20)
+    at async SupabaseAuthClient.getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2617:22)
+    at async middleware (webpack-internal:///(middleware)/./middleware.ts:54:32)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/build/webpack/loaders/next-middleware-loader.js?absolutePagePath=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone%5Cmiddleware.ts&page=%2Fmiddleware&rootDir=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone&matchers=&preferredRegion=&middlewareConfig=e30%3D!:32:20)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:257:28)
+    at async adapter (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:212:16)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:112:26
+    at async runWithTaggedErrors (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:109:9)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:1262:22)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:298:28)
+    at async NextNodeServer.handleCatchallMiddlewareRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:448:26)
+    at async DevServer.handleRequestImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\base-server.js:923:28)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async handleRoute (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:338:33)
+    at async resolveRoutes (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:601:28)
+    at async handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:288:96)
+    at async requestHandlerImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\start-server.js:226:13) {
+  
+}
+ GET /login?redirect=%2Fapp 200 in 198ms
+Error: fetch failed
+    at context.fetch (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\context.js:321:60)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/helpers.js:121:25)
+    at _handleRequest (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:124:24)
+    at _request (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:114:24)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2643:82)
+    at SupabaseAuthClient._useSession (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2433:26)
+    at async SupabaseAuthClient._getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2633:20)
+    at async SupabaseAuthClient.getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2617:22)
+    at async middleware (webpack-internal:///(middleware)/./middleware.ts:54:32)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/build/webpack/loaders/next-middleware-loader.js?absolutePagePath=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone%5Cmiddleware.ts&page=%2Fmiddleware&rootDir=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone&matchers=&preferredRegion=&middlewareConfig=e30%3D!:32:20)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:257:28)
+    at async adapter (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:212:16)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:112:26
+    at async runWithTaggedErrors (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:109:9)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:1262:22)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:298:28)
+    at async NextNodeServer.handleCatchallMiddlewareRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:448:26)
+    at async DevServer.handleRequestImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\base-server.js:923:28)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async handleRoute (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:338:33)
+    at async resolveRoutes (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:601:28)
+    at async handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:288:96)
+    at async requestHandlerImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\start-server.js:226:13) {
+  
+}
+ GET /login?redirect=%2Fapp 200 in 176ms
+Error: fetch failed
+    at context.fetch (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\context.js:321:60)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/helpers.js:121:25)
+    at _handleRequest (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:124:24)
+    at _request (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:114:24)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2643:82)
+    at SupabaseAuthClient._useSession (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2433:26)
+    at async SupabaseAuthClient._getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2633:20)
+    at async SupabaseAuthClient.getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2617:22)
+    at async middleware (webpack-internal:///(middleware)/./middleware.ts:54:32)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/build/webpack/loaders/next-middleware-loader.js?absolutePagePath=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone%5Cmiddleware.ts&page=%2Fmiddleware&rootDir=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone&matchers=&preferredRegion=&middlewareConfig=e30%3D!:32:20)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:257:28)
+    at async adapter (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:212:16)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:112:26
+    at async runWithTaggedErrors (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:109:9)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:1262:22)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:298:28)
+    at async NextNodeServer.handleCatchallMiddlewareRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:448:26)
+    at async DevServer.handleRequestImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\base-server.js:923:28)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async handleRoute (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:338:33)
+    at async resolveRoutes (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:601:28)
+    at async handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:288:96)
+    at async requestHandlerImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\start-server.js:226:13) {
+  
+}
+ GET /login?redirect=%2Fapp 200 in 194ms
+Error: fetch failed
+    at context.fetch (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\context.js:321:60)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/helpers.js:121:25)
+    at _handleRequest (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:124:24)
+    at _request (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:114:24)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2643:82)
+    at SupabaseAuthClient._useSession (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2433:26)
+    at async SupabaseAuthClient._getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2633:20)
+    at async SupabaseAuthClient.getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2617:22)
+    at async middleware (webpack-internal:///(middleware)/./middleware.ts:54:32)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/build/webpack/loaders/next-middleware-loader.js?absolutePagePath=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone%5Cmiddleware.ts&page=%2Fmiddleware&rootDir=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone&matchers=&preferredRegion=&middlewareConfig=e30%3D!:32:20)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:257:28)
+    at async adapter (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:212:16)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:112:26
+    at async runWithTaggedErrors (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:109:9)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:1262:22)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:298:28)
+    at async NextNodeServer.handleCatchallMiddlewareRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:448:26)
+    at async DevServer.handleRequestImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\base-server.js:923:28)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async handleRoute (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:338:33)
+    at async resolveRoutes (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:601:28)
+    at async handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:288:96)
+    at async requestHandlerImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\start-server.js:226:13) {
+  
+}
+ GET /login?redirect=%2Fapp 200 in 237ms
+Error: fetch failed
+    at context.fetch (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\context.js:321:60)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/helpers.js:121:25)
+    at _handleRequest (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:124:24)
+    at _request (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:114:24)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2643:82)
+    at SupabaseAuthClient._useSession (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2433:26)
+    at async SupabaseAuthClient._getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2633:20)
+    at async SupabaseAuthClient.getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2617:22)
+    at async middleware (webpack-internal:///(middleware)/./middleware.ts:54:32)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/build/webpack/loaders/next-middleware-loader.js?absolutePagePath=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone%5Cmiddleware.ts&page=%2Fmiddleware&rootDir=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone&matchers=&preferredRegion=&middlewareConfig=e30%3D!:32:20)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:257:28)
+    at async adapter (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:212:16)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:112:26
+    at async runWithTaggedErrors (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:109:9)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:1262:22)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:298:28)
+    at async NextNodeServer.handleCatchallMiddlewareRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:448:26)
+    at async DevServer.handleRequestImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\base-server.js:923:28)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async handleRoute (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:338:33)
+    at async resolveRoutes (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:601:28)
+    at async handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:288:96)
+    at async requestHandlerImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\start-server.js:226:13) {
+  
+}
+ GET /login?redirect=%2Fapp 200 in 247ms
+Error: fetch failed
+    at context.fetch (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\context.js:321:60)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/helpers.js:121:25)
+    at _handleRequest (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:124:24)
+    at _request (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:114:24)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2643:82)
+    at SupabaseAuthClient._useSession (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2433:26)
+    at async SupabaseAuthClient._getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2633:20)
+    at async SupabaseAuthClient.getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2617:22)
+    at async middleware (webpack-internal:///(middleware)/./middleware.ts:54:32)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/build/webpack/loaders/next-middleware-loader.js?absolutePagePath=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone%5Cmiddleware.ts&page=%2Fmiddleware&rootDir=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone&matchers=&preferredRegion=&middlewareConfig=e30%3D!:32:20)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:257:28)
+    at async adapter (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:212:16)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:112:26
+    at async runWithTaggedErrors (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:109:9)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:1262:22)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:298:28)
+    at async NextNodeServer.handleCatchallMiddlewareRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:448:26)
+    at async DevServer.handleRequestImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\base-server.js:923:28)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async handleRoute (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:338:33)
+    at async resolveRoutes (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:601:28)
+    at async handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:288:96)
+    at async requestHandlerImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\start-server.js:226:13) {
+  
+}
+ GET /login?redirect=%2Fapp 200 in 236ms
+Error: fetch failed
+    at context.fetch (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\context.js:321:60)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/helpers.js:121:25)
+    at _handleRequest (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:124:24)
+    at _request (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:114:24)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2643:82)
+    at SupabaseAuthClient._useSession (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2433:26)
+    at async SupabaseAuthClient._getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2633:20)
+    at async SupabaseAuthClient.getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2617:22)
+    at async middleware (webpack-internal:///(middleware)/./middleware.ts:54:32)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/build/webpack/loaders/next-middleware-loader.js?absolutePagePath=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone%5Cmiddleware.ts&page=%2Fmiddleware&rootDir=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone&matchers=&preferredRegion=&middlewareConfig=e30%3D!:32:20)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:257:28)
+    at async adapter (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:212:16)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:112:26
+    at async runWithTaggedErrors (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:109:9)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:1262:22)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:298:28)
+    at async NextNodeServer.handleCatchallMiddlewareRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:448:26)
+    at async DevServer.handleRequestImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\base-server.js:923:28)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async handleRoute (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:338:33)
+    at async resolveRoutes (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:601:28)
+    at async handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:288:96)
+    at async requestHandlerImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\start-server.js:226:13) {
+  
+}
+ GET /login?redirect=%2Fapp 200 in 224ms
+Error: fetch failed
+    at context.fetch (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\context.js:321:60)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/helpers.js:121:25)
+    at _handleRequest (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:124:24)
+    at _request (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:114:24)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2643:82)
+    at SupabaseAuthClient._useSession (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2433:26)
+    at async SupabaseAuthClient._getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2633:20)
+    at async SupabaseAuthClient.getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2617:22)
+    at async middleware (webpack-internal:///(middleware)/./middleware.ts:54:32)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/build/webpack/loaders/next-middleware-loader.js?absolutePagePath=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone%5Cmiddleware.ts&page=%2Fmiddleware&rootDir=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone&matchers=&preferredRegion=&middlewareConfig=e30%3D!:32:20)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:257:28)
+    at async adapter (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:212:16)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:112:26
+    at async runWithTaggedErrors (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:109:9)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:1262:22)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:298:28)
+    at async NextNodeServer.handleCatchallMiddlewareRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:448:26)
+    at async DevServer.handleRequestImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\base-server.js:923:28)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async handleRoute (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:338:33)
+    at async resolveRoutes (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:601:28)
+    at async handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:288:96)
+    at async requestHandlerImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\start-server.js:226:13) {
+  
+}
+ GET /login?redirect=%2Fapp 200 in 230ms
+Error: fetch failed
+    at context.fetch (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\context.js:321:60)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/helpers.js:121:25)
+    at _handleRequest (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:124:24)
+    at _request (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:114:24)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2643:82)
+    at SupabaseAuthClient._useSession (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2433:26)
+    at async SupabaseAuthClient._getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2633:20)
+    at async SupabaseAuthClient.getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2617:22)
+    at async middleware (webpack-internal:///(middleware)/./middleware.ts:54:32)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/build/webpack/loaders/next-middleware-loader.js?absolutePagePath=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone%5Cmiddleware.ts&page=%2Fmiddleware&rootDir=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone&matchers=&preferredRegion=&middlewareConfig=e30%3D!:32:20)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:257:28)
+    at async adapter (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:212:16)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:112:26
+    at async runWithTaggedErrors (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:109:9)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:1262:22)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:298:28)
+    at async NextNodeServer.handleCatchallMiddlewareRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:448:26)
+    at async DevServer.handleRequestImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\base-server.js:923:28)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async handleRoute (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:338:33)
+    at async resolveRoutes (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:601:28)
+    at async handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:288:96)
+    at async requestHandlerImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\start-server.js:226:13) {
+  
+}
+ GET /login?redirect=%2Fapp 200 in 244ms
+Error: fetch failed
+    at context.fetch (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\context.js:321:60)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/helpers.js:121:25)
+    at _handleRequest (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:124:24)
+    at _request (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:114:24)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2643:82)
+    at SupabaseAuthClient._useSession (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2433:26)
+    at async SupabaseAuthClient._getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2633:20)
+    at async SupabaseAuthClient.getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2617:22)
+    at async middleware (webpack-internal:///(middleware)/./middleware.ts:54:32)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/build/webpack/loaders/next-middleware-loader.js?absolutePagePath=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone%5Cmiddleware.ts&page=%2Fmiddleware&rootDir=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone&matchers=&preferredRegion=&middlewareConfig=e30%3D!:32:20)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:257:28)
+    at async adapter (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:212:16)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:112:26
+    at async runWithTaggedErrors (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:109:9)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:1262:22)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:298:28)
+    at async NextNodeServer.handleCatchallMiddlewareRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:448:26)
+    at async DevServer.handleRequestImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\base-server.js:923:28)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async handleRoute (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:338:33)
+    at async resolveRoutes (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:601:28)
+    at async handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:288:96)
+    at async requestHandlerImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\start-server.js:226:13) {
+  
+}
+ GET /login?redirect=%2Fapp 200 in 353ms
+Error: fetch failed
+    at context.fetch (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\context.js:321:60)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/helpers.js:121:25)
+    at _handleRequest (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:124:24)
+    at _request (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:114:24)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2643:82)
+    at SupabaseAuthClient._useSession (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2433:26)
+    at async SupabaseAuthClient._getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2633:20)
+    at async SupabaseAuthClient.getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2617:22)
+    at async middleware (webpack-internal:///(middleware)/./middleware.ts:54:32)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/build/webpack/loaders/next-middleware-loader.js?absolutePagePath=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone%5Cmiddleware.ts&page=%2Fmiddleware&rootDir=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone&matchers=&preferredRegion=&middlewareConfig=e30%3D!:32:20)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:257:28)
+    at async adapter (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:212:16)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:112:26
+    at async runWithTaggedErrors (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:109:9)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:1262:22)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:298:28)
+    at async NextNodeServer.handleCatchallMiddlewareRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:448:26)
+    at async DevServer.handleRequestImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\base-server.js:923:28)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async handleRoute (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:338:33)
+    at async resolveRoutes (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:601:28)
+    at async handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:288:96)
+    at async requestHandlerImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\start-server.js:226:13) {
+  
+}
+ GET /login?redirect=%2Fapp 200 in 247ms
+Error: fetch failed
+    at context.fetch (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\context.js:321:60)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/helpers.js:121:25)
+    at _handleRequest (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:124:24)
+    at _request (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/lib/fetch.js:114:24)
+    at eval (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2643:82)
+    at SupabaseAuthClient._useSession (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2433:26)
+    at async SupabaseAuthClient._getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2633:20)
+    at async SupabaseAuthClient.getUser (webpack-internal:///(middleware)/./node_modules/@supabase/auth-js/dist/module/GoTrueClient.js:2617:22)
+    at async middleware (webpack-internal:///(middleware)/./middleware.ts:54:32)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/build/webpack/loaders/next-middleware-loader.js?absolutePagePath=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone%5Cmiddleware.ts&page=%2Fmiddleware&rootDir=C%3A%5CUsers%5Ckadam%5COneDrive%5CDocuments%5Ctone&matchers=&preferredRegion=&middlewareConfig=e30%3D!:32:20)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:257:28)
+    at async adapter (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:212:16)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:112:26
+    at async runWithTaggedErrors (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\web\sandbox\sandbox.js:109:9)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:1262:22)
+    at async DevServer.runMiddleware (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:298:28)
+    at async NextNodeServer.handleCatchallMiddlewareRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\next-server.js:448:26)
+    at async DevServer.handleRequestImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\base-server.js:923:28)
+    at async C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async handleRoute (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:338:33)
+    at async resolveRoutes (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-utils\resolve-routes.js:601:28)
+    at async handleRequest (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:288:96)
+    at async requestHandlerImpl (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\kadam\OneDrive\Documents\tone\node_modules\next\dist\server\lib\start-server.js:226:13) {
+  
+}
+ GET /login?redirect=%2Fapp 200 in 227ms
+ ✓ Compiled in 886ms (807 modules)
+ ✓ Compiled in 411ms (330 modules)
+ ✓ Compiled in 280ms (330 modules)
+ ✓ Compiled in 557ms (330 modules)
+ ✓ Compiled in 315ms (330 modules)
+ ✓ Compiled in 428ms (330 modules)
+ ✓ Compiled in 501ms (330 modules)
+ ✓ Compiled in 478ms (330 modules)
+ ✓ Compiled in 474ms (330 modules)
+ ✓ Compiled in 393ms (330 modules)
+ ✓ Compiled in 386ms (330 modules)
+ ✓ Compiled in 457ms (330 modules)
+ ✓ Compiled in 411ms (330 modules)
+ ✓ Compiled in 339ms (330 modules)
+ ✓ Compiled in 491ms (330 modules)
+ ✓ Compiled in 443ms (330 modules)
+ ✓ Compiled in 445ms (330 modules)
+ ✓ Compiled in 327ms (330 modules)
+ ✓ Compiled in 445ms (330 modules)
+ ✓ Compiled in 413ms (330 modules)
+ ✓ Compiled in 305ms (330 modules)
+ ✓ Compiled in 385ms (330 modules)
+ ✓ Compiled in 331ms (330 modules)
+ ✓ Compiled in 426ms (330 modules)
+ ✓ Compiled in 277ms (330 modules)
+ ✓ Compiled in 438ms (330 modules)
+ ✓ Compiled in 273ms (330 modules)
+ ✓ Compiled in 356ms (330 modules)
+ ✓ Compiled in 599ms (330 modules)
+ ✓ Compiled in 394ms (330 modules)
+ ✓ Compiled in 337ms (330 modules)
+ ✓ Compiled in 454ms (807 modules)
+ ✓ Compiled in 303ms (330 modules)
+ ✓ Compiled in 199ms (330 modules)
+ ✓ Compiled in 384ms (330 modules)
+ ✓ Compiled / in 343ms (508 modules)
+ ⨯ Error: ENOENT: no such file or directory, open 'C:\Users\kadam\OneDrive\Documents\tone\.next\server\vendor-chunks\@supabase.js'
+    at <unknown> (C:\Users\kadam\OneDrive\Documents\tone\.next\server\app\page.js:346:47)
+    at Object.<anonymous> (C:\Users\kadam\OneDrive\Documents\tone\.next\server\app\page.js:349:3) {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Users\\kadam\\OneDrive\\Documents\\tone\\.next\\server\\vendor-chunks\\@supabase.js',
+  page: '/'
+}
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 2.5s (1185 modules)
+ GET / 500 in 3714ms
+ ✓ Compiled in 419ms (482 modules)
+ ✓ Compiled in 293ms (482 modules)
+ ✓ Compiled in 304ms (482 modules)
+ ✓ Compiled in 269ms (482 modules)

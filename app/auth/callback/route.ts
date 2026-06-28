@@ -6,6 +6,8 @@ export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const origin = resolveAuthOrigin(requestUrl);
   const code = requestUrl.searchParams.get("code");
+  const tokenHash = requestUrl.searchParams.get("token_hash");
+  const otpType = requestUrl.searchParams.get("type");
   const authError = requestUrl.searchParams.get("error");
   const errorDescription = requestUrl.searchParams.get("error_description");
   const next = safeNextPath(requestUrl.searchParams.get("next"));
@@ -19,10 +21,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  if (tokenHash && otpType) {
+    const authCompleteUrl = new URL("/auth/complete", origin);
+    authCompleteUrl.searchParams.set("next", next);
+    authCompleteUrl.searchParams.set("token_hash", tokenHash);
+    authCompleteUrl.searchParams.set("type", otpType);
+    return NextResponse.redirect(authCompleteUrl);
+  }
+
   if (code) {
     const supabase = await createSupabaseServerClient();
     const { error } = (await supabase?.auth.exchangeCodeForSession(code)) || {};
     if (error) {
+      if (canRetryInBrowser(error.message)) {
+        const authCompleteUrl = new URL("/auth/complete", origin);
+        authCompleteUrl.searchParams.set("next", next);
+        authCompleteUrl.searchParams.set("code", code);
+        return NextResponse.redirect(authCompleteUrl);
+      }
+
       const loginUrl = new URL("/login", origin);
       loginUrl.searchParams.set("error", "callback_failed");
       loginUrl.searchParams.set("message", error.message);
@@ -56,4 +73,14 @@ function safeNextPath(value: string | null) {
   }
 
   return value;
+}
+
+function canRetryInBrowser(message: string) {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("pkce code verifier") ||
+    normalized.includes("fetch failed") ||
+    normalized.includes("certificate") ||
+    normalized.includes("unable to verify")
+  );
 }

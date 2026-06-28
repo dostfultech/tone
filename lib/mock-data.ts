@@ -17,6 +17,7 @@ export type ToneRequest = {
   toneType?: ToneType;
   guitar: string;
   amp: string;
+  cabinet?: string;
   pickup?: string;
   effectsMode?: string;
 };
@@ -145,6 +146,22 @@ export const bassAmps: GearItem[] = [
   { id: "darkglass", name: "Darkglass Microtubes 900", description: "Modern clean power and controllable drive." }
 ];
 
+export const cabinets: GearItem[] = [
+  { id: "mesa-recto-412", name: "Mesa/Boogie Rectifier 4x12", description: "Deep low end, tight high-gain focus, and modern projection." },
+  { id: "marshall-1960a", name: "Marshall 1960A 4x12", description: "Classic British 4x12 with punchy mids and familiar rock bark." },
+  { id: "orange-ppc212", name: "Orange PPC212", description: "Focused 2x12 response with rich mids and tight projection." },
+  { id: "fender-deluxe-112", name: "Fender Deluxe Reverb 1x12", description: "Open 1x12 response for clean and edge-of-breakup tones." },
+  { id: "ampeg-410hlf", name: "Ampeg SVT-410HLF", description: "4x10 bass cabinet with extended low end and aggressive punch." },
+  { id: "darkglass-212", name: "Darkglass DG212N", description: "Modern bass 2x12 cab with tight lows and direct-ready feel." }
+];
+
+export const effectsCatalog: GearItem[] = [
+  { id: "ua-dream-65", name: "Universal Audio Dream 65", description: "Amp-sim pedal for polished direct clean sounds." },
+  { id: "walrus-acs1", name: "Walrus Audio ACS1", description: "Stereo amp and cab simulator for direct and hybrid rigs." },
+  { id: "lr-baggs-session-di", name: "LR Baggs Session DI", description: "Acoustic preamp and DI with musical compression and EQ." },
+  { id: "darkglass-alpha-omega-photon", name: "Darkglass Alpha Omega Photon", description: "Bass preamp and drive with cab simulation and modern bite." }
+];
+
 export const pickups = [
   { id: "sd-jb", name: "Seymour Duncan JB", category: "High-output humbucker" },
   { id: "emg-81", name: "EMG 81", category: "Active humbucker" },
@@ -169,6 +186,7 @@ export const partOptions: Array<{ value: TonePartType; label: string }> = [
   { value: "lead", label: "Lead" },
   { value: "intro", label: "Intro" },
   { value: "chorus", label: "Chorus" },
+  { value: "bridge", label: "Bridge" },
   { value: "bassline", label: "Bassline" }
 ];
 

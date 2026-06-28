@@ -39,8 +39,8 @@ const discoveryNav = [
 ];
 
 const accountNav = [
-  { href: "/account", label: "Settings", icon: Settings },
-  { href: "/plans", label: "Plans", icon: BarChart3 }
+  { href: "/account", label: "Account", icon: Settings },
+  { href: "/plans", label: "Pricing", icon: BarChart3 }
 ];
 
 const feedbackNav = [
@@ -247,7 +247,7 @@ function AppFooter() {
           </div>
         </div>
         <div className="mt-10 border-t border-blue-100 pt-6 text-center text-sm text-slate-500">
-          © {year} {brand.appName}. All rights reserved.
+          Copyright {year} {brand.appName}. All rights reserved.
         </div>
       </div>
     </footer>

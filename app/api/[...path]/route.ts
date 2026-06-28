@@ -4,6 +4,8 @@ import {
   amps,
   bassAmps,
   bassGuitars,
+  cabinets,
+  effectsCatalog,
   type GearItem,
   guitars,
   lookupGear,
@@ -136,14 +138,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   if (route === "cabinets/catalog") {
     const dbResults = await lookupGearFromSupabase(["cabinet"], query, { limit: 60 });
-    if (dbResults) return json({ results: dbResults });
-    return json({ results: [] });
+    return json({ results: mergeCatalogResults(dbResults, buildGearFallbackResults(lookupGear(cabinets, query), "cabinet")) });
   }
 
   if (route === "effects/catalog") {
     const dbResults = await lookupGearFromSupabase(["effect"], query, { limit: 60 });
-    if (dbResults) return json({ results: dbResults });
-    return json({ results: [] });
+    return json({ results: mergeCatalogResults(dbResults, buildGearFallbackResults(lookupGear(effectsCatalog, query), "effect")) });
   }
 
   if (route === "community-tones/lookup") {
@@ -239,6 +239,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     if (supabase && user) {
+      const entitlement = await getEntitlement(supabase, user);
+      if (!entitlement.hasAccess) {
+        return NextResponse.json({ error: "This feature requires a Beginner or Expert plan." }, { status: 402 });
+      }
+
       const tone = body.result || body;
       const requestBody = tone.request || body.request || {};
       const { error } = await supabase.from("saved_tones").insert({
@@ -298,6 +303,7 @@ function normalizeToneRequest(body: Partial<ToneRequest>): ToneRequest {
     toneType: normalizeToneType(body.toneType),
     guitar: body.guitar || (body.mode === "bass" ? "Fender Precision Bass" : "Fender Stratocaster"),
     amp: body.amp || (body.mode === "bass" ? "Ampeg SVT-CL" : "Fender Deluxe Reverb"),
+    cabinet: body.cabinet || (body.mode === "bass" ? "Ampeg SVT-410HLF" : "Mesa/Boogie Rectifier 4x12"),
     pickup: body.pickup || "bridge pickup",
     effectsMode: body.effectsMode || "manual"
   };

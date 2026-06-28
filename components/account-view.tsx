@@ -316,8 +316,8 @@ function MetricCard({ label, value }: { label: string; value: string }) {
 
 function formatRemaining(used: number, remaining: number | null) {
   if (remaining === null) {
-    return `${used} used · Unlimited remaining`;
+    return `${used} used - Unlimited remaining`;
   }
 
-  return `${used} used · ${remaining} remaining`;
+  return `${used} used - ${remaining} remaining`;
 }

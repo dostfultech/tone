@@ -30,8 +30,8 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    supabase.auth.getUser().then(({ data }) => {
-      setIsAuthenticated(Boolean(data.user));
+    supabase.auth.getSession().then(({ data }) => {
+      setIsAuthenticated(Boolean(data.session?.user));
     });
 
     const {

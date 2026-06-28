@@ -99,7 +99,7 @@ export function LibraryView() {
                 <h2 className="text-2xl font-bold">You have {tones.length} saved {tones.length === 1 ? "tone" : "tones"}</h2>
                 <p className="mt-2 text-base text-neutral-600 sm:text-lg">
                   {snapshot?.hasAccess
-                    ? `${snapshot.planName} plan · ${snapshot.usage.savedTonesRemaining === null ? "Unlimited saves remaining" : `${snapshot.usage.savedTonesRemaining} saves remaining this cycle`}`
+                    ? `${snapshot.planName} plan - ${snapshot.usage.savedTonesRemaining === null ? "Unlimited saves remaining" : `${snapshot.usage.savedTonesRemaining} saves remaining this cycle`}`
                     : "Upgrade to keep your tone library synced across sessions."}
                 </p>
               </div>
@@ -148,7 +148,7 @@ export function LibraryView() {
                       </div>
                       <h3 className="mt-4 truncate text-2xl font-bold sm:text-3xl">{tone.song}</h3>
                       <p className="mt-1 text-base text-neutral-600 sm:text-lg">
-                        {tone.artist} · {tone.part}
+                        {tone.artist} - {tone.part}
                       </p>
                     </button>
                     <button type="button" className="button-secondary px-3" aria-label="Delete saved tone" onClick={() => removeTone(tone.id)}>

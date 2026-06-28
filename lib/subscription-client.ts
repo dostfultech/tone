@@ -45,8 +45,13 @@ const starterAdaptationLimits: Record<PlanId, number | null> = {
 
 export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Promise<ClientSubscriptionSnapshot> {
   const {
-    data: { user }
-  } = await client.auth.getUser();
+    data: { session }
+  } = await client.auth.getSession();
+  const sessionUser = session?.user || null;
+  const {
+    data: { user: verifiedUser }
+  } = sessionUser ? { data: { user: sessionUser } } : await client.auth.getUser();
+  const user = verifiedUser || sessionUser;
 
   if (!user) {
     return emptySnapshot();

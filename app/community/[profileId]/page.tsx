@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Database, Gauge, Guitar, Link2, Lock, Music2, ShieldCheck, SlidersHorizontal, Sparkles, Volume2 } from "lucide-react";
+import { ArrowLeft, Database, Gauge, Guitar, Link2, Music2, ShieldCheck, SlidersHorizontal, Sparkles, Volume2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { CommunityToneCta } from "@/components/community-tone-cta";
 import { getCurrentSession, getEntitlement } from "@/lib/server-access";
@@ -39,9 +39,9 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
   const lockedSettings = settings.slice(3);
   const researchCount = Math.max(24, profile.confidence * 4);
   const likes = Math.max(10, Math.round(profile.confidence / 1.35));
-  const isUnlocked = entitlement.hasAccess;
+  const hasPremiumAccess = entitlement.hasAccess;
   const userLoggedIn = Boolean(user);
-  const canAdapt = userLoggedIn;
+  const canAdapt = userLoggedIn && hasPremiumAccess;
   const redirectTarget = `/community/${profile.id}`;
 
   return (
@@ -118,22 +118,7 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
                 ) : (
                   <p className="text-sm text-slate-500">No structured amp settings are stored for this profile yet.</p>
                 )}
-                {!isUnlocked && lockedSettings.length ? (
-                  <div className="preview-lock mt-6 rounded-2xl border border-white/80 bg-white/75 p-5">
-                    <div className="preview-lock-inner grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                      {lockedSettings.map(([key, value]) => (
-                        <div key={key} className="compact-card p-5 text-center">
-                          <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{prettifyKey(key)}</div>
-                          <div className="mt-3 text-4xl font-bold text-ink">{value}</div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="preview-lock-cta">
-                      <LockedCta label="Unlock the remaining amp settings and full tone recipe" redirectTarget={redirectTarget} userLoggedIn={userLoggedIn} />
-                    </div>
-                  </div>
-                ) : null}
-                {isUnlocked && lockedSettings.length ? (
+                {lockedSettings.length ? (
                   <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {lockedSettings.map(([key, value]) => (
                       <div key={key} className="compact-card p-5 text-center">
@@ -146,9 +131,9 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
               </section>
 
               <section className="grid gap-8 xl:grid-cols-2">
-                <div className={`theme-panel p-8 min-h-[420px] ${isUnlocked ? "" : "preview-lock"}`}>
+                <div className="theme-panel min-h-[420px] p-8">
                   <h2 className="text-2xl font-bold">Effects & Signal Chain</h2>
-                  <div className={`${isUnlocked ? "" : "preview-lock-inner"} mt-6 grid gap-3`}>
+                  <div className="mt-6 grid gap-3">
                     {profile.effects.length ? (
                       profile.effects.map((effect) => (
                         <div key={`${effect.effectOrder}-${effect.effectName}`} className="rounded-lg border border-white/80 bg-white/80 p-4">
@@ -171,24 +156,14 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
                       <p className="text-sm text-slate-500">No effect chain recorded for this profile yet.</p>
                     )}
                   </div>
-                  {!isUnlocked ? (
-                    <div className="preview-lock-cta">
-                      <LockedCta label="Preview effects and routing, then adapt it to your own rig" redirectTarget={redirectTarget} userLoggedIn={userLoggedIn} />
-                    </div>
-                  ) : null}
                 </div>
 
-                <div className={`theme-panel p-8 min-h-[420px] ${isUnlocked ? "" : "preview-lock"}`}>
+                <div className="theme-panel min-h-[420px] p-8">
                   <h2 className="text-2xl font-bold">Playing & Adaptation Notes</h2>
-                  <div className={`${isUnlocked ? "" : "preview-lock-inner"} mt-6 grid gap-6`}>
+                  <div className="mt-6 grid gap-6">
                     <NotesBlock title="Playing Notes" items={profile.playingNotes} emptyLabel="No playing notes stored yet." />
                     <NotesBlock title="Adaptation Notes" items={profile.adaptationNotes} emptyLabel="No adaptation notes stored yet." />
                   </div>
-                  {!isUnlocked ? (
-                    <div className="preview-lock-cta">
-                      <LockedCta label="Open the matcher to carry these notes into your tone adaptation" redirectTarget={redirectTarget} userLoggedIn={userLoggedIn} />
-                    </div>
-                  ) : null}
                 </div>
               </section>
             </div>
@@ -241,10 +216,10 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
                 <h2 className="text-lg font-bold">Use This Tone</h2>
                 <p className="mt-3 text-sm leading-6 text-slate-600">
                   {canAdapt
-                    ? isUnlocked
-                      ? "Send this reference profile into the matcher with its song, artist, part, and original rig prefilled."
-                      : "You are signed in. Start the adaptation flow now, and upgrade whenever you want the full unlocked workspace."
-                    : "Sign in to send this reference profile into the matcher with its song, artist, part, and original rig prefilled."}
+                    ? "Send this reference profile into the matcher with its song, artist, part, and original rig prefilled."
+                    : userLoggedIn
+                      ? "This feature requires a Beginner or Expert plan."
+                      : "Sign in to send this reference profile into the matcher with its song, artist, part, and original rig prefilled."}
                 </p>
                 {canAdapt ? (
                   <>
@@ -259,18 +234,21 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
                         amp={profile.originalAmp || "Boss Katana Artist"}
                       />
                     </div>
-                    {isUnlocked ? (
-                      <Link href="/app" className="button-secondary mt-3 w-full justify-center">
-                        <Music2 className="h-4 w-4" />
-                        Open Matcher
-                      </Link>
-                    ) : (
-                      <Link href={`/plans?required=subscription&redirect=${encodeURIComponent("/app")}`} className="button-secondary mt-3 w-full justify-center">
-                        <Sparkles className="h-4 w-4" />
-                        Upgrade for Full Access
-                      </Link>
-                    )}
+                    <Link href="/app" className="button-secondary mt-3 w-full justify-center">
+                      <Music2 className="h-4 w-4" />
+                      Open Matcher
+                    </Link>
                   </>
+                ) : userLoggedIn ? (
+                  <div className="mt-5 grid gap-3">
+                    <Link href={`/plans?required=subscription&redirect=${encodeURIComponent(redirectTarget)}`} className="button-primary w-full justify-center">
+                      <Sparkles className="h-4 w-4" />
+                      View Plans
+                    </Link>
+                    <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+                      This feature requires a Beginner or Expert plan.
+                    </p>
+                  </div>
                 ) : (
                   <div className="mt-5 grid gap-3">
                     <Link href={`/plans?required=subscription&redirect=${encodeURIComponent(redirectTarget)}`} className="button-primary w-full justify-center">
@@ -368,26 +346,3 @@ function CharacterMeter({ label, value }: { label: string; value: number }) {
   );
 }
 
-function LockedCta({ label, redirectTarget, userLoggedIn }: { label: string; redirectTarget: string; userLoggedIn: boolean }) {
-  return (
-    <div className="rounded-2xl border border-white/80 bg-white/90 p-4 shadow-[0_18px_45px_rgba(8,7,26,0.14)] backdrop-blur">
-      <div className="flex items-start gap-3">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-ink text-moss">
-          <Lock className="h-4 w-4" />
-        </div>
-        <div className="min-w-0">
-          <div className="text-sm font-bold text-ink">{label}</div>
-          <div className="mt-1 text-xs leading-5 text-slate-500">Use the full profile as the source reference, then adapt it to your guitar, pickups, and amp.</div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Link href={`/plans?required=subscription&redirect=${encodeURIComponent(redirectTarget)}`} className="button-primary min-h-9 px-3 text-xs">
-              Unlock
-            </Link>
-            <Link href={userLoggedIn ? `/plans?required=subscription&redirect=${encodeURIComponent(redirectTarget)}` : `/login?redirect=${encodeURIComponent(redirectTarget)}`} className="button-secondary min-h-9 px-3 text-xs">
-              {userLoggedIn ? "View Plans" : "Sign In"}
-            </Link>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}

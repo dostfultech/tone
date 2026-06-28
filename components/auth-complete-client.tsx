@@ -21,6 +21,10 @@ export function AuthCompleteClient({ searchParams }: AuthCompleteClientProps) {
     return candidate;
   }, [searchParams]);
 
+  const code = useMemo(() => getSearchParam(searchParams, "code"), [searchParams]);
+  const tokenHash = useMemo(() => getSearchParam(searchParams, "token_hash"), [searchParams]);
+  const otpType = useMemo(() => getSearchParam(searchParams, "type"), [searchParams]);
+
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
@@ -39,6 +43,21 @@ export function AuthCompleteClient({ searchParams }: AuthCompleteClientProps) {
     });
 
     async function finishSignIn() {
+      const {
+        data: { session: initialSession }
+      } = await client.auth.getSession();
+
+      if (!initialSession) {
+        const authActionError = await completeBrowserAuth(client, { code, tokenHash, otpType });
+        if (authActionError) {
+          setError(authActionError);
+          window.setTimeout(() => {
+            window.location.replace(`/login?error=callback_failed&message=${encodeURIComponent(authActionError)}`);
+          }, 900);
+          return;
+        }
+      }
+
       for (let attempt = 0; attempt < 20 && !cancelled; attempt += 1) {
         const {
           data: { session },
@@ -70,7 +89,7 @@ export function AuthCompleteClient({ searchParams }: AuthCompleteClientProps) {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, [next]);
+  }, [code, next, otpType, tokenHash]);
 
   return (
     <div className="section grid min-h-[calc(100vh-4rem)] place-items-center py-12">
@@ -87,4 +106,35 @@ export function AuthCompleteClient({ searchParams }: AuthCompleteClientProps) {
       </div>
     </div>
   );
+}
+
+async function completeBrowserAuth(
+  client: NonNullable<ReturnType<typeof createSupabaseBrowserClient>>,
+  params: { code: string; tokenHash: string; otpType: string }
+) {
+  const { code, tokenHash, otpType } = params;
+
+  if (tokenHash && isSupportedOtpType(otpType)) {
+    const { error } = await client.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: otpType
+    });
+    return error?.message || "";
+  }
+
+  if (code) {
+    const { error } = await client.auth.exchangeCodeForSession(code);
+    return error?.message || "";
+  }
+
+  return "";
+}
+
+function getSearchParam(searchParams: Record<string, string | string[] | undefined>, key: string) {
+  const value = searchParams[key];
+  return Array.isArray(value) ? value[0] || "" : value || "";
+}
+
+function isSupportedOtpType(value: string): value is "signup" | "invite" | "magiclink" | "recovery" | "email_change" | "email" {
+  return ["signup", "invite", "magiclink", "recovery", "email_change", "email"].includes(value);
 }

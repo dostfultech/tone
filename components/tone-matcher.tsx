@@ -97,6 +97,7 @@ export function ToneMatcher() {
   const [toneType, setToneType] = useState<ToneType>("auto");
   const [guitar, setGuitar] = useState("Fender Stratocaster");
   const [amp, setAmp] = useState("Boss Katana Artist");
+  const [cabinet, setCabinet] = useState("Mesa/Boogie Rectifier 4x12");
   const [pickup, setPickup] = useState("Vintage Single Coil");
   const [effectsMode, setEffectsMode] = useState("manual");
   const [goingDirect, setGoingDirect] = useState(false);
@@ -116,6 +117,7 @@ export function ToneMatcher() {
   const [bassGuitarCatalog, setBassGuitarCatalog] = useState<CatalogEntry[]>([]);
   const [ampCatalog, setAmpCatalog] = useState<CatalogEntry[]>([]);
   const [bassAmpCatalog, setBassAmpCatalog] = useState<CatalogEntry[]>([]);
+  const [cabinetCatalog, setCabinetCatalog] = useState<CatalogEntry[]>([]);
   const [pickupCatalog, setPickupCatalog] = useState<CatalogEntry[]>([]);
   const [pedalCatalog, setPedalCatalog] = useState<CatalogEntry[]>([]);
   const [multiFxCatalog, setMultiFxCatalog] = useState<CatalogEntry[]>([]);
@@ -199,6 +201,7 @@ export function ToneMatcher() {
       ["toneMatch_toneType", (value: string) => setToneType(normalizeToneType(value))],
       ["toneMatch_guitar", setGuitar],
       ["toneMatch_amp", setAmp],
+      ["toneMatch_cabinet", setCabinet],
       ["toneMatch_pickup", setPickup],
       ["toneMatch_multiFx", setMultiFx],
       ["toneMatch_effectsMode", setEffectsMode],
@@ -230,6 +233,7 @@ export function ToneMatcher() {
         toneType: normalizeToneType(storedToneType),
         guitar: localStorage.getItem("toneMatch_guitar") || (storedMode === "bass" ? "Fender Precision Bass" : "Fender Stratocaster"),
         amp: localStorage.getItem("toneMatch_amp") || (storedMode === "bass" ? "Ampeg SVT-CL" : "Boss Katana Artist"),
+        cabinet: localStorage.getItem("toneMatch_cabinet") || (storedMode === "bass" ? "Ampeg SVT-410HLF" : "Mesa/Boogie Rectifier 4x12"),
         pickup: localStorage.getItem("toneMatch_pickup") || "Vintage Single Coil",
         effectsMode: localStorage.getItem("toneMatch_effectsMode") || "manual"
       };
@@ -256,6 +260,7 @@ export function ToneMatcher() {
       localStorage.setItem("toneMatch_toneType", toneType);
       localStorage.setItem("toneMatch_guitar", guitar);
       localStorage.setItem("toneMatch_amp", amp);
+      localStorage.setItem("toneMatch_cabinet", cabinet);
       localStorage.setItem("toneMatch_pickup", pickup);
       localStorage.setItem("toneMatch_multiFx", multiFx);
       localStorage.setItem("toneMatch_effectsMode", effectsMode);
@@ -263,7 +268,7 @@ export function ToneMatcher() {
     }, 220);
 
     return () => window.clearTimeout(persistTimeout);
-  }, [songDraft, artist, part, partType, toneType, guitar, amp, pickup, multiFx, effectsMode, selectedFx]);
+  }, [songDraft, artist, part, partType, toneType, guitar, amp, cabinet, pickup, multiFx, effectsMode, selectedFx]);
 
   useEffect(() => {
     const query = songDraft.trim();
@@ -330,11 +335,12 @@ export function ToneMatcher() {
     let cancelled = false;
 
     async function loadCatalog() {
-      const [guitarsResponse, bassGuitarsResponse, ampsResponse, bassAmpsResponse, pickupsResponse, pedalsResponse, multiFxResponse] = await Promise.all([
+      const [guitarsResponse, bassGuitarsResponse, ampsResponse, bassAmpsResponse, cabinetsResponse, pickupsResponse, pedalsResponse, multiFxResponse] = await Promise.all([
         fetchCatalog("/api/guitars/lookup"),
         fetchCatalog("/api/bass-guitars/lookup"),
         fetchCatalog("/api/amps/lookup"),
         fetchCatalog("/api/bass-amps/lookup"),
+        fetchCatalog("/api/cabinets/catalog"),
         fetchCatalog("/api/pickups/catalog"),
         fetchCatalog("/api/pedals/catalog"),
         fetchCatalog("/api/multi-fx/catalog")
@@ -346,6 +352,7 @@ export function ToneMatcher() {
 
       const storedGuitar = localStorage.getItem("toneMatch_guitar") || "Fender Stratocaster";
       const storedAmp = localStorage.getItem("toneMatch_amp") || "Boss Katana Artist";
+      const storedCabinet = localStorage.getItem("toneMatch_cabinet") || "Mesa/Boogie Rectifier 4x12";
       const storedPickup = localStorage.getItem("toneMatch_pickup") || "Vintage Single Coil";
       const storedSelectedFx = localStorage.getItem("toneMatch_selectedEffects") || "ambient-lead";
       const storedMultiFx = localStorage.getItem("toneMatch_multiFx") || "Line 6 Helix Floor";
@@ -355,6 +362,7 @@ export function ToneMatcher() {
       setBassGuitarCatalog(bassGuitarsResponse);
       setAmpCatalog(ampsResponse);
       setBassAmpCatalog(bassAmpsResponse);
+      setCabinetCatalog(cabinetsResponse);
       setPickupCatalog(pickupsResponse);
       setPedalCatalog(pedalsResponse);
       setMultiFxCatalog(multiFxResponse);
@@ -373,6 +381,10 @@ export function ToneMatcher() {
 
       if (bassAmpsResponse.length && storedMode === "bass" && !bassAmpsResponse.some((item) => item.name === storedAmp)) {
         setAmp(bassAmpsResponse[0].name);
+      }
+
+      if (cabinetsResponse.length && !cabinetsResponse.some((item) => item.name === storedCabinet)) {
+        setCabinet(cabinetsResponse[0].name);
       }
 
       if (pickupsResponse.length && !pickupsResponse.some((item) => item.name === storedPickup)) {
@@ -417,6 +429,10 @@ export function ToneMatcher() {
       setAmp(currentAmps[0].name);
     }
 
+    if (cabinetCatalog.length && !cabinetCatalog.some((item) => item.name === cabinet)) {
+      setCabinet(cabinetCatalog[0].name);
+    }
+
     if (pickupCatalog.length && !pickupCatalog.some((item) => item.name === pickup)) {
       setPickup(pickupCatalog[0].name);
     }
@@ -428,7 +444,7 @@ export function ToneMatcher() {
     if (multiFxCatalog.length && !multiFxCatalog.some((item) => item.name === multiFx)) {
       setMultiFx(multiFxCatalog[0].name);
     }
-  }, [amp, currentAmps, currentGuitars, guitar, multiFx, multiFxCatalog, pedalCatalog, pickup, pickupCatalog, selectedFx]);
+  }, [amp, cabinet, cabinetCatalog, currentAmps, currentGuitars, guitar, multiFx, multiFxCatalog, pedalCatalog, pickup, pickupCatalog, selectedFx]);
 
   function applySongPreset(preset: SongSuggestion) {
     setMode(preset.mode);
@@ -441,9 +457,11 @@ export function ToneMatcher() {
     if (preset.mode === "bass") {
       setGuitar(bassGuitarCatalog[0]?.name || "Fender Precision Bass");
       setAmp(bassAmpCatalog[0]?.name || "Ampeg SVT-CL");
+      setCabinet(cabinetCatalog.find((item) => item.name.includes("Ampeg"))?.name || "Ampeg SVT-410HLF");
     } else if (mode === "bass") {
       setGuitar(guitarCatalog[0]?.name || "Fender Stratocaster");
       setAmp(ampCatalog[0]?.name || "Boss Katana Artist");
+      setCabinet(cabinetCatalog.find((item) => !item.name.includes("Ampeg") && !item.name.includes("Darkglass"))?.name || "Mesa/Boogie Rectifier 4x12");
     }
     setSongSearchTouched(false);
     setSongSearchOpen(false);
@@ -480,9 +498,13 @@ export function ToneMatcher() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (subscriptionSnapshot?.user && !subscriptionSnapshot.hasAccess) {
+      router.push(`/plans?required=subscription&redirect=${encodeURIComponent("/app")}`);
+      return;
+    }
     const normalizedSong = songDraft.trim() || song.trim() || "Unknown Song";
     setSong(normalizedSong);
-    const payload: ToneRequest = { mode, song: normalizedSong, artist, part, partType, toneType, guitar, amp, pickup, effectsMode };
+    const payload: ToneRequest = { mode, song: normalizedSong, artist, part, partType, toneType, guitar, amp, cabinet, pickup, effectsMode };
     await runAdaptation(payload);
   }
 
@@ -510,6 +532,10 @@ export function ToneMatcher() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(result)
     }).catch(() => null);
+    if (response?.status === 402) {
+      router.push(`/plans?required=subscription&redirect=${encodeURIComponent("/app")}`);
+      return;
+    }
     if (response && !response.ok) {
       const data = await response.json().catch(() => ({}));
       setMessage(data.error || "Tone saved locally, but database save failed.");
@@ -520,6 +546,7 @@ export function ToneMatcher() {
 
   const selectedGuitar = currentGuitars.find((item) => item.name === guitar);
   const selectedAmp = currentAmps.find((item) => item.name === amp);
+  const selectedCabinet = cabinetCatalog.find((item) => item.name === cabinet);
   const selectedPickup = pickupCatalog.find((item) => item.name === pickup);
   const selectedPreset = pedalCatalog.find((item) => item.name === selectedFx);
   const partChoices = partOptions.filter((option) => mode === "bass" || option.value !== "bassline");
@@ -565,10 +592,12 @@ export function ToneMatcher() {
                     if (item.value === "bass") {
                       setGuitar(bassGuitarCatalog[0]?.name || "Fender Precision Bass");
                       setAmp(bassAmpCatalog[0]?.name || "Ampeg SVT-CL");
+                      setCabinet(cabinetCatalog.find((item) => item.name.includes("Ampeg"))?.name || "Ampeg SVT-410HLF");
                       setToneType("bass_clean");
                     } else {
                       setGuitar(guitarCatalog[0]?.name || "Fender Stratocaster");
                       setAmp(ampCatalog[0]?.name || "Boss Katana Artist");
+                      setCabinet(cabinetCatalog.find((item) => !item.name.includes("Ampeg") && !item.name.includes("Darkglass"))?.name || "Mesa/Boogie Rectifier 4x12");
                       setToneType("auto");
                     }
                   }}
@@ -597,6 +626,7 @@ export function ToneMatcher() {
                 className="compact-card min-h-36 p-6 text-left transition hover:-translate-y-1 hover:border-ocean/40 hover:shadow-xl"
                 onClick={() => {
                   setSong(item.song);
+                  setSongDraft(item.song);
                   setArtist(item.artist);
                   setSongSearchTouched(false);
                   setSongSearchOpen(false);
@@ -641,7 +671,7 @@ export function ToneMatcher() {
                 <div className="h-px flex-1 bg-blue-100" />
               </div>
 
-              <div className="grid gap-8 lg:grid-cols-2">
+              <div className="grid gap-8 lg:grid-cols-3">
                 <SelectField label={mode === "bass" ? "Bass archetype" : "Guitar archetype"} value={guitar} onChange={setGuitar} options={currentGuitars.map((item) => item.name)} />
                 <div>
                   <div className="mb-2 flex items-center justify-between gap-4">
@@ -666,6 +696,7 @@ export function ToneMatcher() {
                     ))}
                   </select>
                 </div>
+                <SelectField label="Cabinet" value={cabinet} onChange={setCabinet} options={cabinetCatalog.map((item) => item.name)} />
               </div>
 
               {mode === "guitar" ? (
@@ -694,7 +725,7 @@ export function ToneMatcher() {
                 </label>
                 <div className="mt-4 grid gap-5 lg:grid-cols-2">
                   <GearSummaryCard icon={<Guitar className="h-8 w-8" />} title={guitar} description={selectedGuitar?.description || "Custom instrument selected for this adaptation."} tags={mode === "bass" ? ["bass", "touch-sensitive"] : [selectedPickup?.category || "pickup", "adaptable"]} />
-                  <GearSummaryCard icon={<Volume2 className="h-8 w-8" />} title={amp} description={selectedAmp?.description || "Selected amp or modeler for the adapted settings."} tags={goingDirect ? ["direct", "modeler-ready"] : ["amp", "speaker chain"]} />
+                  <GearSummaryCard icon={<Volume2 className="h-8 w-8" />} title={amp} description={selectedAmp?.description || "Selected amp or modeler for the adapted settings."} tags={goingDirect ? ["direct", selectedCabinet?.name || "modeler-ready"] : ["amp", selectedCabinet?.name || "speaker chain"]} />
                 </div>
               </div>
 
