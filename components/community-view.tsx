@@ -137,7 +137,7 @@ export function CommunityView() {
           <>
             <div className="mt-8 grid gap-6 lg:grid-cols-2 2xl:grid-cols-3">
               {tones.map((item) => (
-            <article key={item.id} className="compact-card overflow-hidden border border-white/90 bg-white/85 p-5 shadow-lg transition hover:-translate-y-1 hover:shadow-xl">
+            <article key={item.id} className="compact-card overflow-hidden border border-white/90 bg-white/90 p-5 shadow-lg transition-shadow hover:shadow-xl">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <h2 className="line-clamp-1 text-2xl font-bold leading-tight">{item.song}</h2>

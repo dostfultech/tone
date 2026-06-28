@@ -633,7 +633,7 @@ export function ToneMatcher() {
               <button
                 key={item.rank}
                 type="button"
-                className="compact-card min-h-36 p-6 text-left transition hover:-translate-y-1 hover:border-ocean/40 hover:shadow-xl"
+                className="compact-card min-h-36 p-6 text-left transition-colors hover:border-ocean/40 hover:shadow-xl"
                 onClick={() => {
                   setSong(item.song);
                   setSongDraft(item.song);
@@ -994,7 +994,7 @@ export function ToneMatcher() {
 
       <AnimatePresence>
         {loading ? (
-          <motion.div className="fixed inset-0 z-[80] grid place-items-center bg-ink/35 p-4 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <motion.div className="fixed inset-0 z-[80] grid place-items-center bg-ink/35 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <motion.div className="theme-panel w-full max-w-md p-7" initial={{ y: 20, scale: 0.98 }} animate={{ y: 0, scale: 1 }} exit={{ y: 20, scale: 0.98 }}>
               <div className="mx-auto mb-5 grid h-20 w-20 place-items-center rounded-full border border-white/80 bg-white shadow-sm">
                 <Loader2 className="h-9 w-9 animate-spin text-ink" />
@@ -1372,7 +1372,7 @@ function SettingsBlock({ title, icon, settings, empty }: { title: string; icon: 
       {settings.length ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {settings.map(([name, value]) => (
-            <div key={name} className="rounded-lg border border-white/80 bg-white/90 p-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+            <div key={name} className="rounded-lg border border-white/80 bg-white/90 p-4 text-center shadow-sm transition-shadow hover:shadow-lg">
               <div className="knob-shell mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full" style={knobStyle(animatedValues[name] ?? 0)} aria-label={`${name} ${value}`}>
                 <div className="knob h-12 w-12 rounded-full" />
               </div>

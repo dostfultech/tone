@@ -74,7 +74,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         </div>
       ) : null}
 
-      <header className="sticky top-0 z-30 border-b border-neutral-200 bg-white/90 backdrop-blur">
+      <header className="sticky top-0 z-30 border-b border-neutral-200 bg-white/95">
         <div className="section flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center gap-3 font-semibold">
             <Image src="/tonefex-logo.svg" alt={brand.appName} width={34} height={34} priority />

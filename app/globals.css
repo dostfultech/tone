@@ -129,11 +129,11 @@ a {
 }
 
 .button-primary {
-  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white shadow-[0_14px_32px_rgba(8,7,26,0.18)] transition hover:-translate-y-0.5 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean focus-visible:ring-offset-2;
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white shadow-[0_14px_32px_rgba(8,7,26,0.18)] transition-colors hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean focus-visible:ring-offset-2;
 }
 
 .button-secondary {
-  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-ink shadow-sm transition hover:-translate-y-0.5 hover:border-ink hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean focus-visible:ring-offset-2;
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-ink shadow-sm transition-colors hover:border-ink hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean focus-visible:ring-offset-2;
 }
 
 .button-quiet {
@@ -145,7 +145,7 @@ a {
 }
 
 .compact-card {
-  @apply rounded-lg border border-white/80 bg-white/90 shadow-[0_24px_70px_rgba(95,141,247,0.14)] backdrop-blur;
+  @apply rounded-lg border border-white/80 bg-white/95 shadow-[0_24px_70px_rgba(95,141,247,0.14)];
 }
 
 .app-gradient {
@@ -156,7 +156,7 @@ a {
 }
 
 .theme-panel {
-  @apply rounded-lg border border-white/80 bg-white/75 shadow-[0_30px_90px_rgba(95,141,247,0.16)] backdrop-blur;
+  @apply rounded-lg border border-white/80 bg-white/90 shadow-[0_30px_90px_rgba(95,141,247,0.16)];
 }
 
 .theme-blue-panel {
@@ -179,7 +179,6 @@ a {
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.58) 42%, rgba(255, 255, 255, 0.92) 100%);
-  backdrop-filter: blur(9px);
   pointer-events: none;
 }
 
