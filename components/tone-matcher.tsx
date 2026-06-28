@@ -92,6 +92,7 @@ export function ToneMatcher() {
   const autoAdaptTriggeredRef = useRef(false);
   const hasLoadedPreferencesRef = useRef(false);
   const resultRef = useRef<HTMLDivElement | null>(null);
+  const lastSelectedPresetRef = useRef<CatalogEntry | null>(null);
   const [mode, setMode] = useState<"guitar" | "bass">("guitar");
   const [song, setSong] = useState("");
   const [songDraft, setSongDraft] = useState("");
@@ -559,6 +560,13 @@ export function ToneMatcher() {
   const selectedCabinet = cabinetCatalog.find((item) => item.name === cabinet);
   const selectedPickup = pickupCatalog.find((item) => item.name === pickup);
   const selectedPreset = pedalCatalog.find((item) => item.name === selectedFx);
+  useEffect(() => {
+    if (selectedPreset) {
+      lastSelectedPresetRef.current = selectedPreset;
+    }
+  }, [selectedPreset]);
+  const visiblePreset = selectedPreset ?? lastSelectedPresetRef.current;
+  const visiblePresetDetails = visiblePreset?.details ?? visiblePreset?.description?.split(" | ").filter(Boolean) ?? [];
   const partChoices = partOptions.filter((option) => mode === "bass" || option.value !== "bassline");
   const toneChoices = toneTypeOptions.filter((option) => {
     if (mode === "bass") return option.value === "auto" || option.value === "bass_clean" || option.value === "bass_drive" || option.value === "clean" || option.value === "distorted";
@@ -778,9 +786,9 @@ export function ToneMatcher() {
                   <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.55fr)]">
                     <SelectField label="Effect preset" value={selectedFx} onChange={setSelectedFx} options={pedalCatalog.map((preset) => preset.name)} />
                     <div className="flex min-h-[112px] flex-col rounded-lg border border-white/80 bg-blue-50/70 p-4">
-                      <div className="text-sm font-bold">{selectedPreset?.name || "Custom chain"}</div>
+                      <div className="text-sm font-bold">{visiblePreset?.name ?? ""}</div>
                       <div className="mt-2 flex flex-1 flex-wrap content-start gap-2 overflow-hidden">
-                        {(selectedPreset?.details || selectedPreset?.description?.split(" | ") || ["Amp effects"]).map((pedal) => (
+                        {visiblePresetDetails.map((pedal) => (
                           <span key={pedal} className="rounded-md bg-white px-3 py-1 text-xs font-semibold text-slate-600">
                             {pedal}
                           </span>
