@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   BadgeCheck,
   Bookmark,
+  CheckCircle2,
   ChevronRight,
   ExternalLink,
   Flame,
@@ -59,6 +60,19 @@ type ToneResult = {
 };
 
 type SongSuggestion = SongItem;
+type SaveToneOutcome = "synced" | "local" | "redirected";
+
+type SavedToneRecord = {
+  id: string;
+  accuracy: number;
+  song: string;
+  artist: string;
+  part: string;
+  mode: ToneRequest["mode"];
+  request: ToneRequest;
+  result: ToneResult;
+  created_at: string;
+};
 
 type CatalogEntry = {
   id: string;
@@ -565,12 +579,16 @@ export function ToneMatcher() {
     localStorage.setItem(`${brand.storagePrefix}_daily_usage`, String(usage + 1));
   }
 
-  async function saveTone() {
+  async function saveTone(): Promise<SaveToneOutcome> {
     if (!result) {
-      return;
+      return "local";
     }
-    const saved = JSON.parse(localStorage.getItem(`${brand.storagePrefix}_saved_tones`) || "[]");
-    localStorage.setItem(`${brand.storagePrefix}_saved_tones`, JSON.stringify([result, ...saved.filter((tone: ToneResult) => tone.id !== result.id)]));
+    const saved = JSON.parse(localStorage.getItem(`${brand.storagePrefix}_saved_tones`) || "[]") as Array<SavedToneRecord | ToneResult>;
+    const localRecord = toSavedToneRecord(result);
+    localStorage.setItem(
+      `${brand.storagePrefix}_saved_tones`,
+      JSON.stringify([localRecord, ...saved.filter((tone) => getSavedToneId(tone) !== result.id)])
+    );
     const response = await fetch("/api/save-tone", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -578,14 +596,15 @@ export function ToneMatcher() {
     }).catch(() => null);
     if (response?.status === 402) {
       router.push(`/plans?required=subscription&redirect=${encodeURIComponent("/app")}`);
-      return;
+      return "redirected";
     }
     if (response && !response.ok) {
       const data = await response.json().catch(() => ({}));
       setMessage(data.error || "Tone saved locally, but database save failed.");
-      return;
+      return "local";
     }
     setMessage("Tone saved to your library.");
+    return "synced";
   }
 
   const selectedGuitar = currentGuitars.find((item) => item.name === guitar);
@@ -1317,8 +1336,54 @@ function EmptySplitResult({ song, artist, guitar, amp }: { song: string; artist:
   );
 }
 
-function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => void }) {
+function toSavedToneRecord(result: ToneResult): SavedToneRecord {
+  return {
+    id: result.id,
+    accuracy: result.accuracy,
+    song: result.request.song || "Unknown Song",
+    artist: result.request.artist || "Unknown Artist",
+    part: result.request.part || "main part",
+    mode: result.request.mode,
+    request: result.request,
+    result,
+    created_at: new Date().toISOString()
+  };
+}
+
+function getSavedToneId(tone: SavedToneRecord | ToneResult) {
+  return tone.id || ("result" in tone ? tone.result?.id : undefined);
+}
+
+function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => Promise<SaveToneOutcome> }) {
   const profile = result.sourceProfile;
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "local">("idle");
+  const [saveBurstKey, setSaveBurstKey] = useState(0);
+  const isSaving = saveState === "saving";
+  const isSaved = saveState === "saved" || saveState === "local";
+  const saveLabel = saveState === "saving" ? "Saving..." : saveState === "local" ? "Saved locally" : saveState === "saved" ? "Saved in Library" : "Save tone";
+
+  useEffect(() => {
+    setSaveState("idle");
+    setSaveBurstKey(0);
+  }, [result.id]);
+
+  async function handleSave() {
+    if (isSaving) {
+      return;
+    }
+
+    setSaveState("saving");
+    const outcome = await onSave();
+    if (outcome === "redirected") {
+      return;
+    }
+
+    setSaveState(outcome === "local" ? "local" : "saved");
+    setSaveBurstKey((key) => key + 1);
+    window.setTimeout(() => {
+      setSaveState((current) => (current === "saving" ? current : "idle"));
+    }, 2600);
+  }
 
   return (
     <motion.article className="overflow-hidden" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: "easeOut" }}>
@@ -1340,18 +1405,52 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => voi
             </div>
             {profile ? <p className="mt-3 text-xs font-semibold text-slate-500">Matched source confidence: {profile.confidence}%</p> : null}
           </div>
-          <button
-            type="button"
-            className="button-primary pointer-events-auto relative z-10"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              onSave();
-            }}
-          >
-            <Bookmark className="h-4 w-4" />
-            Save tone
-          </button>
+          <div className="flex flex-col items-start gap-2 sm:items-end">
+            <motion.button
+              type="button"
+              className={`pointer-events-auto relative z-10 inline-flex min-h-12 min-w-36 items-center justify-center gap-2 overflow-hidden rounded-md px-5 py-2 text-sm font-bold shadow-[0_16px_34px_rgba(8,7,26,0.22)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean focus-visible:ring-offset-2 ${
+                isSaved ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-ink text-white hover:bg-black"
+              } ${isSaving ? "cursor-wait opacity-95" : ""}`}
+              disabled={isSaving}
+              whileHover={{ y: isSaving ? 0 : -1 }}
+              whileTap={{ scale: isSaving ? 1 : 0.94, y: isSaving ? 0 : 2 }}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                void handleSave();
+              }}
+            >
+              <AnimatePresence>
+                {isSaved ? (
+                  <motion.span
+                    key={`save-burst-${saveBurstKey}`}
+                    className="absolute inset-0 bg-white/20"
+                    initial={{ scale: 0, opacity: 0.6 }}
+                    animate={{ scale: 1.8, opacity: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.55, ease: "easeOut" }}
+                  />
+                ) : null}
+              </AnimatePresence>
+              {saveState === "saving" ? <Loader2 className="h-4 w-4 animate-spin" /> : isSaved ? <CheckCircle2 className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+              <span className="relative">{saveLabel}</span>
+            </motion.button>
+            <AnimatePresence>
+              {isSaved ? (
+                <motion.div
+                  className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 shadow-sm"
+                  initial={{ opacity: 0, y: -4, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.96 }}
+                  transition={{ duration: 0.18 }}
+                  aria-live="polite"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {saveState === "local" ? "Saved on this device" : "Added to your library"}
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
