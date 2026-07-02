@@ -9,6 +9,8 @@ type CoreResolution = {
   result: CoreToneResult | null;
   source: "cache" | "rule" | "ai_fallback";
   cacheKey: string | null;
+  cacheId?: string | null;
+  cacheWriteStatus?: "succeeded" | "failed" | "not_attempted";
   hitType: "exact" | "miss" | "bypass" | "fallback";
   fallbackReason?: "resolver_disabled" | "missing_admin_client" | "missing_master_tone" | "internal_error";
 };
@@ -93,6 +95,7 @@ export async function resolveCoreTone(
       result: null,
       source: "ai_fallback",
       cacheKey: null,
+      cacheWriteStatus: "not_attempted",
       hitType: "bypass",
       fallbackReason: "resolver_disabled"
     };
@@ -102,6 +105,7 @@ export async function resolveCoreTone(
       result: null,
       source: "ai_fallback",
       cacheKey: null,
+      cacheWriteStatus: "not_attempted",
       hitType: "bypass",
       fallbackReason: "missing_admin_client"
     };
@@ -134,6 +138,7 @@ export async function resolveCoreTone(
         result: null,
         source: "ai_fallback",
         cacheKey,
+        cacheWriteStatus: "not_attempted",
         hitType: "fallback",
         fallbackReason: "missing_master_tone"
       };
@@ -159,6 +164,8 @@ export async function resolveCoreTone(
         result: cached.result_json,
         source: "cache",
         cacheKey,
+        cacheId: cached.id,
+        cacheWriteStatus: "not_attempted",
         hitType: "exact"
       };
     }
@@ -192,6 +199,8 @@ export async function resolveCoreTone(
       result,
       source: "rule",
       cacheKey,
+      cacheId,
+      cacheWriteStatus: cacheId ? "succeeded" : "failed",
       hitType: "miss"
     };
   } catch {
@@ -213,6 +222,7 @@ export async function resolveCoreTone(
       result: null,
       source: "ai_fallback",
       cacheKey: null,
+      cacheWriteStatus: "not_attempted",
       hitType: "fallback",
       fallbackReason: "internal_error"
     };

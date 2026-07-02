@@ -7,6 +7,8 @@ export type ToneAiGeneration = {
   result: GeneratedToneResult;
   source: "openai" | "local_fallback";
   model: string | null;
+  openAiCalled: boolean;
+  openAiSucceeded: boolean;
   reason?: "missing_openai_client" | "empty_openai_response" | "openai_error";
 };
 
@@ -53,7 +55,14 @@ export async function generateToneResultWithMetadata(request: ToneRequest, toneP
       artist: request.artist,
       mode: request.mode
     });
-    return { result: fallback, source: "local_fallback", model: null, reason: "missing_openai_client" };
+    return {
+      result: fallback,
+      source: "local_fallback",
+      model: null,
+      openAiCalled: false,
+      openAiSucceeded: false,
+      reason: "missing_openai_client"
+    };
   }
 
   try {
@@ -113,7 +122,14 @@ export async function generateToneResultWithMetadata(request: ToneRequest, toneP
         artist: request.artist,
         mode: request.mode
       });
-      return { result: fallback, source: "local_fallback", model, reason: "empty_openai_response" };
+      return {
+        result: fallback,
+        source: "local_fallback",
+        model,
+        openAiCalled: true,
+        openAiSucceeded: false,
+        reason: "empty_openai_response"
+      };
     }
 
     const parsed = JSON.parse(content) as Omit<GeneratedToneResult, "id" | "request">;
@@ -133,7 +149,13 @@ export async function generateToneResultWithMetadata(request: ToneRequest, toneP
       mode: request.mode
     });
 
-    return { result, source: "openai", model };
+    return {
+      result,
+      source: "openai",
+      model,
+      openAiCalled: true,
+      openAiSucceeded: true
+    };
   } catch {
     console.warn("[tonefex:ai]", {
       event: "openai_error_fallback_used",
@@ -143,6 +165,13 @@ export async function generateToneResultWithMetadata(request: ToneRequest, toneP
       artist: request.artist,
       mode: request.mode
     });
-    return { result: fallback, source: "local_fallback", model, reason: "openai_error" };
+    return {
+      result: fallback,
+      source: "local_fallback",
+      model,
+      openAiCalled: true,
+      openAiSucceeded: false,
+      reason: "openai_error"
+    };
   }
 }

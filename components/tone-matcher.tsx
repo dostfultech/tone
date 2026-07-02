@@ -213,11 +213,26 @@ export function ToneMatcher() {
         if (!response.ok) {
           throw new Error(data.error || "Tone adaptation failed.");
         }
+        const source = data.source || {};
         console.info("[tonefex:adaptation:response]", {
           event: "tone_adaptation_response",
           trigger,
           endpoint,
-          source: data.source || null
+          finalSource: source.finalSource || "UNKNOWN",
+          resultPath: source.resultPath || "unknown",
+          cacheStatus: source.cacheStatus || "unknown",
+          cacheHit: Boolean(source.cacheHit),
+          cacheMiss: Boolean(source.cacheMiss),
+          cacheWrite: source.cacheWrite || "unknown",
+          databaseCacheUsed: Boolean(source.databaseCacheUsed),
+          ruleEngineUsed: Boolean(source.ruleEngineUsed),
+          aiFallbackTriggered: Boolean(source.aiFallbackTriggered),
+          openAiCalled: Boolean(source.openAiCalled),
+          openAiSucceeded: Boolean(source.openAiSucceeded),
+          aiResultUsed: Boolean(source.aiResultUsed),
+          masterToneSource: source.masterToneSource || "unknown",
+          fallbackReason: source.fallbackReason || null,
+          source
         });
         setResult(data.result);
         trackUsage(data.result);

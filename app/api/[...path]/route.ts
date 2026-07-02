@@ -373,16 +373,36 @@ function buildAdaptationSourceLog(
         : aiGeneration?.source === "openai"
           ? "openai"
           : "local_fallback";
+  const cacheStatus = getCacheStatus(coreResolution);
+  const sourceLabel = getSourceLabel(resultPath, cacheStatus, coreResolution.fallbackReason, aiGeneration?.reason);
+  const openAiCalled = Boolean(aiGeneration?.openAiCalled);
+  const openAiSucceeded = Boolean(aiGeneration?.openAiSucceeded);
+  const aiResultUsed = resultPath === "openai";
+  const ruleEngineUsed = coreResolution.source === "rule";
+  const databaseCacheUsed = coreResolution.source === "cache";
+  const cacheWrite = coreResolution.cacheWriteStatus || (ruleEngineUsed ? "unknown" : "not_applicable");
 
   return {
     event: "tone_adaptation_complete",
     route,
     requestId,
+    finalSource: sourceLabel,
     resultPath,
+    sourceLabel,
     masterToneSource,
-    aiUsed: resultPath === "openai",
+    aiFallbackTriggered: coreResolution.source === "ai_fallback",
+    aiUsed: aiResultUsed,
+    aiResultUsed,
+    openAiCalled,
+    openAiSucceeded,
+    ruleEngineUsed,
+    databaseCacheUsed,
     databaseUsed: coreResolution.source === "cache" || coreResolution.source === "rule" || masterToneSource === "database",
-    cacheHit: coreResolution.source === "cache",
+    cacheStatus,
+    cacheHit: databaseCacheUsed,
+    cacheMiss: ruleEngineUsed,
+    cacheWrite,
+    cacheId: coreResolution.cacheId || null,
     coreSource: coreResolution.source,
     hitType: coreResolution.hitType,
     fallbackReason: coreResolution.fallbackReason || aiGeneration?.reason || null,
@@ -397,6 +417,75 @@ function buildAdaptationSourceLog(
       pickup: request.pickup || null
     }
   };
+}
+
+function getCacheStatus(coreResolution: Awaited<ReturnType<typeof resolveCoreTone>>) {
+  if (coreResolution.source === "cache") {
+    return "hit";
+  }
+
+  if (coreResolution.source === "rule") {
+    if (coreResolution.cacheWriteStatus === "succeeded") {
+      return "miss_rule_engine_cache_write_succeeded";
+    }
+
+    if (coreResolution.cacheWriteStatus === "failed") {
+      return "miss_rule_engine_cache_write_failed";
+    }
+
+    return "miss_rule_engine_cache_write_unknown";
+  }
+
+  if (coreResolution.fallbackReason === "resolver_disabled") {
+    return "bypassed_resolver_disabled";
+  }
+
+  if (coreResolution.fallbackReason === "missing_master_tone") {
+    return "not_checked_missing_master_tone";
+  }
+
+  if (coreResolution.fallbackReason === "internal_error") {
+    return "not_checked_resolver_error";
+  }
+
+  return "not_checked";
+}
+
+function getSourceLabel(
+  resultPath: string,
+  cacheStatus: string,
+  coreFallbackReason?: string,
+  aiReason?: string
+) {
+  if (resultPath === "database_cache") {
+    return "CACHE_HIT_FROM_TONE_ADAPTATION_CACHE";
+  }
+
+  if (resultPath === "tone_core_rule_engine") {
+    if (cacheStatus === "miss_rule_engine_cache_write_succeeded") {
+      return "CACHE_MISS_RULE_ENGINE_WRITTEN_TO_CACHE";
+    }
+
+    if (cacheStatus === "miss_rule_engine_cache_write_failed") {
+      return "CACHE_MISS_RULE_ENGINE_CACHE_WRITE_FAILED";
+    }
+
+    return "CACHE_MISS_RULE_ENGINE_GENERATED";
+  }
+
+  if (resultPath === "openai") {
+    return "OPENAI_RESULT_USED";
+  }
+
+  if (coreFallbackReason === "missing_master_tone") {
+    return `LOCAL_FALLBACK_NO_MASTER_TONE_${aiReason || "NO_OPENAI_RESULT"}`.toUpperCase();
+  }
+
+  if (cacheStatus.startsWith("bypassed")) {
+    return `LOCAL_FALLBACK_${cacheStatus}`.toUpperCase();
+  }
+
+  return `LOCAL_FALLBACK_${aiReason || coreFallbackReason || "UNKNOWN_REASON"}`.toUpperCase();
 }
 
 function classifyToneProfileSource(toneProfile: { id: string } | null) {
