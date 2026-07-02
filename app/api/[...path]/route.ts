@@ -21,6 +21,7 @@ import {
 import { getEntitlement, getCurrentSession } from "@/lib/server-access";
 import { lookupGearFromSupabase } from "@/lib/gear-catalog";
 import { generateToneResult } from "@/lib/tone-ai";
+import { isToneCoreResolverEnabled, resolveCoreTone, TONE_CORE_MODEL_NAME } from "@/lib/tone-core";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { assertCanCreateAdaptation, incrementAdaptationUsage } from "@/lib/usage";
 import { buildResearchPayload, createMissingSongRequest, findToneProfile, listCommunityToneProfiles, type CommunityToneQuery } from "@/lib/tone-profiles";
@@ -205,7 +206,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           part: requestBody.part,
           input_gear: requestBody,
           status: "running",
-          model: process.env.OPENAI_MODEL || "gpt-4.1-nano"
+          model: isToneCoreResolverEnabled() ? TONE_CORE_MODEL_NAME : process.env.OPENAI_MODEL || "gpt-4.1-nano"
         }).select("id").single();
         toneJobId = job?.id || null;
       }
@@ -215,7 +216,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (!toneProfile) {
       await createMissingSongRequest(requestBody, user?.id || null);
     }
-    const result = await generateToneResult(requestBody, toneProfile);
+    const coreResolution = await resolveCoreTone(requestBody, toneProfile, { admin, userId: user?.id || null, requestId: toneJobId });
+    const result = coreResolution?.result || await generateToneResult(requestBody, toneProfile);
 
     if (user && admin && toneJobId) {
       await admin.from("tone_jobs").update({ status: "succeeded" }).eq("id", toneJobId);
