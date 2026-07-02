@@ -152,12 +152,28 @@ export function ToneMatcher() {
       options?: {
         multiFx?: string;
         selectedFx?: string;
+        trigger?: "manual_generate" | "tone_database_adapt_to_my_gear" | "saved_tone_readapt";
       }
     ) => {
       setLoading(true);
       setMessage("");
       setProgress(0);
       setResult(null);
+      const trigger = options?.trigger || "manual_generate";
+
+      console.info("[tonefex:adaptation:request]", {
+        event: "tone_adaptation_request",
+        trigger,
+        mode: payload.mode,
+        song: payload.song,
+        artist: payload.artist,
+        targetGear: {
+          guitar: payload.guitar,
+          amp: payload.amp,
+          cabinet: payload.cabinet || null,
+          pickup: payload.pickup || null
+        }
+      });
 
       const progressTimer = window.setInterval(() => {
         setProgress((value) => Math.min(progressSteps.length - 1, value + 1));
@@ -197,6 +213,12 @@ export function ToneMatcher() {
         if (!response.ok) {
           throw new Error(data.error || "Tone adaptation failed.");
         }
+        console.info("[tonefex:adaptation:response]", {
+          event: "tone_adaptation_response",
+          trigger,
+          endpoint,
+          source: data.source || null
+        });
         setResult(data.result);
         trackUsage(data.result);
       } catch (error) {
@@ -314,7 +336,8 @@ export function ToneMatcher() {
 
       void runAdaptationRef.current(payload, {
         multiFx: nextMultiFx,
-        selectedFx: nextSelectedFx
+        selectedFx: nextSelectedFx,
+        trigger: "tone_database_adapt_to_my_gear"
       });
     }
 

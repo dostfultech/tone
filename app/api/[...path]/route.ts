@@ -20,7 +20,7 @@ import {
 } from "@/lib/mock-data";
 import { getEntitlement, getCurrentSession } from "@/lib/server-access";
 import { lookupGearFromSupabase } from "@/lib/gear-catalog";
-import { generateToneResult } from "@/lib/tone-ai";
+import { generateToneResultWithMetadata } from "@/lib/tone-ai";
 import { isToneCoreResolverEnabled, resolveCoreTone, TONE_CORE_MODEL_NAME } from "@/lib/tone-core";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { assertCanCreateAdaptation, incrementAdaptationUsage } from "@/lib/usage";
@@ -33,6 +33,7 @@ const MUSIC_SEARCH_CACHE_TTL_MS = 10 * 60 * 1000;
 const MUSIC_SEARCH_CACHE_MAX_ITEMS = 120;
 const DEFAULT_MUSIC_SEARCH_LIMIT = 30;
 const musicSearchCache = new Map<string, { expiresAt: number; results: SongItem[] }>();
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type RouteContext = {
   params: Promise<{ path: string[] }>;
@@ -223,9 +224,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
         { status: 503 }
       );
     }
-    const result = coreResolution.result || await generateToneResult(requestBody, toneProfile);
+    let aiGeneration: Awaited<ReturnType<typeof generateToneResultWithMetadata>> | null = null;
+    if (!coreResolution.result) {
+      aiGeneration = await generateToneResultWithMetadata(requestBody, toneProfile);
+    }
+    const result = coreResolution.result || aiGeneration!.result;
     const usedCore = coreResolution.source === "cache" || coreResolution.source === "rule";
     const resolvedModel = usedCore ? TONE_CORE_MODEL_NAME : process.env.OPENAI_MODEL || "gpt-4.1-nano";
+    const source = buildAdaptationSourceLog(route, requestBody, toneProfile, coreResolution, aiGeneration, toneJobId);
+    console.info("[tonefex:adaptation]", source);
 
     if (user && admin && toneJobId) {
       await admin.from("tone_jobs").update({ model: resolvedModel, status: "succeeded" }).eq("id", toneJobId);
@@ -236,10 +243,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
         confidence: result.accuracy
       }).select("id").single();
       await incrementAdaptationUsage(admin, user.id, toneJobId);
-      return json({ result: { ...result, toneResultId: savedResult?.id || null } });
+      return json({ result: { ...result, toneResultId: savedResult?.id || null }, source });
     }
 
-    return json({ result });
+    return json({ result, source });
   }
 
   if (route === "save-tone") {
@@ -347,6 +354,57 @@ function json(data: unknown) {
       "Cache-Control": "no-store"
     }
   });
+}
+
+function buildAdaptationSourceLog(
+  route: string,
+  request: ToneRequest,
+  toneProfile: { id: string } | null,
+  coreResolution: Awaited<ReturnType<typeof resolveCoreTone>>,
+  aiGeneration: Awaited<ReturnType<typeof generateToneResultWithMetadata>> | null,
+  requestId: string | null
+) {
+  const masterToneSource = classifyToneProfileSource(toneProfile);
+  const resultPath =
+    coreResolution.source === "cache"
+      ? "database_cache"
+      : coreResolution.source === "rule"
+        ? "tone_core_rule_engine"
+        : aiGeneration?.source === "openai"
+          ? "openai"
+          : "local_fallback";
+
+  return {
+    event: "tone_adaptation_complete",
+    route,
+    requestId,
+    resultPath,
+    masterToneSource,
+    aiUsed: resultPath === "openai",
+    databaseUsed: coreResolution.source === "cache" || coreResolution.source === "rule" || masterToneSource === "database",
+    cacheHit: coreResolution.source === "cache",
+    coreSource: coreResolution.source,
+    hitType: coreResolution.hitType,
+    fallbackReason: coreResolution.fallbackReason || aiGeneration?.reason || null,
+    model: coreResolution.source === "cache" || coreResolution.source === "rule" ? TONE_CORE_MODEL_NAME : aiGeneration?.model,
+    song: request.song,
+    artist: request.artist,
+    mode: request.mode,
+    targetGear: {
+      guitar: request.guitar,
+      amp: request.amp,
+      cabinet: request.cabinet || null,
+      pickup: request.pickup || null
+    }
+  };
+}
+
+function classifyToneProfileSource(toneProfile: { id: string } | null) {
+  if (!toneProfile) {
+    return "missing";
+  }
+
+  return UUID_PATTERN.test(toneProfile.id) ? "database" : "starter_catalog";
 }
 
 function parseCommunityToneQuery(request: NextRequest): CommunityToneQuery {

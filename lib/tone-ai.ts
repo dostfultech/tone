@@ -3,6 +3,12 @@ import { createOpenAIClient } from "@/lib/provider-clients";
 import type { ToneProfile } from "@/lib/tone-profiles";
 
 export type GeneratedToneResult = ReturnType<typeof buildToneResult>;
+export type ToneAiGeneration = {
+  result: GeneratedToneResult;
+  source: "openai" | "local_fallback";
+  model: string | null;
+  reason?: "missing_openai_client" | "empty_openai_response" | "openai_error";
+};
 
 const toneResultSchema = {
   type: "object",
@@ -32,15 +38,35 @@ const toneResultSchema = {
 };
 
 export async function generateToneResult(request: ToneRequest, toneProfile?: ToneProfile | null): Promise<GeneratedToneResult> {
+  return (await generateToneResultWithMetadata(request, toneProfile)).result;
+}
+
+export async function generateToneResultWithMetadata(request: ToneRequest, toneProfile?: ToneProfile | null): Promise<ToneAiGeneration> {
   const fallback = buildToneResult(request, toneProfile);
   const client = createOpenAIClient();
+  const model = process.env.OPENAI_MODEL || "gpt-4.1-nano";
   if (!client) {
-    return fallback;
+    console.info("[tonefex:ai]", {
+      event: "skipped_openai_missing_client",
+      source: "local_fallback",
+      song: request.song,
+      artist: request.artist,
+      mode: request.mode
+    });
+    return { result: fallback, source: "local_fallback", model: null, reason: "missing_openai_client" };
   }
 
-  const model = process.env.OPENAI_MODEL || "gpt-4.1-nano";
-
   try {
+    console.info("[tonefex:ai]", {
+      event: "calling_openai",
+      source: "openai",
+      model,
+      song: request.song,
+      artist: request.artist,
+      mode: request.mode,
+      profileId: toneProfile?.id || null
+    });
+
     const completion = await client.chat.completions.create({
       model,
       temperature: 0.25,
@@ -79,17 +105,44 @@ export async function generateToneResult(request: ToneRequest, toneProfile?: Ton
 
     const content = completion.choices[0]?.message?.content;
     if (!content) {
-      return fallback;
+      console.warn("[tonefex:ai]", {
+        event: "empty_openai_response",
+        source: "local_fallback",
+        model,
+        song: request.song,
+        artist: request.artist,
+        mode: request.mode
+      });
+      return { result: fallback, source: "local_fallback", model, reason: "empty_openai_response" };
     }
 
     const parsed = JSON.parse(content) as Omit<GeneratedToneResult, "id" | "request">;
-    return {
+    const result = {
       ...fallback,
       ...parsed,
       request,
       id: fallback.id
     };
+
+    console.info("[tonefex:ai]", {
+      event: "openai_response_used",
+      source: "openai",
+      model,
+      song: request.song,
+      artist: request.artist,
+      mode: request.mode
+    });
+
+    return { result, source: "openai", model };
   } catch {
-    return fallback;
+    console.warn("[tonefex:ai]", {
+      event: "openai_error_fallback_used",
+      source: "local_fallback",
+      model,
+      song: request.song,
+      artist: request.artist,
+      mode: request.mode
+    });
+    return { result: fallback, source: "local_fallback", model, reason: "openai_error" };
   }
 }

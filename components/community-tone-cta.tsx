@@ -103,11 +103,33 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
     }
 
     if (!preset || !readyForGearAdaptation) {
+      console.warn("[tonefex:adapt-to-my-gear]", {
+        event: "missing_my_gear_preset",
+        mode,
+        song,
+        artist
+      });
       setMessage("Complete My Gear first, then this tone can be adapted directly to your saved rig.");
       return;
     }
 
     const presetEffects = readPresetEffects(preset);
+    console.info("[tonefex:adapt-to-my-gear]", {
+      event: "adapt_to_my_gear_clicked",
+      mode,
+      song,
+      artist,
+      preset: preset.name || preset.id,
+      targetGear: {
+        guitar: getPresetGuitar(preset),
+        amp: getPresetAmp(preset),
+        cabinet: presetEffects.cabinetName || preset.cabinet || cabinet || null,
+        pickup: getPresetPickup(preset) || pickup || null,
+        effectsMode: presetEffects.effectsMode || preset.effectsMode || "manual",
+        selectedFx: presetEffects.selectedFx || preset.selectedFx || null,
+        multiFx: presetEffects.multiFx || preset.multiFx || null
+      }
+    });
     sessionStorage.setItem(
       AUTO_ADAPT_PAYLOAD_KEY,
       JSON.stringify({
