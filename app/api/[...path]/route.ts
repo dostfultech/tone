@@ -217,10 +217,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
       await createMissingSongRequest(requestBody, user?.id || null);
     }
     const coreResolution = await resolveCoreTone(requestBody, toneProfile, { admin, userId: user?.id || null, requestId: toneJobId });
-    const result = coreResolution?.result || await generateToneResult(requestBody, toneProfile);
+    if (coreResolution.fallbackReason === "missing_admin_client") {
+      return NextResponse.json(
+        { error: "Tone core resolver requires SUPABASE_SERVICE_ROLE_KEY when hybrid core mode is enabled." },
+        { status: 503 }
+      );
+    }
+    const result = coreResolution.result || await generateToneResult(requestBody, toneProfile);
+    const usedCore = coreResolution.source === "cache" || coreResolution.source === "rule";
+    const resolvedModel = usedCore ? TONE_CORE_MODEL_NAME : process.env.OPENAI_MODEL || "gpt-4.1-nano";
 
     if (user && admin && toneJobId) {
-      await admin.from("tone_jobs").update({ status: "succeeded" }).eq("id", toneJobId);
+      await admin.from("tone_jobs").update({ model: resolvedModel, status: "succeeded" }).eq("id", toneJobId);
       const { data: savedResult } = await admin.from("tone_results").insert({
         job_id: toneJobId,
         user_id: user.id,

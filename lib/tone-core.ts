@@ -6,10 +6,11 @@ import type { ToneProfile } from "@/lib/tone-profiles";
 type CoreToneResult = ReturnType<typeof buildToneResult>;
 
 type CoreResolution = {
-  result: CoreToneResult;
-  source: "cache" | "rule";
-  cacheKey: string;
-  hitType: "exact" | "miss";
+  result: CoreToneResult | null;
+  source: "cache" | "rule" | "ai_fallback";
+  cacheKey: string | null;
+  hitType: "exact" | "miss" | "bypass" | "fallback";
+  fallbackReason?: "resolver_disabled" | "missing_admin_client" | "missing_master_tone" | "internal_error";
 };
 
 type ResolveCoreToneOptions = {
@@ -50,6 +51,8 @@ type EquipmentProfile = {
 type EquipmentResolution = {
   guitar: EquipmentProfile | null;
   amp: EquipmentProfile | null;
+  pickup: EquipmentProfile | null;
+  cabinet: EquipmentProfile | null;
   missing: string[];
   signature: string;
 };
@@ -61,96 +64,193 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const KNOB_KEYS = ["gain", "bass", "mids", "treble", "presence", "reverb", "delay", "compression", "master"];
 
 export function isToneCoreResolverEnabled() {
-  return process.env.TONE_GENERATION_MODE === "hybrid_core" || process.env.TONE_CORE_RESOLVER === "true";
+  return resolveToneGenerationMode() === "hybrid_core";
 }
 
 export async function resolveCoreTone(
   request: ToneRequest,
   toneProfile: ToneProfile | null,
   options: ResolveCoreToneOptions = {}
-): Promise<CoreResolution | null> {
-  if (!isToneCoreResolverEnabled()) {
-    return null;
-  }
-
+): Promise<CoreResolution> {
   const startedAt = Date.now();
-  const equipment = await resolveEquipmentProfiles(options.admin, request);
-  const equipmentSummary = summarizeEquipmentResolution(equipment);
-  const cacheKey = toneProfile ? buildToneCacheKey(request, toneProfile, equipment) : null;
-  const sourceProfileId = toneProfile ? toDatabaseUuid(toneProfile.id) : null;
-
-  if (!toneProfile || !cacheKey) {
+  if (!isToneCoreResolverEnabled()) {
     await recordTelemetry(options.admin, {
       userId: options.userId,
       requestId: options.requestId,
-      sourceProfileId: null,
+      sourceProfileId: toneProfile ? toDatabaseUuid(toneProfile.id) : null,
       mode: request.mode,
-      hitType: "fallback",
-      resultSource: "ai_fallback",
+      hitType: "bypass",
+      resultSource: "legacy_ai",
       latencyMs: Date.now() - startedAt,
       aiUsed: true,
       metadata: {
-        reason: "missing_master_tone",
-        requestSignature: buildToneRequestSignature(request),
-        equipment: equipmentSummary
+        reason: "resolver_disabled",
+        generationMode: resolveToneGenerationMode(),
+        requestSignature: buildToneRequestSignature(request)
       }
     });
-    return null;
+    return {
+      result: null,
+      source: "ai_fallback",
+      cacheKey: null,
+      hitType: "bypass",
+      fallbackReason: "resolver_disabled"
+    };
+  }
+  if (!options.admin) {
+    return {
+      result: null,
+      source: "ai_fallback",
+      cacheKey: null,
+      hitType: "bypass",
+      fallbackReason: "missing_admin_client"
+    };
   }
 
-  const cached = await readCachedTone(options.admin, cacheKey);
-  if (cached) {
-    await touchCachedTone(options.admin, cached);
+  try {
+    const equipment = await resolveEquipmentProfiles(options.admin, request);
+    const equipmentSummary = summarizeEquipmentResolution(equipment);
+    const sourceProfileVersion = toneProfile ? deriveSourceProfileVersion(toneProfile) : null;
+    const cacheKey = toneProfile && sourceProfileVersion ? buildToneCacheKey(request, toneProfile, sourceProfileVersion, equipment) : null;
+    const sourceProfileId = toneProfile ? toDatabaseUuid(toneProfile.id) : null;
+
+    if (!toneProfile || !cacheKey) {
+      await recordTelemetry(options.admin, {
+        userId: options.userId,
+        requestId: options.requestId,
+        sourceProfileId: null,
+        mode: request.mode,
+        hitType: "fallback",
+        resultSource: "ai_fallback",
+        latencyMs: Date.now() - startedAt,
+        aiUsed: true,
+        metadata: {
+          reason: "missing_master_tone",
+          requestSignature: buildToneRequestSignature(request),
+          equipment: equipmentSummary
+        }
+      });
+      return {
+        result: null,
+        source: "ai_fallback",
+        cacheKey,
+        hitType: "fallback",
+        fallbackReason: "missing_master_tone"
+      };
+    }
+
+    const cached = await readCachedTone(options.admin, cacheKey);
+    if (cached) {
+      await touchCachedTone(options.admin, cached);
+      await recordTelemetry(options.admin, {
+        userId: options.userId,
+        requestId: options.requestId,
+        sourceProfileId,
+        cacheId: cached.id,
+        mode: request.mode,
+        hitType: "exact",
+        resultSource: "cache",
+        latencyMs: Date.now() - startedAt,
+        aiUsed: false,
+        metadata: { cacheKey, equipment: equipmentSummary }
+      });
+
+      return {
+        result: cached.result_json,
+        source: "cache",
+        cacheKey,
+        hitType: "exact"
+      };
+    }
+
+    const baseResult = buildToneResult(request, toneProfile);
+    const sourceProfileVersionForCache = sourceProfileVersion || 1;
+    const result = applyEquipmentProfileAdjustments(baseResult, request, toneProfile, equipment);
+    const cacheId = await writeCachedTone(
+      options.admin,
+      request,
+      toneProfile,
+      equipment,
+      sourceProfileVersionForCache,
+      cacheKey,
+      result
+    );
     await recordTelemetry(options.admin, {
       userId: options.userId,
       requestId: options.requestId,
       sourceProfileId,
-      cacheId: cached.id,
+      cacheId,
       mode: request.mode,
-      hitType: "exact",
-      resultSource: "cache",
+      hitType: "miss",
+      resultSource: "rule",
       latencyMs: Date.now() - startedAt,
       aiUsed: false,
       metadata: { cacheKey, equipment: equipmentSummary }
     });
 
     return {
-      result: cached.result_json,
-      source: "cache",
+      result,
+      source: "rule",
       cacheKey,
-      hitType: "exact"
+      hitType: "miss"
+    };
+  } catch {
+    await recordTelemetry(options.admin, {
+      userId: options.userId,
+      requestId: options.requestId,
+      sourceProfileId: toneProfile ? toDatabaseUuid(toneProfile.id) : null,
+      mode: request.mode,
+      hitType: "fallback",
+      resultSource: "ai_fallback",
+      latencyMs: Date.now() - startedAt,
+      aiUsed: true,
+      metadata: {
+        reason: "internal_error",
+        requestSignature: buildToneRequestSignature(request)
+      }
+    });
+    return {
+      result: null,
+      source: "ai_fallback",
+      cacheKey: null,
+      hitType: "fallback",
+      fallbackReason: "internal_error"
     };
   }
-
-  const baseResult = buildToneResult(request, toneProfile);
-  const result = applyEquipmentProfileAdjustments(baseResult, request, toneProfile, equipment);
-  const cacheId = await writeCachedTone(options.admin, request, toneProfile, equipment, cacheKey, result);
-  await recordTelemetry(options.admin, {
-    userId: options.userId,
-    requestId: options.requestId,
-    sourceProfileId,
-    cacheId,
-    mode: request.mode,
-    hitType: "miss",
-    resultSource: "rule",
-    latencyMs: Date.now() - startedAt,
-    aiUsed: false,
-    metadata: { cacheKey, equipment: equipmentSummary }
-  });
-
-  return {
-    result,
-    source: "rule",
-    cacheKey,
-    hitType: "miss"
-  };
 }
 
-function buildToneCacheKey(request: ToneRequest, toneProfile: ToneProfile, equipment: EquipmentResolution) {
+function resolveToneGenerationMode() {
+  const mode = process.env.TONE_GENERATION_MODE?.trim().toLowerCase();
+  if (mode === "legacy_ai") {
+    return "legacy_ai";
+  }
+
+  if (mode === "hybrid_core") {
+    return "hybrid_core";
+  }
+
+  const resolverFlag = process.env.TONE_CORE_RESOLVER?.trim().toLowerCase();
+  if (resolverFlag === "false") {
+    return "legacy_ai";
+  }
+
+  if (resolverFlag === "true") {
+    return "hybrid_core";
+  }
+
+  return "hybrid_core";
+}
+
+function buildToneCacheKey(
+  request: ToneRequest,
+  toneProfile: ToneProfile,
+  sourceProfileVersion: number,
+  equipment: EquipmentResolution
+) {
   const signature = buildToneRequestSignature(request);
   const source = [
     `schema:${CORE_SCHEMA_VERSION}`,
-    `profile:${toneProfile.id}`,
+    `profile:${toneProfile.id}:${sourceProfileVersion}`,
     `equipment:${equipment.signature}`,
     `request:${signature}`
   ].join("|");
@@ -176,32 +276,44 @@ function buildToneRequestSignature(request: ToneRequest) {
 
 async function resolveEquipmentProfiles(admin: SupabaseClient | null | undefined, request: ToneRequest): Promise<EquipmentResolution> {
   if (!admin) {
-    return buildEquipmentResolution(null, null);
+    return buildEquipmentResolution(null, null, null, null);
   }
 
   const guitarTypes: EquipmentProfileType[] = request.mode === "bass" ? ["bass_guitar"] : ["guitar"];
   const ampTypes: EquipmentProfileType[] = request.mode === "bass" ? ["bass_amp"] : ["amp", "multi_fx"];
+  const pickupTypes: EquipmentProfileType[] = ["pickup"];
+  const cabinetTypes: EquipmentProfileType[] = ["cabinet"];
   const [guitar, amp] = await Promise.all([
     findEquipmentProfile(admin, request.guitar, guitarTypes),
     findEquipmentProfile(admin, request.amp, ampTypes)
   ]);
+  const [pickup, cabinet] = await Promise.all([
+    request.pickup ? findEquipmentProfile(admin, request.pickup, pickupTypes) : Promise.resolve(null),
+    request.cabinet ? findEquipmentProfile(admin, request.cabinet, cabinetTypes) : Promise.resolve(null)
+  ]);
 
-  return buildEquipmentResolution(guitar, amp);
+  return buildEquipmentResolution(guitar, amp, pickup, cabinet);
 }
 
-function buildEquipmentResolution(guitar: EquipmentProfile | null, amp: EquipmentProfile | null): EquipmentResolution {
+function buildEquipmentResolution(guitar: EquipmentProfile | null, amp: EquipmentProfile | null, pickup: EquipmentProfile | null, cabinet: EquipmentProfile | null): EquipmentResolution {
   const missing = [
     guitar ? null : "instrument_profile",
-    amp ? null : "amp_profile"
+    amp ? null : "amp_profile",
+    pickup ? null : "pickup_profile",
+    cabinet ? null : "cabinet_profile"
   ].filter(Boolean) as string[];
 
   return {
     guitar,
     amp,
+    pickup,
+    cabinet,
     missing,
     signature: [
       `g:${guitar ? `${guitar.id}:${guitar.profile_version}` : "none"}`,
-      `a:${amp ? `${amp.id}:${amp.profile_version}` : "none"}`
+      `a:${amp ? `${amp.id}:${amp.profile_version}` : "none"}`,
+      `p:${pickup ? `${pickup.id}:${pickup.profile_version}` : "none"}`,
+      `c:${cabinet ? `${cabinet.id}:${cabinet.profile_version}` : "none"}`
     ].join("|")
   };
 }
@@ -236,7 +348,21 @@ async function findEquipmentProfile(
     const ranked = candidates
       .map((profile) => ({ profile, score: scoreEquipmentProfile(profile, normalized) }))
       .filter(({ score }) => score >= 42)
-      .sort((left, right) => right.score - left.score);
+      .sort((left, right) => {
+        if (right.score !== left.score) {
+          return right.score - left.score;
+        }
+
+        if (right.profile.confidence !== left.profile.confidence) {
+          return right.profile.confidence - left.profile.confidence;
+        }
+
+        if (right.profile.profile_version !== left.profile.profile_version) {
+          return right.profile.profile_version - left.profile.profile_version;
+        }
+
+        return left.profile.id.localeCompare(right.profile.id);
+      });
 
     return ranked[0]?.profile || null;
   } catch {
@@ -271,7 +397,25 @@ async function findFallbackEquipmentCandidates(admin: SupabaseClient, equipmentT
     .limit(160);
 
   if (error || !data?.length) return [];
-  return data as EquipmentProfile[];
+
+  const ranked = (data as EquipmentProfile[]).map((profile) => ({ profile, score: scoreEquipmentProfile(profile, "") }));
+  return ranked
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+
+      if (right.profile.confidence !== left.profile.confidence) {
+        return right.profile.confidence - left.profile.confidence;
+      }
+
+      if (right.profile.profile_version !== left.profile.profile_version) {
+        return right.profile.profile_version - left.profile.profile_version;
+      }
+
+      return left.profile.id.localeCompare(right.profile.id);
+    })
+    .map(({ profile }) => profile);
 }
 
 function buildEquipmentSearchQuery(normalizedGearName: string) {
@@ -294,7 +438,9 @@ function applyEquipmentProfileAdjustments(
   const toneType = request.toneType && request.toneType !== "auto" ? request.toneType : toneProfile.toneType;
   const deltas = mergeKnobDeltas([
     equipment.guitar ? getProfileKnobDeltas(equipment.guitar, toneType) : {},
-    equipment.amp ? getProfileKnobDeltas(equipment.amp, toneType) : {}
+    equipment.amp ? getProfileKnobDeltas(equipment.amp, toneType) : {},
+    equipment.pickup ? getProfileKnobDeltas(equipment.pickup, toneType) : {},
+    equipment.cabinet ? getProfileKnobDeltas(equipment.cabinet, toneType) : {}
   ]);
 
   if (!Object.keys(deltas).length && !equipment.guitar && !equipment.amp) {
@@ -307,6 +453,7 @@ function applyEquipmentProfileAdjustments(
     targetSettings[key] = clampKnob(Number(targetSettings[key] ?? 5) + deltas[key]);
   }
 
+  const adaptationNotes = buildAdaptationNotes(request, toneProfile, equipment, toneProfile.originalSettings, targetSettings);
   const equipmentTips = buildEquipmentTips(equipment);
   const pickupAdvice = equipment.guitar
     ? `${result.pickupAdvice} ${summarizeProfileAdvice(equipment.guitar)}`
@@ -317,8 +464,42 @@ function applyEquipmentProfileAdjustments(
     accuracy: equipment.guitar && equipment.amp ? Math.min(96, result.accuracy + 2) : result.accuracy,
     targetSettings,
     pickupAdvice,
-    playingTips: [...equipmentTips, ...result.playingTips].slice(0, 6)
+    playingTips: [...adaptationNotes, ...equipmentTips, ...result.playingTips].slice(0, 6)
   };
+}
+
+function buildAdaptationNotes(
+  request: ToneRequest,
+  toneProfile: ToneProfile,
+  equipment: EquipmentResolution,
+  sourceSettings: Record<string, number>,
+  targetSettings: Record<string, number>
+) {
+  const notes: string[] = [];
+  const targetRig = [request.guitar, request.pickup, request.amp, request.cabinet].filter(Boolean).join(" -> ");
+  const sourceRig = [toneProfile.originalGuitar, toneProfile.originalPickup, toneProfile.originalAmp, toneProfile.originalCab].filter(Boolean).join(" -> ");
+  const changes = KNOB_KEYS
+    .filter((key) => typeof sourceSettings[key] === "number" && typeof targetSettings[key] === "number" && sourceSettings[key] !== targetSettings[key])
+    .slice(0, 5)
+    .map((key) => `${formatKnobLabel(key)} ${sourceSettings[key]} to ${targetSettings[key]}`);
+
+  if (sourceRig && targetRig) {
+    notes.push(`Adapted the source rig (${sourceRig}) to your saved rig (${targetRig}).`);
+  } else if (targetRig) {
+    notes.push(`Adapted this profile to your saved rig (${targetRig}).`);
+  }
+
+  if (changes.length) {
+    notes.push(`Changed ${changes.join(", ")} for your gear profile.`);
+  }
+
+  if (equipment.guitar && equipment.amp) {
+    notes.push("Used matched guitar and amp behavior profiles for the final gain and EQ compensation.");
+  } else if (equipment.missing.length) {
+    notes.push("Used available gear profiles and kept unprofiled gear conservative so the settings remain a practical starting point.");
+  }
+
+  return notes;
 }
 
 function getProfileKnobDeltas(profile: EquipmentProfile, toneType: ToneType) {
@@ -345,7 +526,7 @@ function mergeKnobDeltas(deltaSets: Array<Record<string, number>>) {
 function buildEquipmentTips(equipment: EquipmentResolution) {
   const tips: string[] = [];
 
-  for (const profile of [equipment.guitar, equipment.amp]) {
+  for (const profile of [equipment.guitar, equipment.amp, equipment.pickup, equipment.cabinet]) {
     if (!profile) continue;
     const behavior = safeObject(profile.behavior_profile);
     const advice = Array.isArray(behavior.advice) ? behavior.advice.filter((item): item is string => typeof item === "string") : [];
@@ -433,6 +614,7 @@ async function writeCachedTone(
   request: ToneRequest,
   toneProfile: ToneProfile,
   equipment: EquipmentResolution,
+  sourceProfileVersion: number,
   cacheKey: string,
   result: CoreToneResult
 ) {
@@ -457,7 +639,7 @@ async function writeCachedTone(
           cabinet_name: request.cabinet || null,
           pickup_name: request.pickup || null,
           schema_version: CORE_SCHEMA_VERSION,
-          source_profile_version: 1,
+          source_profile_version: sourceProfileVersion,
           guitar_profile_id: equipment.guitar?.id || null,
           amp_profile_id: equipment.amp?.id || null,
           guitar_profile_version: equipment.guitar?.profile_version || 0,
@@ -476,6 +658,44 @@ async function writeCachedTone(
   } catch {
     return null;
   }
+}
+
+function deriveSourceProfileVersion(toneProfile: ToneProfile) {
+  const signature = buildSourceProfileSignature(toneProfile);
+  return sourceProfileVersionFromSignature(signature);
+}
+
+function buildSourceProfileSignature(toneProfile: ToneProfile) {
+  return JSON.stringify({
+    id: toneProfile.id,
+    confidence: toneProfile.confidence,
+    mode: toneProfile.mode,
+    partType: toneProfile.partType,
+    toneType: toneProfile.toneType,
+    partLabel: toneProfile.partLabel,
+    originalGuitar: toneProfile.originalGuitar,
+    originalAmp: toneProfile.originalAmp,
+    originalCab: toneProfile.originalCab,
+    originalPickup: toneProfile.originalPickup,
+    originalSettings: toneProfile.originalSettings,
+    verificationStatus: toneProfile.verificationStatus,
+    adaptationNotes: toneProfile.adaptationNotes,
+    playingNotes: toneProfile.playingNotes,
+    sourceSummary: toneProfile.sourceSummary
+  });
+}
+
+function sourceProfileVersionFromSignature(signature: string) {
+  return hashAsInt(signature) || 1;
+}
+
+function hashAsInt(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = ((hash << 5) - hash + value.charCodeAt(index)) | 0;
+  }
+  const normalized = Math.abs(hash) + 1;
+  return normalized > 0 ? normalized : 1;
 }
 
 async function recordTelemetry(
@@ -538,6 +758,10 @@ function safeObject(value: unknown): Record<string, unknown> {
 
 function normalizeText(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function formatKnobLabel(value: string) {
+  return value.replaceAll("_", " ");
 }
 
 function toDatabaseUuid(value: string | null | undefined) {

@@ -12,9 +12,21 @@ type Preset = {
   guitar_name?: string;
   amp_name?: string;
   pickup_name?: string;
+  effects?: PresetEffects | PresetEffects[] | null;
   guitar?: string;
   amp?: string;
   pickup?: string;
+  cabinet?: string;
+  multiFx?: string;
+  selectedFx?: string;
+  effectsMode?: string;
+};
+
+type PresetEffects = {
+  cabinetName?: string;
+  effectsMode?: string;
+  multiFx?: string;
+  selectedFx?: string;
 };
 
 type CatalogEntry = {
@@ -32,6 +44,10 @@ export function GearView() {
   const [guitar, setGuitar] = useState("");
   const [amp, setAmp] = useState("");
   const [pickup, setPickup] = useState("");
+  const [cabinet, setCabinet] = useState("");
+  const [effectsMode, setEffectsMode] = useState("manual");
+  const [multiFx, setMultiFx] = useState("");
+  const [selectedFx, setSelectedFx] = useState("");
   const [activeTab, setActiveTab] = useState<"presets" | "pedals" | "multi_fx" | "catalog">("presets");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -62,7 +78,7 @@ export function GearView() {
         fetchCatalog("/api/cabinets/catalog"),
         fetchCatalog("/api/multi-fx/catalog"),
         supabase
-          ? supabase.from("gear_presets").select("id, name, instrument_type, guitar_name, amp_name, pickup_name, created_at").order("created_at", { ascending: false })
+          ? supabase.from("gear_presets").select("id, name, instrument_type, guitar_name, amp_name, pickup_name, effects, created_at").order("created_at", { ascending: false })
           : Promise.resolve({ data: JSON.parse(localStorage.getItem(`${brand.storagePrefix}_saved_gear_presets`) || "[]"), error: null })
       ]);
 
@@ -81,6 +97,9 @@ export function GearView() {
       setGuitar((current) => current || electricResponse[0]?.name || bassResponse[0]?.name || "");
       setAmp((current) => current || guitarAmpResponse[0]?.name || bassAmpResponse[0]?.name || "");
       setPickup((current) => current || pickupResponse[0]?.name || "");
+      setCabinet((current) => current || selectDefaultCabinet("guitar", cabinetResponse));
+      setMultiFx((current) => current || multiFxResponse[0]?.name || "");
+      setSelectedFx((current) => current || pedalResponse[0]?.name || effectResponse[0]?.name || "");
       setLoading(false);
     }
 
@@ -91,12 +110,14 @@ export function GearView() {
     if (presetInstrument === "bass") {
       setGuitar((current) => bassGuitars.find((item) => item.name === current)?.name || bassGuitars[0]?.name || current);
       setAmp((current) => bassAmps.find((item) => item.name === current)?.name || bassAmps[0]?.name || current);
+      setCabinet((current) => selectDefaultCabinet("bass", cabinets, current));
       return;
     }
 
     setGuitar((current) => electricGuitars.find((item) => item.name === current)?.name || electricGuitars[0]?.name || current);
     setAmp((current) => guitarAmps.find((item) => item.name === current)?.name || guitarAmps[0]?.name || current);
-  }, [bassAmps, bassGuitars, electricGuitars, guitarAmps, presetInstrument]);
+    setCabinet((current) => selectDefaultCabinet("guitar", cabinets, current));
+  }, [bassAmps, bassGuitars, cabinets, electricGuitars, guitarAmps, presetInstrument]);
 
   const currentGuitars = presetInstrument === "bass" ? bassGuitars : electricGuitars;
   const currentAmps = presetInstrument === "bass" ? bassAmps : guitarAmps;
@@ -119,6 +140,12 @@ export function GearView() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const supabase = createSupabaseBrowserClient();
+    const presetEffects: PresetEffects = {
+      cabinetName: cabinet,
+      effectsMode,
+      multiFx,
+      selectedFx
+    };
 
     if (supabase) {
       const {
@@ -137,9 +164,10 @@ export function GearView() {
           instrument_type: presetInstrument,
           guitar_name: guitar,
           amp_name: amp,
-          pickup_name: pickup || null
+          pickup_name: pickup || null,
+          effects: presetEffects
         })
-        .select("id, name, instrument_type, guitar_name, amp_name, pickup_name")
+        .select("id, name, instrument_type, guitar_name, amp_name, pickup_name, effects")
         .single();
 
       if (error) {
@@ -152,7 +180,7 @@ export function GearView() {
       return;
     }
 
-    const next = [{ id: crypto.randomUUID(), name, instrument_type: presetInstrument, guitar, amp, pickup }, ...presets];
+    const next = [{ id: crypto.randomUUID(), name, instrument_type: presetInstrument, guitar, amp, pickup, cabinet, effects: presetEffects }, ...presets];
     setPresets(next);
     localStorage.setItem(`${brand.storagePrefix}_saved_gear_presets`, JSON.stringify(next));
     setMessage("Preset saved locally.");
@@ -230,7 +258,7 @@ export function GearView() {
                 ))}
               </div>
 
-              <div className="grid gap-5 lg:grid-cols-4">
+              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
                 <div>
                   <label className="label" htmlFor="preset-name">
                     Preset name
@@ -240,6 +268,10 @@ export function GearView() {
                 <Select label={presetInstrument === "bass" ? "Bass" : "Guitar"} value={guitar} setValue={setGuitar} options={currentGuitars.map((item) => item.name)} />
                 <Select label="Amplifier" value={amp} setValue={setAmp} options={currentAmps.map((item) => item.name)} />
                 <Select label="Pickup" value={pickup} setValue={setPickup} options={pickups.map((item) => item.name)} />
+                <Select label="Cabinet / Speaker" value={cabinet} setValue={setCabinet} options={cabinets.map((item) => item.name)} />
+                <Select label="Effects mode" value={effectsMode} setValue={setEffectsMode} options={["manual", "amp_with_effects", "multi_fx"]} />
+                <Select label="Available effects" value={selectedFx} setValue={setSelectedFx} options={[...pedals, ...effects].map((item) => item.name)} />
+                <Select label="Multi-FX unit" value={multiFx} setValue={setMultiFx} options={multiFxUnits.map((item) => item.name)} />
               </div>
               <button className="button-primary mt-6 min-h-12 rounded-lg">
                 <Plus className="h-4 w-4" />
@@ -280,6 +312,9 @@ export function GearView() {
                           {preset.amp_name || preset.amp}
                         </div>
                         <div className="rounded-lg bg-neutral-50 px-4 py-3">{preset.pickup_name || preset.pickup || "Pickup not set"}</div>
+                        <div className="rounded-lg bg-neutral-50 px-4 py-3">{getPresetCabinet(preset) || "Cabinet not set"}</div>
+                        <div className="rounded-lg bg-neutral-50 px-4 py-3">{getPresetEffectsMode(preset).replaceAll("_", " ")}</div>
+                        <div className="rounded-lg bg-neutral-50 px-4 py-3">{getPresetSelectedEffect(preset) || "Effects not set"}</div>
                       </div>
                     </article>
                   ))}
@@ -322,6 +357,40 @@ function Select({ label, value, setValue, options }: { label: string; value: str
       </select>
     </div>
   );
+}
+
+function readPresetEffects(preset: Preset): PresetEffects {
+  if (Array.isArray(preset.effects)) {
+    return preset.effects[0] || {};
+  }
+
+  return preset.effects && typeof preset.effects === "object" ? preset.effects : {};
+}
+
+function getPresetCabinet(preset: Preset) {
+  return readPresetEffects(preset).cabinetName || preset.cabinet || "";
+}
+
+function getPresetEffectsMode(preset: Preset) {
+  return readPresetEffects(preset).effectsMode || preset.effectsMode || "manual";
+}
+
+function getPresetSelectedEffect(preset: Preset) {
+  return readPresetEffects(preset).selectedFx || preset.selectedFx || "";
+}
+
+function selectDefaultCabinet(mode: "guitar" | "bass", cabinets: CatalogEntry[], current?: string) {
+  const currentCabinet = cabinets.find((item) => item.name === current);
+  if (currentCabinet) {
+    return currentCabinet.name;
+  }
+
+  const bassCabinet = cabinets.find((item) => /ampeg|darkglass|bass/i.test(`${item.name} ${item.description}`));
+  if (mode === "bass") {
+    return bassCabinet?.name || cabinets[0]?.name || current || "";
+  }
+
+  return cabinets.find((item) => item.id !== bassCabinet?.id)?.name || cabinets[0]?.name || current || "";
 }
 
 function CatalogGrid({ title, items }: { title: string; items: CatalogEntry[] }) {

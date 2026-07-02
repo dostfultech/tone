@@ -277,7 +277,10 @@ export function ToneMatcher() {
       const storedPart = payloadFromSession?.part || localStorage.getItem("toneMatch_part") || "main part";
       const storedPartType = payloadFromSession?.partType || localStorage.getItem("toneMatch_partType") || "main";
       const storedToneType = payloadFromSession?.toneType || localStorage.getItem("toneMatch_toneType") || "auto";
-      const storedMode = inferStoredMode(storedPartType, storedToneType);
+      const storedMode =
+        payloadFromSession?.mode === "bass" || payloadFromSession?.mode === "guitar"
+          ? payloadFromSession.mode
+          : inferStoredMode(storedPartType, storedToneType);
       const payload: ToneRequest = {
         mode: storedMode,
         song: payloadFromSession?.song || localStorage.getItem("toneMatch_song") || "Unknown Song",
@@ -291,10 +294,27 @@ export function ToneMatcher() {
         pickup: payloadFromSession?.pickup || localStorage.getItem("toneMatch_pickup") || "Vintage Single Coil",
         effectsMode: payloadFromSession?.effectsMode || localStorage.getItem("toneMatch_effectsMode") || "manual"
       };
+      const nextMultiFx = payloadFromSession?.multiFx || localStorage.getItem("toneMatch_multiFx") || "Line 6 Helix Floor";
+      const nextSelectedFx = payloadFromSession?.selectedFx || localStorage.getItem("toneMatch_selectedEffects") || "Ambient Lead";
+
+      setMode(payload.mode);
+      setSong(payload.song);
+      setSongDraft(payload.song);
+      setArtist(payload.artist);
+      setPart(payload.part);
+      setPartType(payload.partType || "main");
+      setToneType(payload.toneType || "auto");
+      setGuitar(payload.guitar);
+      setAmp(payload.amp);
+      setCabinet(payload.cabinet || "");
+      setPickup(payload.pickup || "");
+      setEffectsMode(payload.effectsMode || "manual");
+      setMultiFx(nextMultiFx);
+      setSelectedFx(nextSelectedFx);
 
       void runAdaptationRef.current(payload, {
-        multiFx: payloadFromSession?.multiFx || localStorage.getItem("toneMatch_multiFx") || "Line 6 Helix Floor",
-        selectedFx: payloadFromSession?.selectedFx || localStorage.getItem("toneMatch_selectedEffects") || "Ambient Lead"
+        multiFx: nextMultiFx,
+        selectedFx: nextSelectedFx
       });
     }
 

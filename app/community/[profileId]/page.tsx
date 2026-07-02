@@ -262,15 +262,16 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
                 <h2 className="text-lg font-bold">Use This Tone</h2>
                 <p className="mt-3 text-sm leading-6 text-slate-600">
                   {canAdapt
-                    ? "Send this reference profile into the matcher with its song, artist, part, and original rig prefilled."
+                    ? "Adapt this reference profile with your saved My Gear preset and generate settings for your own rig."
                     : userLoggedIn
                       ? "This feature requires a Beginner or Expert plan."
-                      : "Sign in to send this reference profile into the matcher with its song, artist, part, and original rig prefilled."}
+                      : "Sign in to adapt this reference profile with your saved My Gear preset."}
                 </p>
                 {canAdapt ? (
                   <>
                     <div className="mt-5">
                       <CommunityToneCta
+                        mode={profile.mode}
                         song={profile.songTitle}
                         artist={profile.artistName}
                         part={profile.partLabel}
@@ -278,6 +279,8 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
                         toneType={profile.toneType}
                         guitar={profile.originalGuitar || "Fender Stratocaster"}
                         amp={profile.originalAmp || "Boss Katana Artist"}
+                        pickup={profile.originalPickup}
+                        cabinet={profile.originalCab}
                       />
                     </div>
                     <Link href="/app" className="button-secondary mt-3 w-full justify-center">
@@ -307,7 +310,7 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
                     </Link>
                   </div>
                 )}
-                <p className="mt-4 text-xs leading-5 text-slate-500">This detail page previews the source rig and research notes, then hands the profile off to the matcher for full adaptation.</p>
+                <p className="mt-4 text-xs leading-5 text-slate-500">This detail page previews the source rig and research notes, then adapts the profile through your saved gear when My Gear is configured.</p>
               </div>
             </aside>
           </section>

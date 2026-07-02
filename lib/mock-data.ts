@@ -305,7 +305,7 @@ export function buildToneResult(request: ToneRequest, toneProfile?: ToneProfileI
       ];
 
   return {
-    id: `${Date.now()}-${total}`,
+    id: buildToneResultId(request, toneProfile || null, total),
     request,
     accuracy,
     originalRig,
@@ -327,6 +327,21 @@ export function buildToneResult(request: ToneRequest, toneProfile?: ToneProfileI
         }
       : null
   };
+}
+
+function buildToneResultId(request: ToneRequest, toneProfile: ToneProfileInput | null, total: number) {
+  const profileMarker = toneProfile ? toneProfile.id : "starter-fallback";
+  return `tone-${profileMarker}-${buildDeterministicHash(`${request.song}|${request.artist}|${request.guitar}|${request.amp}|${request.part}|${total}`)}`.slice(0, 28);
+}
+
+function buildDeterministicHash(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
 function adaptSettings(settings: Record<string, number>, request: ToneRequest, toneProfile: ToneProfileInput | null) {

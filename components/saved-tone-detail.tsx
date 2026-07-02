@@ -1,11 +1,13 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import {
   extractToneControls,
   formatToneControlName,
   useAnimatedToneControls
 } from "@/components/tone-control-animation";
+import { brand } from "@/lib/brand";
 
 type SavedToneDetailProps = {
   song: string;
@@ -17,18 +19,52 @@ type SavedToneDetailProps = {
 };
 
 export function SavedToneDetail({ song, artist, part, mode, notes, result }: SavedToneDetailProps) {
+  const router = useRouter();
   const controls = useMemo(() => extractToneControls(result), [result]);
   const animatedValues = useAnimatedToneControls(controls, 800);
+  const request = useMemo(() => parseSavedToneRequest(result), [result]);
+
+  function reAdaptTone() {
+    if (!request.song || !request.artist) {
+      return;
+    }
+
+    const inferredPartType =
+      request.partType || ((request.part || part).toLowerCase().includes("bass") ? "bassline" : "main");
+
+    const payload = {
+      song: request.song,
+      artist: request.artist,
+      part: request.part || part,
+      partType: inferredPartType,
+      toneType: request.toneType || "auto",
+      guitar: request.guitar,
+      amp: request.amp,
+      cabinet: request.cabinet,
+      pickup: request.pickup,
+      effectsMode: request.effectsMode || "manual",
+      mode: mode === "bass" ? "bass" : "guitar",
+      multiFx: request.multiFx,
+      selectedFx: request.selectedFx
+    };
+
+    sessionStorage.setItem(`${brand.storagePrefix}_auto_adapt_payload`, JSON.stringify(payload));
+    sessionStorage.setItem(`${brand.storagePrefix}_auto_adapt_from_community`, "1");
+    router.push("/app");
+  }
 
   return (
     <section className="section py-10">
       <div className="mx-auto max-w-6xl">
         <div className="rounded-3xl border border-neutral-200 bg-white p-8 shadow-soft">
-          <div className="flex flex-col gap-3 border-b border-neutral-200 pb-6">
+              <div className="flex flex-col gap-3 border-b border-neutral-200 pb-6">
             <div className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">Saved Tone</div>
             <h1 className="text-4xl font-semibold text-ink">{song}</h1>
             <p className="text-base text-neutral-600">{artist} - {part} - {mode}</p>
             {notes ? <p className="max-w-3xl text-sm leading-6 text-neutral-600">{notes}</p> : null}
+            <button type="button" className="button-primary mt-3 w-full max-w-sm" onClick={reAdaptTone}>
+              Re-adapt this tone with your current gear
+            </button>
           </div>
 
           <div className="mt-8">
@@ -62,6 +98,27 @@ export function SavedToneDetail({ song, artist, part, mode, notes, result }: Sav
       </div>
     </section>
   );
+}
+
+function parseSavedToneRequest(value: Record<string, unknown>) {
+  const request = (value.request || {}) as Record<string, unknown>;
+  const toText = (input: unknown, fallback: string) => (typeof input === "string" && input.trim().length > 0 ? input.trim() : fallback);
+  const toOptionalText = (input: unknown) => (typeof input === "string" && input.trim().length > 0 ? input.trim() : undefined);
+
+  return {
+    song: toText(request.song, ""),
+    artist: toText(request.artist, ""),
+    part: toText(request.part, ""),
+    partType: toOptionalText(request.partType),
+    toneType: toOptionalText(request.toneType),
+    guitar: toText(request.guitar, "Fender Stratocaster"),
+    amp: toText(request.amp, "Boss Katana Artist"),
+    cabinet: toOptionalText(request.cabinet),
+    pickup: toOptionalText(request.pickup),
+    effectsMode: toOptionalText(request.effectsMode),
+    multiFx: toOptionalText(request.multiFx),
+    selectedFx: toOptionalText(request.selectedFx)
+  };
 }
 
 function formatDisplayValue(value: number) {
