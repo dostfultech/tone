@@ -13,6 +13,7 @@
     "lint": "next lint",
     "test:rule-engine": "node scripts/run-rule-engine-tests.mjs",
     "test:backend": "node scripts/run-backend-tests.mjs",
+    "test:ai-ingestion": "node scripts/run-ai-ingestion-tests.mjs",
     "import:tones": "node scripts/import-tone-profiles.mjs"
   },
   "dependencies": {

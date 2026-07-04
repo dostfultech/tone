@@ -11,19 +11,21 @@ import { ToneService } from "./services/tone-service";
 import type { ToneBackendLogger } from "./logging";
 
 export function createToneAdaptationController(supabase: SupabaseClient, logger?: ToneBackendLogger) {
+  return new ToneController(createToneAdaptationService(supabase, logger), logger);
+}
+
+export function createToneAdaptationService(supabase: SupabaseClient, logger?: ToneBackendLogger) {
   const songRepository = new SupabaseSongRepository(supabase);
   const gearRepository = new SupabaseGearRepository(supabase);
   const cacheRepository = new SupabaseCacheRepository(supabase);
 
-  const toneService = new ToneService({
+  return new ToneService({
     songService: new SongService(songRepository),
     gearService: new GearService(gearRepository),
     cacheService: new CacheService(cacheRepository),
     ruleEngineService: new DeterministicRuleEngineService(),
     logger
   });
-
-  return new ToneController(toneService, logger);
 }
 
 export * from "./cache-key";

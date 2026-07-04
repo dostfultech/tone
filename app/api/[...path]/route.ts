@@ -20,11 +20,10 @@ import {
 } from "@/lib/mock-data";
 import { getEntitlement, getCurrentSession } from "@/lib/server-access";
 import { lookupGearFromSupabase } from "@/lib/gear-catalog";
-import { generateToneResultWithMetadata } from "@/lib/tone-ai";
-import { isToneCoreResolverEnabled, resolveCoreTone, TONE_CORE_MODEL_NAME } from "@/lib/tone-core";
+import { resolveCoreTone, TONE_CORE_MODEL_NAME } from "@/lib/tone-core";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { assertCanCreateAdaptation, incrementAdaptationUsage } from "@/lib/usage";
-import { buildResearchPayload, createMissingSongRequest, findToneProfile, listCommunityToneProfiles, saveGeneratedMasterTone, type CommunityToneQuery } from "@/lib/tone-profiles";
+import { buildResearchPayload, createMissingSongRequest, findToneProfile, listCommunityToneProfiles, type CommunityToneQuery } from "@/lib/tone-profiles";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -207,7 +206,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           part: requestBody.part,
           input_gear: requestBody,
           status: "running",
-          model: isToneCoreResolverEnabled() ? TONE_CORE_MODEL_NAME : process.env.OPENAI_MODEL || "gpt-4.1-nano"
+          model: TONE_CORE_MODEL_NAME
         }).select("id").single();
         toneJobId = job?.id || null;
       }
@@ -224,17 +223,37 @@ export async function POST(request: NextRequest, context: RouteContext) {
         { status: 503 }
       );
     }
-    let aiGeneration: Awaited<ReturnType<typeof generateToneResultWithMetadata>> | null = null;
     if (!coreResolution.result) {
-      aiGeneration = await generateToneResultWithMetadata(requestBody, toneProfile);
-      if (!toneProfile && aiGeneration.openAiSucceeded) {
-        await saveGeneratedMasterTone(requestBody, aiGeneration.result, user?.id || null);
+      const source = buildAdaptationSourceLog(route, requestBody, toneProfile, coreResolution, toneJobId);
+      console.warn("[tonefex:adaptation]", {
+        ...source,
+        event: "tone_adaptation_blocked_missing_master_tone",
+        normalUserAiDisabled: true
+      });
+
+      if (user && admin && toneJobId) {
+        await admin
+          .from("tone_jobs")
+          .update({
+            model: TONE_CORE_MODEL_NAME,
+            status: "failed",
+            error_message: "Master tone missing. Use admin AI ingestion to populate this song."
+          })
+          .eq("id", toneJobId);
       }
+
+      return NextResponse.json(
+        {
+          error: "Master tone missing. Add this song through the admin AI ingestion pipeline before user adaptation.",
+          source
+        },
+        { status: 404 }
+      );
     }
-    const result = coreResolution.result || aiGeneration!.result;
+    const result = coreResolution.result;
     const usedCore = coreResolution.source === "cache" || coreResolution.source === "rule";
-    const resolvedModel = usedCore ? TONE_CORE_MODEL_NAME : process.env.OPENAI_MODEL || "gpt-4.1-nano";
-    const source = buildAdaptationSourceLog(route, requestBody, toneProfile, coreResolution, aiGeneration, toneJobId);
+    const resolvedModel = usedCore ? TONE_CORE_MODEL_NAME : TONE_CORE_MODEL_NAME;
+    const source = buildAdaptationSourceLog(route, requestBody, toneProfile, coreResolution, toneJobId);
     console.info("[tonefex:adaptation]", source);
 
     if (user && admin && toneJobId) {
@@ -385,7 +404,6 @@ function buildAdaptationSourceLog(
   request: ToneRequest,
   toneProfile: { id: string } | null,
   coreResolution: Awaited<ReturnType<typeof resolveCoreTone>>,
-  aiGeneration: Awaited<ReturnType<typeof generateToneResultWithMetadata>> | null,
   requestId: string | null
 ) {
   const masterToneSource = classifyToneProfileSource(toneProfile);
@@ -394,14 +412,9 @@ function buildAdaptationSourceLog(
       ? "database_cache"
       : coreResolution.source === "rule"
         ? "tone_core_rule_engine"
-        : aiGeneration?.source === "openai"
-          ? "openai"
-          : "local_fallback";
+        : "local_fallback";
   const cacheStatus = getCacheStatus(coreResolution);
-  const sourceLabel = getSourceLabel(resultPath, cacheStatus, coreResolution.fallbackReason, aiGeneration?.reason);
-  const openAiCalled = Boolean(aiGeneration?.openAiCalled);
-  const openAiSucceeded = Boolean(aiGeneration?.openAiSucceeded);
-  const aiResultUsed = resultPath === "openai";
+  const sourceLabel = getSourceLabel(resultPath, cacheStatus, coreResolution.fallbackReason);
   const ruleEngineUsed = coreResolution.source === "rule";
   const databaseCacheUsed = coreResolution.source === "cache";
   const cacheWrite = coreResolution.cacheWriteStatus || (ruleEngineUsed ? "unknown" : "not_applicable");
@@ -415,10 +428,10 @@ function buildAdaptationSourceLog(
     sourceLabel,
     masterToneSource,
     aiFallbackTriggered: coreResolution.source === "ai_fallback",
-    aiUsed: aiResultUsed,
-    aiResultUsed,
-    openAiCalled,
-    openAiSucceeded,
+    aiUsed: false,
+    aiResultUsed: false,
+    openAiCalled: false,
+    openAiSucceeded: false,
     ruleEngineUsed,
     databaseCacheUsed,
     databaseUsed: coreResolution.source === "cache" || coreResolution.source === "rule" || masterToneSource === "database",
@@ -429,8 +442,8 @@ function buildAdaptationSourceLog(
     cacheId: coreResolution.cacheId || null,
     coreSource: coreResolution.source,
     hitType: coreResolution.hitType,
-    fallbackReason: coreResolution.fallbackReason || aiGeneration?.reason || null,
-    model: coreResolution.source === "cache" || coreResolution.source === "rule" ? TONE_CORE_MODEL_NAME : aiGeneration?.model,
+    fallbackReason: coreResolution.fallbackReason || null,
+    model: TONE_CORE_MODEL_NAME,
     song: request.song,
     artist: request.artist,
     mode: request.mode,
@@ -483,8 +496,7 @@ function getCacheStatus(coreResolution: Awaited<ReturnType<typeof resolveCoreTon
 function getSourceLabel(
   resultPath: string,
   cacheStatus: string,
-  coreFallbackReason?: string,
-  aiReason?: string
+  coreFallbackReason?: string
 ) {
   if (resultPath === "database_cache") {
     return "CACHE_HIT_FROM_TONE_ADAPTATION_CACHE";
@@ -502,19 +514,15 @@ function getSourceLabel(
     return "CACHE_MISS_RULE_ENGINE_GENERATED";
   }
 
-  if (resultPath === "openai") {
-    return "OPENAI_RESULT_USED";
-  }
-
   if (coreFallbackReason === "missing_master_tone") {
-    return `LOCAL_FALLBACK_NO_MASTER_TONE_${aiReason || "NO_OPENAI_RESULT"}`.toUpperCase();
+    return "BLOCKED_NO_MASTER_TONE_ADMIN_INGESTION_REQUIRED";
   }
 
   if (cacheStatus.startsWith("bypassed")) {
     return `LOCAL_FALLBACK_${cacheStatus}`.toUpperCase();
   }
 
-  return `LOCAL_FALLBACK_${aiReason || coreFallbackReason || "UNKNOWN_REASON"}`.toUpperCase();
+  return `LOCAL_FALLBACK_${coreFallbackReason || "UNKNOWN_REASON"}`.toUpperCase();
 }
 
 function classifyToneProfileSource(toneProfile: { id: string } | null) {
