@@ -12,6 +12,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:rule-engine": "node scripts/run-rule-engine-tests.mjs",
+    "test:backend": "node scripts/run-backend-tests.mjs",
     "import:tones": "node scripts/import-tone-profiles.mjs"
   },
   "dependencies": {
