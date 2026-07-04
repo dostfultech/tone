@@ -1,0 +1,629 @@
+// Tonefex normalized tone database architecture.
+// Design artifact only: Prisma is not wired into the application runtime in this phase.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Profile {
+  id              String           @id @db.Uuid
+  email           String
+  userInstruments UserInstrument[]
+  userRigs        UserRig[]
+
+  @@map("profiles")
+}
+
+model Artist {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name   String
+  slug   String @unique
+  songs  Song[]
+
+  @@map("artists")
+}
+
+model Song {
+  id       String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  artistId String     @map("artist_id") @db.Uuid
+  title    String
+  slug     String
+  artist   Artist     @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  parts    SongPart[]
+
+  @@unique([artistId, slug])
+  @@map("songs")
+}
+
+model TonePartType {
+  id        String     @id
+  label     String
+  sortOrder Int        @default(100) @map("sort_order")
+  isActive  Boolean    @default(true) @map("is_active")
+  parts     SongPart[]
+
+  @@map("tone_part_types")
+}
+
+model ToneType {
+  id          String       @id
+  label       String
+  sortOrder   Int          @default(100) @map("sort_order")
+  isActive    Boolean      @default(true) @map("is_active")
+  masterTones MasterTone[]
+
+  @@map("tone_types")
+}
+
+model ToneArchetype {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug          String         @unique
+  name          String
+  instrumentType String?       @map("instrument_type")
+  description   String?
+  metadata      Json           @default("{}")
+  isActive      Boolean        @default(true) @map("is_active")
+  masterTones   MasterTone[]
+  guitarModels  GuitarModel[]
+  pickupModels  PickupModel[]
+  ampModels     AmpModel[]
+
+  @@map("tone_archetypes")
+}
+
+model EquipmentManufacturer {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String          @unique
+  slug           String          @unique
+  country        String?
+  websiteUrl     String?         @map("website_url")
+  metadata       Json            @default("{}")
+  isActive       Boolean         @default(true) @map("is_active")
+  guitarModels   GuitarModel[]
+  pickupModels   PickupModel[]
+  ampModels      AmpModel[]
+  speakerModels  SpeakerModel[]
+  cabinetModels  CabinetModel[]
+  pedalModels    PedalModel[]
+  multifxDevices MultifxDevice[]
+
+  @@map("equipment_manufacturers")
+}
+
+model FrequencyCurve {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug          String         @unique
+  name          String
+  lowEnd        Decimal        @default(5) @map("low_end") @db.Decimal(5, 2)
+  lowMid        Decimal        @default(5) @map("low_mid") @db.Decimal(5, 2)
+  midrange      Decimal        @default(5) @db.Decimal(5, 2)
+  highMid       Decimal        @default(5) @map("high_mid") @db.Decimal(5, 2)
+  highEnd       Decimal        @default(5) @map("high_end") @db.Decimal(5, 2)
+  curve         Json           @default("{}")
+  metadata      Json           @default("{}")
+  isActive      Boolean        @default(true) @map("is_active")
+  guitarModels  GuitarModel[]
+  pickupModels  PickupModel[]
+  speakerModels SpeakerModel[]
+  cabinetModels CabinetModel[]
+
+  @@map("frequency_curves")
+}
+
+model AmpArchetype {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug        String       @unique
+  name        String
+  gainProfile String?      @map("gain_profile")
+  eqProfile   String?      @map("eq_profile")
+  description String?
+  metadata    Json         @default("{}")
+  isActive    Boolean      @default(true) @map("is_active")
+  masterTones MasterTone[]
+
+  @@map("amp_archetypes")
+}
+
+model CabinetArchetype {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug          String       @unique
+  name          String
+  cabinetFormat String?      @map("cabinet_format")
+  backType      String?      @map("back_type")
+  description   String?
+  metadata      Json         @default("{}")
+  isActive      Boolean      @default(true) @map("is_active")
+  masterTones   MasterTone[]
+
+  @@map("cabinet_archetypes")
+}
+
+model PickupType {
+  id          String             @id
+  label       String
+  coilType    String             @map("coil_type")
+  isActive    Boolean            @default(true) @map("is_active")
+  preferences PickupPreference[]
+  pickups     PickupModel[]
+
+  @@map("pickup_types")
+}
+
+model PickupPreference {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug              String       @unique
+  label             String
+  preferredPosition String?      @map("preferred_position")
+  pickupTypeId      String?      @map("pickup_type_id")
+  pickupType        PickupType?  @relation(fields: [pickupTypeId], references: [id], onDelete: SetNull)
+  metadata          Json         @default("{}")
+  isActive          Boolean      @default(true) @map("is_active")
+  masterTones       MasterTone[]
+
+  @@map("pickup_preferences")
+}
+
+model PedalType {
+  id                    String                     @id
+  label                 String
+  sortOrder             Int                        @default(100) @map("sort_order")
+  isActive              Boolean                    @default(true) @map("is_active")
+  suggestedMasterTones  MasterToneSuggestedPedal[]
+  pedals                PedalModel[]
+  multifxEffects        MultifxEffect[]
+
+  @@map("pedal_types")
+}
+
+model SongPart {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  songId      String       @map("song_id") @db.Uuid
+  partTypeId  String       @map("part_type_id")
+  label       String
+  sortOrder   Int          @default(0) @map("sort_order")
+  startSeconds Decimal?    @map("start_seconds") @db.Decimal(8, 2)
+  endSeconds   Decimal?    @map("end_seconds") @db.Decimal(8, 2)
+  metadata    Json         @default("{}")
+  searchText  String       @default("") @map("search_text")
+  isActive    Boolean      @default(true) @map("is_active")
+  song        Song         @relation(fields: [songId], references: [id], onDelete: Cascade)
+  partType    TonePartType @relation(fields: [partTypeId], references: [id])
+  masterTones MasterTone[]
+
+  @@unique([songId, partTypeId, label])
+  @@map("song_parts")
+}
+
+model MasterTone {
+  id                         String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  songPartId                 String                     @map("song_part_id") @db.Uuid
+  instrumentType             String                     @map("instrument_type")
+  toneTypeId                 String                     @map("tone_type_id")
+  toneArchetypeId            String?                    @map("tone_archetype_id") @db.Uuid
+  pickupPreferenceId         String?                    @map("pickup_preference_id") @db.Uuid
+  suggestedAmpArchetypeId    String?                    @map("suggested_amp_archetype_id") @db.Uuid
+  suggestedCabinetArchetypeId String?                   @map("suggested_cabinet_archetype_id") @db.Uuid
+  gain                       Decimal?                   @db.Decimal(5, 2)
+  bass                       Decimal?                   @db.Decimal(5, 2)
+  middle                     Decimal?                   @db.Decimal(5, 2)
+  treble                     Decimal?                   @db.Decimal(5, 2)
+  presence                   Decimal?                   @db.Decimal(5, 2)
+  resonance                  Decimal?                   @db.Decimal(5, 2)
+  depth                      Decimal?                   @db.Decimal(5, 2)
+  masterVolume               Decimal?                   @map("master_volume") @db.Decimal(5, 2)
+  noiseGate                  Decimal?                   @map("noise_gate") @db.Decimal(5, 2)
+  compression                Decimal?                   @db.Decimal(5, 2)
+  delay                      Decimal?                   @db.Decimal(5, 2)
+  reverb                     Decimal?                   @db.Decimal(5, 2)
+  eqProfile                  Json                       @default("{}") @map("eq_profile")
+  modulationProfile          Json                       @default("{}") @map("modulation_profile")
+  tempoBpm                   Decimal?                   @map("tempo_bpm") @db.Decimal(7, 2)
+  metadata                   Json                       @default("{}")
+  confidence                 Int                        @default(65)
+  verificationStatus         String                     @default("needs_review") @map("verification_status")
+  version                    Int                        @default(1)
+  isActive                   Boolean                    @default(true) @map("is_active")
+  songPart                   SongPart                   @relation(fields: [songPartId], references: [id], onDelete: Cascade)
+  toneType                   ToneType                   @relation(fields: [toneTypeId], references: [id])
+  toneArchetype              ToneArchetype?             @relation(fields: [toneArchetypeId], references: [id], onDelete: SetNull)
+  pickupPreference           PickupPreference?          @relation(fields: [pickupPreferenceId], references: [id], onDelete: SetNull)
+  suggestedAmpArchetype      AmpArchetype?              @relation(fields: [suggestedAmpArchetypeId], references: [id], onDelete: SetNull)
+  suggestedCabinetArchetype  CabinetArchetype?          @relation(fields: [suggestedCabinetArchetypeId], references: [id], onDelete: SetNull)
+  suggestedPedals            MasterToneSuggestedPedal[]
+
+  @@unique([songPartId, instrumentType, toneTypeId, version])
+  @@map("master_tones")
+}
+
+model MasterToneSuggestedPedal {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  masterToneId String     @map("master_tone_id") @db.Uuid
+  pedalTypeId  String     @map("pedal_type_id")
+  positionOrder Int       @default(0) @map("position_order")
+  purpose      String?
+  intensity    Decimal?   @db.Decimal(5, 2)
+  metadata     Json       @default("{}")
+  isActive     Boolean    @default(true) @map("is_active")
+  masterTone   MasterTone @relation(fields: [masterToneId], references: [id], onDelete: Cascade)
+  pedalType    PedalType  @relation(fields: [pedalTypeId], references: [id])
+
+  @@unique([masterToneId, pedalTypeId, positionOrder])
+  @@map("master_tone_suggested_pedals")
+}
+
+model GuitarModel {
+  id                  String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  manufacturerId      String                 @map("manufacturer_id") @db.Uuid
+  modelName           String                 @map("model_name")
+  instrumentType      String                 @default("guitar") @map("instrument_type")
+  bodyType            String?                @map("body_type")
+  scaleLengthInches   Decimal?               @map("scale_length_inches") @db.Decimal(5, 2)
+  bridgeType          String?                @map("bridge_type")
+  pickupLayout        String?                @map("pickup_layout")
+  outputLevel         Decimal                @default(5) @map("output_level") @db.Decimal(5, 2)
+  brightness          Decimal                @default(5) @db.Decimal(5, 2)
+  warmth              Decimal                @default(5) @db.Decimal(5, 2)
+  compression         Decimal                @default(5) @db.Decimal(5, 2)
+  frequencyCurveId    String?                @map("frequency_curve_id") @db.Uuid
+  noiseCharacteristics Json                  @default("{}") @map("noise_characteristics")
+  toneArchetypeId     String?                @map("tone_archetype_id") @db.Uuid
+  metadata            Json                   @default("{}")
+  searchText          String                 @default("") @map("search_text")
+  isActive            Boolean                @default(true) @map("is_active")
+  manufacturer        EquipmentManufacturer  @relation(fields: [manufacturerId], references: [id])
+  frequencyCurve      FrequencyCurve?        @relation(fields: [frequencyCurveId], references: [id], onDelete: SetNull)
+  toneArchetype       ToneArchetype?         @relation(fields: [toneArchetypeId], references: [id], onDelete: SetNull)
+  stockPickups        GuitarModelPickup[]
+  userInstruments     UserInstrument[]
+
+  @@unique([manufacturerId, modelName, instrumentType])
+  @@map("guitar_models")
+}
+
+model PickupModel {
+  id               String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  manufacturerId   String                 @map("manufacturer_id") @db.Uuid
+  modelName        String                 @map("model_name")
+  pickupTypeId     String                 @map("pickup_type_id")
+  circuitType      String                 @map("circuit_type")
+  outputLevel      Decimal                @default(5) @map("output_level") @db.Decimal(5, 2)
+  brightness       Decimal                @default(5) @db.Decimal(5, 2)
+  bass             Decimal                @default(5) @db.Decimal(5, 2)
+  midrange         Decimal                @default(5) @db.Decimal(5, 2)
+  compression      Decimal                @default(5) @db.Decimal(5, 2)
+  frequencyCurveId String?                @map("frequency_curve_id") @db.Uuid
+  noise            Decimal                @default(5) @db.Decimal(5, 2)
+  toneArchetypeId  String?                @map("tone_archetype_id") @db.Uuid
+  metadata         Json                   @default("{}")
+  searchText       String                 @default("") @map("search_text")
+  isActive         Boolean                @default(true) @map("is_active")
+  manufacturer     EquipmentManufacturer  @relation(fields: [manufacturerId], references: [id])
+  pickupType       PickupType             @relation(fields: [pickupTypeId], references: [id])
+  frequencyCurve   FrequencyCurve?        @relation(fields: [frequencyCurveId], references: [id], onDelete: SetNull)
+  toneArchetype    ToneArchetype?         @relation(fields: [toneArchetypeId], references: [id], onDelete: SetNull)
+  stockPlacements  GuitarModelPickup[]
+  userPlacements   UserInstrumentPickup[]
+
+  @@unique([manufacturerId, modelName, pickupTypeId])
+  @@map("pickup_models")
+}
+
+model GuitarModelPickup {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  guitarModelId  String       @map("guitar_model_id") @db.Uuid
+  pickupModelId  String?      @map("pickup_model_id") @db.Uuid
+  pickupPosition String       @map("pickup_position")
+  isStock        Boolean      @default(true) @map("is_stock")
+  metadata       Json         @default("{}")
+  isActive       Boolean      @default(true) @map("is_active")
+  guitarModel    GuitarModel  @relation(fields: [guitarModelId], references: [id], onDelete: Cascade)
+  pickupModel    PickupModel? @relation(fields: [pickupModelId], references: [id], onDelete: SetNull)
+
+  @@unique([guitarModelId, pickupPosition, isStock])
+  @@map("guitar_model_pickups")
+}
+
+model AmpModel {
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  manufacturerId      String                @map("manufacturer_id") @db.Uuid
+  modelName           String                @map("model_name")
+  instrumentType      String                @default("guitar") @map("instrument_type")
+  ampTechnology       String                @map("amp_technology")
+  gainStructure       String?               @map("gain_structure")
+  eqBehaviour         Json                  @default("{}") @map("eq_behaviour")
+  presenceBehaviour   Json                  @default("{}") @map("presence_behaviour")
+  compression         Decimal               @default(5) @db.Decimal(5, 2)
+  brightness          Decimal               @default(5) @db.Decimal(5, 2)
+  warmth              Decimal               @default(5) @db.Decimal(5, 2)
+  cleanHeadroom       Decimal               @default(5) @map("clean_headroom") @db.Decimal(5, 2)
+  toneArchetypeId     String?               @map("tone_archetype_id") @db.Uuid
+  metadata            Json                  @default("{}")
+  searchText          String                @default("") @map("search_text")
+  isActive            Boolean               @default(true) @map("is_active")
+  manufacturer        EquipmentManufacturer @relation(fields: [manufacturerId], references: [id])
+  toneArchetype       ToneArchetype?        @relation(fields: [toneArchetypeId], references: [id], onDelete: SetNull)
+  recommendedCabinets AmpRecommendedCabinet[]
+  multifxModels       MultifxAmpModel[]
+  userRigs            UserRig[]
+
+  @@unique([manufacturerId, modelName, instrumentType])
+  @@map("amp_models")
+}
+
+model CabinetFormat {
+  id                String         @id
+  label             String
+  speakerCount      Int            @map("speaker_count")
+  speakerSizeInches Int            @map("speaker_size_inches")
+  isActive          Boolean        @default(true) @map("is_active")
+  cabinets          CabinetModel[]
+
+  @@map("cabinet_formats")
+}
+
+model SpeakerModel {
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  manufacturerId   String?               @map("manufacturer_id") @db.Uuid
+  modelName        String                @map("model_name")
+  frequencyCurveId String?               @map("frequency_curve_id") @db.Uuid
+  brightness       Decimal               @default(5) @db.Decimal(5, 2)
+  warmth           Decimal               @default(5) @db.Decimal(5, 2)
+  metadata         Json                  @default("{}")
+  searchText       String                @default("") @map("search_text")
+  isActive         Boolean               @default(true) @map("is_active")
+  manufacturer     EquipmentManufacturer? @relation(fields: [manufacturerId], references: [id], onDelete: SetNull)
+  frequencyCurve   FrequencyCurve?       @relation(fields: [frequencyCurveId], references: [id], onDelete: SetNull)
+  cabinets         CabinetModel[]
+
+  @@unique([manufacturerId, modelName])
+  @@map("speaker_models")
+}
+
+model CabinetModel {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  manufacturerId       String?                @map("manufacturer_id") @db.Uuid
+  modelName            String                 @map("model_name")
+  cabinetFormatId      String                 @map("cabinet_format_id")
+  backType             String                 @map("back_type")
+  speakerModelId       String?                @map("speaker_model_id") @db.Uuid
+  frequencyCurveId     String?                @map("frequency_curve_id") @db.Uuid
+  lowEnd               Decimal                @default(5) @map("low_end") @db.Decimal(5, 2)
+  highEnd              Decimal                @default(5) @map("high_end") @db.Decimal(5, 2)
+  brightness           Decimal                @default(5) @db.Decimal(5, 2)
+  warmth               Decimal                @default(5) @db.Decimal(5, 2)
+  metadata             Json                   @default("{}")
+  searchText           String                 @default("") @map("search_text")
+  isActive             Boolean                @default(true) @map("is_active")
+  manufacturer         EquipmentManufacturer? @relation(fields: [manufacturerId], references: [id], onDelete: SetNull)
+  cabinetFormat        CabinetFormat          @relation(fields: [cabinetFormatId], references: [id])
+  speakerModel         SpeakerModel?          @relation(fields: [speakerModelId], references: [id], onDelete: SetNull)
+  frequencyCurve       FrequencyCurve?        @relation(fields: [frequencyCurveId], references: [id], onDelete: SetNull)
+  recommendedForAmps   AmpRecommendedCabinet[]
+  multifxModels        MultifxCabModel[]
+  userRigs             UserRig[]
+
+  @@unique([manufacturerId, modelName, cabinetFormatId])
+  @@map("cabinet_models")
+}
+
+model AmpRecommendedCabinet {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ampModelId     String       @map("amp_model_id") @db.Uuid
+  cabinetModelId String       @map("cabinet_model_id") @db.Uuid
+  priority       Int          @default(100)
+  notes          String?
+  isActive       Boolean      @default(true) @map("is_active")
+  ampModel       AmpModel     @relation(fields: [ampModelId], references: [id], onDelete: Cascade)
+  cabinetModel   CabinetModel @relation(fields: [cabinetModelId], references: [id], onDelete: Cascade)
+
+  @@unique([ampModelId, cabinetModelId])
+  @@map("amp_recommended_cabinets")
+}
+
+model PedalModel {
+  id             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  manufacturerId String                @map("manufacturer_id") @db.Uuid
+  modelName      String                @map("model_name")
+  pedalTypeId    String                @map("pedal_type_id")
+  gainChange     Decimal               @default(0) @map("gain_change") @db.Decimal(5, 2)
+  eqInfluence    Json                  @default("{}") @map("eq_influence")
+  compression    Decimal               @default(0) @db.Decimal(5, 2)
+  noise          Decimal               @default(0) @db.Decimal(5, 2)
+  toneColor      Json                  @default("{}") @map("tone_color")
+  metadata       Json                  @default("{}")
+  searchText     String                @default("") @map("search_text")
+  isActive       Boolean               @default(true) @map("is_active")
+  manufacturer   EquipmentManufacturer @relation(fields: [manufacturerId], references: [id])
+  pedalType      PedalType             @relation(fields: [pedalTypeId], references: [id])
+  userRigPedals  UserRigPedal[]
+
+  @@unique([manufacturerId, modelName, pedalTypeId])
+  @@map("pedal_models")
+}
+
+model MultifxDevice {
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  manufacturerId   String                @map("manufacturer_id") @db.Uuid
+  modelName        String                @map("model_name")
+  dspLimits        Json                  @default("{}") @map("dsp_limits")
+  routing          Json                  @default("{}")
+  patchStructure   Json                  @default("{}") @map("patch_structure")
+  parameterMapping Json                  @default("{}") @map("parameter_mapping")
+  metadata         Json                  @default("{}")
+  searchText       String                @default("") @map("search_text")
+  isActive         Boolean               @default(true) @map("is_active")
+  manufacturer     EquipmentManufacturer @relation(fields: [manufacturerId], references: [id])
+  ampModels        MultifxAmpModel[]
+  cabModels        MultifxCabModel[]
+  effects          MultifxEffect[]
+  userRigs         UserRig[]
+
+  @@unique([manufacturerId, modelName])
+  @@map("multifx_devices")
+}
+
+model MultifxAmpModel {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  multifxDeviceId  String         @map("multifx_device_id") @db.Uuid
+  modelName        String         @map("model_name")
+  ampModelId       String?        @map("amp_model_id") @db.Uuid
+  parameterMapping Json           @default("{}") @map("parameter_mapping")
+  metadata         Json           @default("{}")
+  isActive         Boolean        @default(true) @map("is_active")
+  device           MultifxDevice  @relation(fields: [multifxDeviceId], references: [id], onDelete: Cascade)
+  ampModel         AmpModel?      @relation(fields: [ampModelId], references: [id], onDelete: SetNull)
+
+  @@unique([multifxDeviceId, modelName])
+  @@map("multifx_amp_models")
+}
+
+model MultifxCabModel {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  multifxDeviceId  String         @map("multifx_device_id") @db.Uuid
+  modelName        String         @map("model_name")
+  cabinetModelId   String?        @map("cabinet_model_id") @db.Uuid
+  parameterMapping Json           @default("{}") @map("parameter_mapping")
+  metadata         Json           @default("{}")
+  isActive         Boolean        @default(true) @map("is_active")
+  device           MultifxDevice  @relation(fields: [multifxDeviceId], references: [id], onDelete: Cascade)
+  cabinetModel     CabinetModel?  @relation(fields: [cabinetModelId], references: [id], onDelete: SetNull)
+
+  @@unique([multifxDeviceId, modelName])
+  @@map("multifx_cab_models")
+}
+
+model MultifxEffect {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  multifxDeviceId  String        @map("multifx_device_id") @db.Uuid
+  effectName       String        @map("effect_name")
+  pedalTypeId      String?       @map("pedal_type_id")
+  parameterMapping Json          @default("{}") @map("parameter_mapping")
+  metadata         Json          @default("{}")
+  isActive         Boolean       @default(true) @map("is_active")
+  device           MultifxDevice @relation(fields: [multifxDeviceId], references: [id], onDelete: Cascade)
+  pedalType        PedalType?    @relation(fields: [pedalTypeId], references: [id], onDelete: SetNull)
+
+  @@unique([multifxDeviceId, effectName])
+  @@map("multifx_effects")
+}
+
+model UserInstrument {
+  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String                 @map("user_id") @db.Uuid
+  guitarModelId  String?                @map("guitar_model_id") @db.Uuid
+  nickname       String?
+  metadata       Json                   @default("{}")
+  user           Profile                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guitarModel    GuitarModel?           @relation(fields: [guitarModelId], references: [id], onDelete: SetNull)
+  pickups        UserInstrumentPickup[]
+  rigs           UserRig[]
+
+  @@map("user_instruments")
+}
+
+model UserInstrumentPickup {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userInstrumentId String         @map("user_instrument_id") @db.Uuid
+  pickupModelId    String?        @map("pickup_model_id") @db.Uuid
+  pickupPosition   String         @map("pickup_position")
+  isStock          Boolean        @default(false) @map("is_stock")
+  metadata         Json           @default("{}")
+  userInstrument   UserInstrument @relation(fields: [userInstrumentId], references: [id], onDelete: Cascade)
+  pickupModel      PickupModel?   @relation(fields: [pickupModelId], references: [id], onDelete: SetNull)
+
+  @@unique([userInstrumentId, pickupPosition])
+  @@map("user_instrument_pickups")
+}
+
+model UserRig {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String          @map("user_id") @db.Uuid
+  name            String
+  instrumentType  String          @map("instrument_type")
+  userInstrumentId String?        @map("user_instrument_id") @db.Uuid
+  ampModelId      String?         @map("amp_model_id") @db.Uuid
+  cabinetModelId  String?         @map("cabinet_model_id") @db.Uuid
+  multifxDeviceId String?         @map("multifx_device_id") @db.Uuid
+  goingDirect     Boolean         @default(false) @map("going_direct")
+  metadata        Json            @default("{}")
+  user            Profile         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userInstrument  UserInstrument? @relation(fields: [userInstrumentId], references: [id], onDelete: SetNull)
+  ampModel        AmpModel?       @relation(fields: [ampModelId], references: [id], onDelete: SetNull)
+  cabinetModel    CabinetModel?   @relation(fields: [cabinetModelId], references: [id], onDelete: SetNull)
+  multifxDevice   MultifxDevice?  @relation(fields: [multifxDeviceId], references: [id], onDelete: SetNull)
+  pedals          UserRigPedal[]
+
+  @@map("user_rigs")
+}
+
+model UserRigPedal {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userRigId     String      @map("user_rig_id") @db.Uuid
+  pedalModelId  String?     @map("pedal_model_id") @db.Uuid
+  positionOrder Int         @default(0) @map("position_order")
+  metadata      Json        @default("{}")
+  userRig       UserRig     @relation(fields: [userRigId], references: [id], onDelete: Cascade)
+  pedalModel    PedalModel? @relation(fields: [pedalModelId], references: [id], onDelete: SetNull)
+
+  @@unique([userRigId, positionOrder])
+  @@map("user_rig_pedals")
+}
+
+model RuleSet {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug        String        @unique
+  name        String
+  description String?
+  version     Int           @default(1)
+  status      String        @default("draft")
+  metadata    Json          @default("{}")
+  isActive    Boolean       @default(true) @map("is_active")
+  profiles    RuleProfile[]
+
+  @@map("rule_sets")
+}
+
+model RuleProfile {
+  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ruleSetId      String                 @map("rule_set_id") @db.Uuid
+  name           String
+  equipmentScope String                 @map("equipment_scope")
+  priority       Int                    @default(100)
+  metadata       Json                   @default("{}")
+  isActive       Boolean                @default(true) @map("is_active")
+  ruleSet        RuleSet                @relation(fields: [ruleSetId], references: [id], onDelete: Cascade)
+  archetypes     RuleProfileArchetype[]
+
+  @@unique([ruleSetId, name, equipmentScope])
+  @@map("rule_profiles")
+}
+
+model RuleProfileArchetype {
+  id                 String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ruleProfileId      String       @map("rule_profile_id") @db.Uuid
+  toneArchetypeId    String?      @map("tone_archetype_id") @db.Uuid
+  ampArchetypeId     String?      @map("amp_archetype_id") @db.Uuid
+  cabinetArchetypeId String?      @map("cabinet_archetype_id") @db.Uuid
+  metadata           Json         @default("{}")
+  ruleProfile        RuleProfile  @relation(fields: [ruleProfileId], references: [id], onDelete: Cascade)
+
+  @@map("rule_profile_archetypes")
+}
+
+model CacheKeyDefinition {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  namespace   String
+  keyName     String @map("key_name")
+  keyVersion  Int    @default(1) @map("key_version")
+  inputShape  Json   @default("{}") @map("input_shape")
+  description String?
+  isActive    Boolean @default(true) @map("is_active")
+
+  @@unique([namespace, keyName, keyVersion])
+  @@map("cache_key_definitions")
+}
