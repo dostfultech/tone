@@ -9,7 +9,6 @@ import {
   Bookmark,
   CheckCircle2,
   ChevronRight,
-  ExternalLink,
   Flame,
   Gauge,
   Guitar,
@@ -117,7 +116,7 @@ export function ToneMatcher() {
   const [songDraft, setSongDraft] = useState("");
   const [artist, setArtist] = useState("");
   const [part, setPart] = useState("");
-  const [partType, setPartType] = useState<TonePartType>("main");
+  const [partType, setPartType] = useState<TonePartType>("riff");
   const [toneType, setToneType] = useState<ToneType>("auto");
   const [guitar, setGuitar] = useState("Fender Stratocaster");
   const [amp, setAmp] = useState("Boss Katana Artist");
@@ -126,7 +125,6 @@ export function ToneMatcher() {
   const [neckPickup, setNeckPickup] = useState("");
   const [middlePickup, setMiddlePickup] = useState("");
   const [bridgePickup, setBridgePickup] = useState("");
-  const [showCustomPickups, setShowCustomPickups] = useState(false);
   const [effectsMode, setEffectsMode] = useState("manual");
   const [goingDirect, setGoingDirect] = useState(false);
   const [selectedFx, setSelectedFx] = useState("Ambient Lead");
@@ -370,7 +368,6 @@ export function ToneMatcher() {
       setNeckPickup(payload.customPickups?.neck || localStorage.getItem("toneMatch_neckPickup") || "");
       setMiddlePickup(payload.customPickups?.middle || localStorage.getItem("toneMatch_middlePickup") || "");
       setBridgePickup(payload.customPickups?.bridge || localStorage.getItem("toneMatch_bridgePickup") || "");
-      setShowCustomPickups(Boolean(payload.customPickups?.neck || payload.customPickups?.middle || payload.customPickups?.bridge));
       setEffectsMode(payload.effectsMode || "manual");
       setGoingDirect(Boolean(payload.goingDirect || payload.effectsMode === "multi_fx"));
       setMultiFx(nextMultiFx);
@@ -594,13 +591,33 @@ export function ToneMatcher() {
     }
   }, [amp, cabinet, cabinetCatalog, currentAmps, currentGuitars, guitar, multiFx, multiFxCatalog, pedalCatalog, pickup, pickupCatalog, selectedFx]);
 
+  useEffect(() => {
+    if (mode === "bass") {
+      if (partType !== "bassline") {
+        setPartType("bassline");
+      }
+      if (toneType !== "bass_clean" && toneType !== "bass_drive") {
+        setToneType("bass_clean");
+      }
+      return;
+    }
+
+    if (partType !== "riff" && partType !== "solo") {
+      setPartType("riff");
+    }
+    if (toneType !== "auto" && toneType !== "clean" && toneType !== "distorted") {
+      setToneType("auto");
+    }
+  }, [mode, partType, toneType]);
+
   function applySongPreset(preset: SongSuggestion) {
+    const nextPartType = normalizePartType(preset.part, preset.mode === "bass" ? "bassline" : undefined);
     setMode(preset.mode);
     setSong(preset.song);
     setSongDraft(preset.song);
     setArtist(preset.artist);
     setPart(preset.part);
-    setPartType(normalizePartType(preset.part, preset.mode === "bass" ? "bassline" : undefined));
+    setPartType(preset.mode === "bass" ? "bassline" : nextPartType === "solo" ? "solo" : "riff");
     setToneType(preset.mode === "bass" ? "bass_clean" : "auto");
     if (preset.mode === "bass") {
       setGuitar(bassGuitarCatalog[0]?.name || "Fender Precision Bass");
@@ -724,16 +741,17 @@ export function ToneMatcher() {
   const ampMeta = getAmpMetadata(goingDirect ? multiFx : amp, goingDirect ? multiFxCatalog.find((item) => item.name === multiFx) || selectedAmp : selectedAmp, goingDirect);
   const effectCategories = getEffectCategories();
   const builtInAmpEffects = ampMeta.features.filter((feature) => ["Reverb", "Delay", "Chorus", "Flanger", "Presets", "Noise Gate"].includes(feature));
-  const partChoices = partOptions.filter((option) => mode === "bass" || option.value !== "bassline");
-  const toneChoices = toneTypeOptions.filter((option) => {
-    if (mode === "bass") return option.value === "auto" || option.value === "bass_clean" || option.value === "bass_drive" || option.value === "clean" || option.value === "distorted";
-    return option.value !== "bass_clean" && option.value !== "bass_drive";
-  });
-  const songsterrUrl = `https://www.songsterr.com/a/wa/search?pattern=${encodeURIComponent(`${songDraft || song} ${artist}`)}`;
-  const backingTrackUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`${songDraft || song} ${artist} backing track`)}`;
+  const partChoices = mode === "bass"
+    ? partOptions.filter((option) => option.value === "bassline")
+    : partOptions.filter((option) => option.value === "riff" || option.value === "solo");
+  const toneChoices = mode === "bass"
+    ? [
+        { value: "bass_clean" as ToneType, label: "Clean" },
+        { value: "bass_drive" as ToneType, label: "Distorted" }
+      ]
+    : toneTypeOptions.filter((option) => option.value === "auto" || option.value === "clean" || option.value === "distorted");
   const selectedSongLabel = songDraft.trim() || song.trim() || "selected song";
   const selectedArtistLabel = artist.trim();
-  const songLinkLabel = song.trim() ? `"${song.trim()}"` : "this song";
 
   function addSelectedEffect(effectName: string) {
     if (pedalCatalog.some((item) => item.name === effectName)) {
@@ -784,11 +802,13 @@ export function ToneMatcher() {
                       setGuitar(bassGuitarCatalog[0]?.name || "Fender Precision Bass");
                       setAmp(bassAmpCatalog[0]?.name || "Ampeg SVT-CL");
                       setCabinet(cabinetCatalog.find((item) => item.name.includes("Ampeg"))?.name || "Ampeg SVT-410HLF");
+                      setPartType("bassline");
                       setToneType("bass_clean");
                     } else {
                       setGuitar(guitarCatalog[0]?.name || "Fender Stratocaster");
                       setAmp(ampCatalog[0]?.name || "Boss Katana Artist");
                       setCabinet(cabinetCatalog.find((item) => !item.name.includes("Ampeg") && !item.name.includes("Darkglass"))?.name || "Mesa/Boogie Rectifier 4x12");
+                      setPartType((current) => current === "solo" ? "solo" : "riff");
                       setToneType("auto");
                     }
                   }}
@@ -862,7 +882,7 @@ export function ToneMatcher() {
                 <div className="h-px flex-1 bg-blue-100" />
               </div>
 
-              <div className="grid gap-8 lg:grid-cols-3">
+              <div className="grid gap-8 lg:grid-cols-2">
                 <div>
                   <SelectField label={mode === "bass" ? "Bass archetype" : "Guitar archetype"} value={guitar} onChange={setGuitar} options={currentGuitars.map((item) => item.name)} />
                   <Link href="/contact?kind=gear" className="mt-2 inline-block text-xs font-semibold text-slate-500 hover:text-ink">
@@ -871,12 +891,18 @@ export function ToneMatcher() {
                 </div>
                 <div>
                   <div className="mb-2 flex items-center justify-between gap-4">
-                    <label className="label">Amplifier</label>
+                    <label className="label">{goingDirect ? "Direct unit" : "Amplifier"}</label>
                     <button
                       type="button"
                       aria-pressed={goingDirect}
                       className="flex items-center gap-3 text-sm font-semibold text-slate-600"
-                      onClick={() => setGoingDirect((value) => !value)}
+                      onClick={() => {
+                        setGoingDirect((value) => {
+                          const next = !value;
+                          setEffectsMode(next ? "multi_fx" : "manual");
+                          return next;
+                        });
+                      }}
                     >
                       Going direct
                       <span className={`flex h-7 w-12 items-center rounded-full p-1 transition ${goingDirect ? "bg-ink" : "bg-slate-300"}`}>
@@ -884,43 +910,34 @@ export function ToneMatcher() {
                       </span>
                     </button>
                   </div>
-                  <select className="field h-12" value={amp} onChange={(event) => setAmp(event.target.value)}>
-                    {currentAmps.map((option) => (
-                      <option key={option.id} value={option.name}>
-                        {option.name}
-                      </option>
-                    ))}
-                  </select>
+                  {goingDirect ? (
+                    <select className="field h-12" value={multiFx} onChange={(event) => setMultiFx(event.target.value)}>
+                      {multiFxCatalog.length ? (
+                        multiFxCatalog.map((option) => (
+                          <option key={option.id} value={option.name}>
+                            {option.name}
+                          </option>
+                        ))
+                      ) : (
+                        <option value={multiFx}>{multiFx || "Loading units..."}</option>
+                      )}
+                    </select>
+                  ) : (
+                    <select className="field h-12" value={amp} onChange={(event) => setAmp(event.target.value)}>
+                      {currentAmps.map((option) => (
+                        <option key={option.id} value={option.name}>
+                          {option.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <Link href="/contact?kind=gear" className="mt-2 inline-block text-xs font-semibold text-slate-500 hover:text-ink">
-                    Can&apos;t find your amp?
+                    Can&apos;t find your {goingDirect ? "unit" : "amp"}?
                   </Link>
                 </div>
-                <SelectField label="Cabinet" value={cabinet} onChange={setCabinet} options={cabinetCatalog.map((item) => item.name)} />
               </div>
 
               {mode === "guitar" ? (
-                <div>
-                  <label className="label" htmlFor="pickup">
-                    Pickup
-                  </label>
-                  <select id="pickup" className="field mt-2 h-12" value={pickup} onChange={(event) => setPickup(event.target.value)}>
-                    {pickupCatalog.length ? (
-                      pickupCatalog.map((item) => (
-                        <option key={item.id} value={item.name}>
-                          {item.name} {item.category ? `- ${item.category}` : ""}
-                        </option>
-                      ))
-                    ) : (
-                      <option value={pickup}>{pickup || "Loading pickups..."}</option>
-                    )}
-                  </select>
-                  <button type="button" className="mt-2 text-xs font-semibold text-slate-500 hover:text-ink" onClick={() => setShowCustomPickups(true)}>
-                    Custom pickups?
-                  </button>
-                </div>
-              ) : null}
-
-              {mode === "guitar" && showCustomPickups ? (
                 <div className="rounded-lg border border-white/80 bg-blue-50/70 p-5">
                   <div className="mb-4 flex items-center justify-between gap-4">
                     <div>
@@ -934,10 +951,9 @@ export function ToneMatcher() {
                         setNeckPickup("");
                         setMiddlePickup("");
                         setBridgePickup("");
-                        setShowCustomPickups(false);
                       }}
                     >
-                      Clear & close
+                      Clear
                     </button>
                   </div>
                   <div className="grid gap-4 md:grid-cols-3">
@@ -961,10 +977,9 @@ export function ToneMatcher() {
 
               <div className="border-t border-blue-100 pt-8">
                 <h3 className="mb-5 text-xl font-bold">Select Your Effects (Optional)</h3>
-                <div className="grid rounded-lg border border-white/80 bg-blue-50/80 p-2 shadow-inner md:grid-cols-3">
+                <div className="grid rounded-lg border border-white/80 bg-blue-50/80 p-2 shadow-inner md:grid-cols-2">
                   {[
                     ["manual", "Pedals", SlidersHorizontal],
-                    ["amp_with_effects", "Amp Effects", Volume2],
                     ["multi_fx", "Multi FX", Sparkles]
                   ].map(([value, label, Icon]) => {
                     const ActiveIcon = Icon as typeof SlidersHorizontal;
@@ -980,6 +995,8 @@ export function ToneMatcher() {
                           setEffectsMode((current) => (current === nextMode ? current : nextMode));
                           if (nextMode === "multi_fx") {
                             setGoingDirect(true);
+                          } else {
+                            setGoingDirect(false);
                           }
                         }}
                       >
@@ -997,8 +1014,7 @@ export function ToneMatcher() {
                       Multi FX Mode
                     </h4>
                     <p className="mt-2 text-slate-600">{brand.appName} will shape a complete preset for your unit from the tone research.</p>
-                    <SelectField label="Select your unit" value={multiFx} onChange={setMultiFx} options={multiFxCatalog.map((unit) => unit.name)} />
-                    <div className="mt-4 rounded-lg bg-white/80 p-4 text-sm text-slate-600">Using effects, modulation, delay, and reverb around your selected amp choice.</div>
+                    <div className="mt-4 rounded-lg bg-white/80 p-4 text-sm text-slate-600">Using amp modeling, cab simulation, modulation, delay, and reverb around your selected direct unit.</div>
                   </div>
                 ) : (
                   <div className="mt-6 grid gap-4">
@@ -1188,27 +1204,13 @@ export function ToneMatcher() {
                   <span className="rounded-md bg-moss px-4 py-1 text-xs font-bold uppercase text-ink">Recommended</span>
                 </div>
                 <p className="mt-4 text-lg leading-8 text-slate-700">Specify clean, driven, or auto-detected tone behavior for more accurate gain and effects decisions.</p>
-                <div className="mt-6 grid gap-4 md:grid-cols-3">
-                  {toneChoices.slice(0, 3).map((option) => (
+                <div className={`mt-6 grid gap-4 ${mode === "bass" ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
+                  {toneChoices.map((option) => (
                     <button
                       key={option.value}
                       type="button"
                       className={`min-h-28 rounded-lg border px-5 py-4 text-lg font-bold transition ${
                         toneType === option.value ? "border-ink bg-white text-ink shadow-lg" : "border-white/80 bg-white/70 text-slate-700 hover:border-ocean/40"
-                      }`}
-                      onClick={() => setToneType(option.value)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {toneChoices.slice(3).map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      className={`min-h-11 rounded-lg border px-3 py-2 text-sm font-bold transition ${
-                        toneType === option.value ? "border-ink bg-ink text-white" : "border-white bg-white/80 text-slate-700 hover:border-ocean/50"
                       }`}
                       onClick={() => setToneType(option.value)}
                     >
@@ -1244,16 +1246,6 @@ export function ToneMatcher() {
                 <p className="max-w-2xl text-sm font-medium text-slate-600">
                   Generate a gear-matched version of {selectedArtistLabel ? `"${selectedSongLabel}" by ${selectedArtistLabel}` : `"${selectedSongLabel}"`} for your setup.
                 </p>
-                <div className="grid w-full max-w-4xl gap-4 sm:grid-cols-2">
-                  <a className="button-secondary min-h-14 rounded-lg text-base" href={songsterrUrl} target="_blank" rel="noreferrer">
-                    <ExternalLink className="h-5 w-5" />
-                    Open Songsterr Tab for {songLinkLabel}
-                  </a>
-                  <a className="button-secondary min-h-14 rounded-lg text-base" href={backingTrackUrl} target="_blank" rel="noreferrer">
-                    <ExternalLink className="h-5 w-5" />
-                    Find Backing Track for {songLinkLabel}
-                  </a>
-                </div>
               </div>
               {message ? <div className="rounded-lg bg-ink px-4 py-3 text-sm font-bold text-white">{message}</div> : null}
             </div>

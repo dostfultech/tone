@@ -5,23 +5,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  BarChart3,
   Database,
   Library,
   LogIn,
   LogOut,
   Menu,
-  MessageSquare,
   Music2,
-  Settings,
   SlidersHorizontal,
-  Sparkles,
-  Wrench,
   X
 } from "lucide-react";
 import { brand } from "@/lib/brand";
 import {
-  formatSubscriptionDate,
   loadClientSubscriptionSnapshot,
   type ClientSubscriptionSnapshot
 } from "@/lib/subscription-client";
@@ -38,16 +32,6 @@ const discoveryNav = [
   { href: "/community", label: "Tone Database", icon: Database }
 ];
 
-const accountNav = [
-  { href: "/account", label: "Account", icon: Settings },
-  { href: "/plans", label: "Pricing", icon: BarChart3 }
-];
-
-const feedbackNav = [
-  { href: "/contact?kind=feedback", label: "Send Feedback", icon: MessageSquare },
-  { href: "/contact?kind=gear", label: "Request Gear", icon: Wrench }
-];
-
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(true);
@@ -59,6 +43,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    if (pathname === "/app") {
+      setOpen(false);
+      localStorage.setItem(`${brand.storagePrefix}_sidebar_open`, "0");
+      return;
+    }
+
     const saved = localStorage.getItem(`${brand.storagePrefix}_sidebar_open`);
     if (saved === "0") {
       setOpen(false);
@@ -71,7 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
 
     setOpen(window.innerWidth >= 1024);
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     localStorage.setItem(`${brand.storagePrefix}_sidebar_open`, open ? "1" : "0");
@@ -166,8 +156,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <NavSection title="My Collection" items={collectionNav} pathname={pathname} onNavigate={navigate} />
           <NavSection title="Discover" items={discoveryNav} pathname={pathname} onNavigate={navigate} />
-          <NavSection title="Account" items={accountNav} pathname={pathname} onNavigate={navigate} />
-          <NavSection title="Feedback" items={feedbackNav} pathname={pathname} onNavigate={navigate} />
         </div>
 
         <div className="relative z-10 border-t border-white/70 p-7">
@@ -183,72 +171,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           )}
 
-          <div className="mt-5 rounded-lg border border-white/80 bg-white/75 p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-sm font-bold text-ink">
-              <Sparkles className="h-4 w-4" />
-              {snapshot?.hasAccess ? `Current plan: ${snapshot.planName}` : "Subscription access"}
-            </div>
-            <p className="mt-2 text-xs leading-5 text-slate-600">
-              {snapshot?.hasAccess
-                ? `${snapshot.planId === "expert" ? "Premium features are enabled with unlimited adaptations and saved tones." : "Your Beginner plan is active with monthly adaptation and library limits."}${snapshot.renewalDate ? ` Renews ${formatSubscriptionDate(snapshot.renewalDate)}.` : ""}`
-                : "Sign in and choose a plan to unlock tone matching, saved tones, presets, and tone database access."}
-            </p>
-          </div>
         </div>
       </aside>
 
       <main className={cn("min-h-screen", open ? "lg:pl-[322px]" : "lg:pl-0")}>
         {children}
-        <AppFooter />
       </main>
     </div>
-  );
-}
-
-function AppFooter() {
-  const year = new Date().getFullYear();
-
-  return (
-    <footer className="mx-auto max-w-[1440px] px-4 pb-12 sm:px-6 lg:px-8">
-      <div className="theme-panel border-t border-white/80 bg-white/75 p-8 md:p-10">
-        <div className="grid gap-10 md:grid-cols-[1.15fr_0.75fr_1fr]">
-          <div>
-            <Link href="/app" className="inline-flex items-center gap-4">
-              <Image src="/tonefex-logo.svg" alt={brand.appName} width={44} height={44} className="rounded-lg" />
-              <span className="text-xl font-bold">
-                Tone<span className="lime-highlight ml-0.5">fex</span>
-              </span>
-            </Link>
-            <p className="mt-5 max-w-sm text-base leading-7 text-slate-600">Gear-matched guitar and bass tone settings for musicians worldwide.</p>
-          </div>
-
-          <div>
-            <h2 className="text-lg font-bold">Quick Links</h2>
-            <nav className="mt-5 grid gap-3 text-base text-slate-600">
-              <Link href="/">Home</Link>
-              <Link href="/app">App</Link>
-              <Link href="/plans">Plans</Link>
-              <Link href="/account">Account</Link>
-            </nav>
-          </div>
-
-          <div>
-            <h2 className="text-lg font-bold">Support</h2>
-            <div className="mt-5 grid gap-3 text-base text-slate-600">
-              <p>Need help or have questions?</p>
-              <a className="font-semibold text-ocean" href={`mailto:${brand.supportEmail}`}>
-                {brand.supportEmail}
-              </a>
-              <Link href="/privacy">Privacy Policy</Link>
-              <Link href="/terms">Terms of Use</Link>
-            </div>
-          </div>
-        </div>
-        <div className="mt-10 border-t border-blue-100 pt-6 text-center text-sm text-slate-500">
-          Copyright {year} {brand.appName}. All rights reserved.
-        </div>
-      </div>
-    </footer>
   );
 }
 
