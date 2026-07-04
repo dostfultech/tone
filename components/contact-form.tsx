@@ -109,7 +109,11 @@ export function ContactForm() {
                 <option>Pickup</option>
                 <option>Pedal</option>
                 <option>Multi FX Unit</option>
+                <option>Bass Guitar</option>
+                <option>Bass Amp</option>
                 <option>Bass Gear</option>
+                <option>Effect</option>
+                <option>Other Feature</option>
               </select>
             </div>
             <div>

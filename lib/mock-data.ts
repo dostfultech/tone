@@ -20,6 +20,14 @@ export type ToneRequest = {
   cabinet?: string;
   pickup?: string;
   effectsMode?: string;
+  multiFx?: string;
+  selectedFx?: string;
+  goingDirect?: boolean;
+  customPickups?: {
+    neck?: string;
+    middle?: string;
+    bridge?: string;
+  };
 };
 
 export type ToneProfileInput = {
@@ -90,6 +98,7 @@ export const guitars: GearItem[] = [
   ,{ id: "hss-strat", name: "HSS Stratocaster", description: "Versatile Strat layout with humbucker bridge and clear single-coil sparkle." }
   ,{ id: "yamaha-pacifica-112v", name: "Yamaha Pacifica 112V", description: "Quality HSS solid-body with balanced cleans and usable rock tones." }
   ,{ id: "yamaha-pacifica-012", name: "Yamaha Pacifica 012", description: "Entry-level HSS guitar with flexible clean-to-crunch range." }
+  ,{ id: "evh-wolfgang-special", name: "EVH Wolfgang Special", description: "High-performance solidbody with dual humbuckers, Floyd Rose tremolo, and focused rock sustain." }
 ];
 
 export const amps: GearItem[] = [
@@ -136,14 +145,27 @@ export const bassGuitars: GearItem[] = [
   { id: "precision", name: "Fender Precision Bass", description: "Split-coil punch and focused low mids." },
   { id: "jazz", name: "Fender Jazz Bass", description: "Dual single-coil definition with scooped blend." },
   { id: "stingray", name: "Music Man StingRay", description: "Active humbucker bite with clean low end." },
-  { id: "rick", name: "Rickenbacker 4003", description: "Grinding treble presence and piano-like attack." }
+  { id: "rick", name: "Rickenbacker 4003", description: "Grinding treble presence and piano-like attack." },
+  { id: "esp-surveyor-87", name: "ESP LTD Surveyor '87", description: "PJ-style bass with vintage attitude, modern electronics, and tight active response." },
+  { id: "fender-aerodyne-jazz-pj", name: "Fender Aerodyne Jazz Bass PJ", description: "Sleek PJ bass with Jazz Bass comfort and Precision-style punch." },
+  { id: "fender-cb60sce-acoustic-bass", name: "Fender CB-60SCE Acoustic Bass Guitar", description: "Acoustic-electric bass with onboard preamp for warm unplugged or direct tones." },
+  { id: "fender-deluxe-active-jazz", name: "Fender Deluxe Active Jazz Bass", description: "Active Jazz Bass platform with flexible EQ and modern output." },
+  { id: "fender-player-jaguar-bass", name: "Fender Player Jaguar Bass", description: "Offset PJ bass with punchy lows and versatile pickup blending." }
 ];
 
 export const bassAmps: GearItem[] = [
   { id: "svt", name: "Ampeg SVT-CL", description: "Classic tube bass stack with growl." },
   { id: "b15", name: "Ampeg B-15N", description: "Vintage roundness and soft compression." },
   { id: "gk", name: "Gallien-Krueger 800RB", description: "Fast transient response and upper-mid snap." },
-  { id: "darkglass", name: "Darkglass Microtubes 900", description: "Modern clean power and controllable drive." }
+  { id: "darkglass", name: "Darkglass Microtubes 900", description: "Modern clean power and controllable drive." },
+  { id: "acoustic-b26c", name: "Acoustic B26C Bass Combo", description: "Compact bass combo with simple EQ and practice-friendly punch." },
+  { id: "aguilar-db750", name: "Aguilar DB 750", description: "Powerful hybrid bass head with high-voltage preamp and focused stage authority." },
+  { id: "ampeg-pf50t", name: "Ampeg PF-50T", description: "All-tube Portaflex bass head with vintage warmth and recording-friendly DI." },
+  { id: "cort-cm20b", name: "Cort CM20B", description: "20-watt solid-state bass combo for practice and clean bass fundamentals." },
+  { id: "cort-cm40b", name: "Cort CM40B", description: "40-watt bass combo with expanded headroom and straightforward EQ." },
+  { id: "cort-gb35j", name: "Cort GB35J", description: "Bass amp profile for clean practice tones and controlled low-end response." },
+  { id: "crate-bx15", name: "Crate BX-15", description: "Small practice bass combo with simple controls and punchy low-mid response." },
+  { id: "crazy-tube-hi-power", name: "Crazy Tube Circuits Hi Power", description: "Amp-in-a-box bass/guitar preamp flavor with direct-friendly vintage response." }
 ];
 
 export const cabinets: GearItem[] = [
@@ -159,23 +181,47 @@ export const effectsCatalog: GearItem[] = [
   { id: "ua-dream-65", name: "Universal Audio Dream 65", description: "Amp-sim pedal for polished direct clean sounds." },
   { id: "walrus-acs1", name: "Walrus Audio ACS1", description: "Stereo amp and cab simulator for direct and hybrid rigs." },
   { id: "lr-baggs-session-di", name: "LR Baggs Session DI", description: "Acoustic preamp and DI with musical compression and EQ." },
-  { id: "darkglass-alpha-omega-photon", name: "Darkglass Alpha Omega Photon", description: "Bass preamp and drive with cab simulation and modern bite." }
+  { id: "darkglass-alpha-omega-photon", name: "Darkglass Alpha Omega Photon", description: "Bass preamp and drive with cab simulation and modern bite." },
+  { id: "boss-ns2", name: "Boss NS-2 Noise Suppressor", description: "Noise Gate | Utility" },
+  { id: "cry-baby-wah", name: "Dunlop Cry Baby Wah", description: "Wah | Filter" },
+  { id: "digitech-whammy", name: "DigiTech Whammy", description: "Pitch | Utility" },
+  { id: "ir-loader", name: "IR Loader", description: "Cab Sim | IR Loader" },
+  { id: "mxr-phase-90", name: "MXR Phase 90", description: "Phaser | Modulation" },
+  { id: "ehx-electric-mistress", name: "EHX Electric Mistress", description: "Flanger | Modulation" }
 ];
 
 export const pickups = [
   { id: "sd-jb", name: "Seymour Duncan JB", category: "High-output humbucker" },
   { id: "emg-81", name: "EMG 81", category: "Active humbucker" },
+  { id: "emg-85", name: "EMG 85", category: "Active humbucker" },
+  { id: "emg-87", name: "EMG 87", category: "Active high-output" },
+  { id: "emg-89", name: "EMG 89", category: "Active coil-splittable humbucker" },
   { id: "paf", name: "PAF-style Humbucker", category: "Medium-output vintage" },
   { id: "hot-rails", name: "Hot Rails", category: "Single-coil sized humbucker" },
   { id: "vintage-single", name: "Vintage Single Coil", category: "Low-output single coil" },
-  { id: "p90", name: "P-90", category: "Wide single coil" }
+  { id: "p90", name: "P-90", category: "Wide single coil" },
+  { id: "dimarzio-super-distortion", name: "DiMarzio Super Distortion (DP100)", category: "High-output humbucker" },
+  { id: "dimarzio-tone-zone", name: "DiMarzio Tone Zone (DP155)", category: "High-output warm humbucker" },
+  { id: "dimarzio-evolution", name: "DiMarzio Evolution (DP159)", category: "High-output articulate humbucker" },
+  { id: "bare-knuckle-nailbomb", name: "Bare Knuckle Nailbomb", category: "High-output rock humbucker" },
+  { id: "fishman-fluence-modern", name: "Fishman Fluence Modern", category: "Multi-voice active humbucker" },
+  { id: "fishman-fluence-classic", name: "Fishman Fluence Classic", category: "Multi-voice vintage humbucker" },
+  { id: "sd-jazz", name: "Seymour Duncan Jazz (SH-2)", category: "Clear neck humbucker" },
+  { id: "sd-ssl5", name: "Seymour Duncan SSL-5", category: "Overwound single coil" }
 ];
 
 export const pedalPresets = [
   { id: "tight-rock", name: "Tight Rock Chain", category: "overdrive", pedals: ["Tube-style overdrive", "Graphic EQ", "Plate reverb"] },
   { id: "ambient-lead", name: "Ambient Lead", category: "delay", pedals: ["Analog delay", "Hall reverb", "Compressor"] },
   { id: "modern-metal", name: "Modern Metal", category: "distortion", pedals: ["Noise gate", "Boost", "Parametric EQ"] },
-  { id: "vintage-clean", name: "Vintage Clean", category: "boost", pedals: ["Compressor", "Spring reverb", "Tape echo"] }
+  { id: "vintage-clean", name: "Vintage Clean", category: "boost", pedals: ["Compressor", "Spring reverb", "Tape echo"] },
+  { id: "ten-band-eq", name: "10-Band EQ", category: "EQ", pedals: ["Graphic EQ", "Utility", "Post gain shaping"] },
+  { id: "ts9-tube-screamer", name: "TS9 Tube Screamer", category: "Overdrive", pedals: ["Overdrive", "Mid boost", "Tighten low end"] },
+  { id: "classic-fuzz", name: "Classic Fuzz", category: "Fuzz", pedals: ["Fuzz", "Boost", "Vintage sustain"] },
+  { id: "studio-compressor", name: "Studio Compressor", category: "Compressor", pedals: ["Compression", "Leveling", "Sustain"] },
+  { id: "noise-gate", name: "Noise Gate", category: "Noise Gate", pedals: ["Gate", "Tight stops", "High gain cleanup"] },
+  { id: "analog-delay", name: "Analog Delay", category: "Delay", pedals: ["Delay", "Slapback", "Lead ambience"] },
+  { id: "spring-reverb", name: "Spring Reverb", category: "Reverb", pedals: ["Reverb", "Amp ambience", "Vintage space"] }
 ];
 
 export const partOptions: Array<{ value: TonePartType; label: string }> = [
@@ -291,7 +337,9 @@ export function buildToneResult(request: ToneRequest, toneProfile?: ToneProfileI
     : request.mode === "bass"
       ? "Likely studio bass chain: direct signal, compressed tube-style amp, mild saturation."
       : "Likely source chain: humbucker guitar, British-style gain stage, delay/reverb after the amp.";
-  const effects = toneProfile?.effects?.length
+  const effects = request.goingDirect || request.effectsMode === "multi_fx"
+    ? buildDirectEffects(request, toneProfile)
+    : toneProfile?.effects?.length
     ? toneProfile.effects.map((effect, index) => `${index + 1}. ${effect.effectName}${effect.placement ? ` (${effect.placement})` : ""}`)
     : request.effectsMode === "multi_fx"
       ? ["Amp block first", "Studio EQ after amp", "Stereo delay", "Room reverb"]
@@ -327,6 +375,22 @@ export function buildToneResult(request: ToneRequest, toneProfile?: ToneProfileI
         }
       : null
   };
+}
+
+function buildDirectEffects(request: ToneRequest, toneProfile?: ToneProfileInput | null) {
+  const unit = request.multiFx || request.amp || "your modeler";
+  const cab = request.cabinet || toneProfile?.originalCab || "matching cab IR";
+  const baseEffects = toneProfile?.effects?.length
+    ? toneProfile.effects.map((effect, index) => `${index + 1}. ${effect.effectName}${effect.placement ? ` (${effect.placement})` : ""}`)
+    : ["Gate before amp block", "Studio EQ after cab block", "Delay and reverb last"];
+
+  return [
+    `Multi-FX patch: ${unit}`,
+    `Amp block: ${toneProfile?.originalAmp || "closest matching amp model"}`,
+    `Cab/IR block: ${cab}`,
+    request.selectedFx ? `Available effects preset: ${request.selectedFx}` : "Post EQ, delay, and reverb after the cab block",
+    ...baseEffects
+  ].slice(0, 8);
 }
 
 function buildToneResultId(request: ToneRequest, toneProfile: ToneProfileInput | null, total: number) {

@@ -14,6 +14,11 @@ type PresetEffects = {
   effectsMode?: string;
   multiFx?: string;
   selectedFx?: string;
+  customPickups?: {
+    neck?: string;
+    middle?: string;
+    bridge?: string;
+  };
 };
 
 type GearPreset = {
@@ -127,7 +132,8 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
         pickup: getPresetPickup(preset) || pickup || null,
         effectsMode: presetEffects.effectsMode || preset.effectsMode || "manual",
         selectedFx: presetEffects.selectedFx || preset.selectedFx || null,
-        multiFx: presetEffects.multiFx || preset.multiFx || null
+        multiFx: presetEffects.multiFx || preset.multiFx || null,
+        customPickups: presetEffects.customPickups || null
       }
     });
     sessionStorage.setItem(
@@ -144,8 +150,10 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
         pickup: getPresetPickup(preset) || pickup || undefined,
         cabinet: presetEffects.cabinetName || preset.cabinet || cabinet || undefined,
         effectsMode: presetEffects.effectsMode || preset.effectsMode || "manual",
+        goingDirect: (presetEffects.effectsMode || preset.effectsMode) === "multi_fx",
         multiFx: presetEffects.multiFx || preset.multiFx,
-        selectedFx: presetEffects.selectedFx || preset.selectedFx
+        selectedFx: presetEffects.selectedFx || preset.selectedFx,
+        customPickups: presetEffects.customPickups
       })
     );
     sessionStorage.setItem(AUTO_ADAPT_KEY, "1");

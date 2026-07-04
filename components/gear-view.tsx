@@ -27,6 +27,11 @@ type PresetEffects = {
   effectsMode?: string;
   multiFx?: string;
   selectedFx?: string;
+  customPickups?: {
+    neck?: string;
+    middle?: string;
+    bridge?: string;
+  };
 };
 
 type CatalogEntry = {
@@ -44,6 +49,9 @@ export function GearView() {
   const [guitar, setGuitar] = useState("");
   const [amp, setAmp] = useState("");
   const [pickup, setPickup] = useState("");
+  const [neckPickup, setNeckPickup] = useState("Stock");
+  const [middlePickup, setMiddlePickup] = useState("Stock");
+  const [bridgePickup, setBridgePickup] = useState("Stock");
   const [cabinet, setCabinet] = useState("");
   const [effectsMode, setEffectsMode] = useState("manual");
   const [multiFx, setMultiFx] = useState("");
@@ -144,7 +152,12 @@ export function GearView() {
       cabinetName: cabinet,
       effectsMode,
       multiFx,
-      selectedFx
+      selectedFx,
+      customPickups: {
+        neck: cleanPickupOverride(neckPickup),
+        middle: cleanPickupOverride(middlePickup),
+        bridge: cleanPickupOverride(bridgePickup)
+      }
     };
 
     if (supabase) {
@@ -268,6 +281,13 @@ export function GearView() {
                 <Select label={presetInstrument === "bass" ? "Bass" : "Guitar"} value={guitar} setValue={setGuitar} options={currentGuitars.map((item) => item.name)} />
                 <Select label="Amplifier" value={amp} setValue={setAmp} options={currentAmps.map((item) => item.name)} />
                 <Select label="Pickup" value={pickup} setValue={setPickup} options={pickups.map((item) => item.name)} />
+                {presetInstrument === "guitar" ? (
+                  <>
+                    <Select label="Neck pickup override" value={neckPickup} setValue={setNeckPickup} options={["Stock", ...pickups.map((item) => item.name)]} />
+                    <Select label="Middle pickup override" value={middlePickup} setValue={setMiddlePickup} options={["Stock", ...pickups.map((item) => item.name)]} />
+                    <Select label="Bridge pickup override" value={bridgePickup} setValue={setBridgePickup} options={["Stock", ...pickups.map((item) => item.name)]} />
+                  </>
+                ) : null}
                 <Select label="Cabinet / Speaker" value={cabinet} setValue={setCabinet} options={cabinets.map((item) => item.name)} />
                 <Select label="Effects mode" value={effectsMode} setValue={setEffectsMode} options={["manual", "amp_with_effects", "multi_fx"]} />
                 <Select label="Available effects" value={selectedFx} setValue={setSelectedFx} options={[...pedals, ...effects].map((item) => item.name)} />
@@ -312,6 +332,7 @@ export function GearView() {
                           {preset.amp_name || preset.amp}
                         </div>
                         <div className="rounded-lg bg-neutral-50 px-4 py-3">{preset.pickup_name || preset.pickup || "Pickup not set"}</div>
+                        <div className="rounded-lg bg-neutral-50 px-4 py-3">{formatPresetCustomPickups(preset) || "Stock pickup positions"}</div>
                         <div className="rounded-lg bg-neutral-50 px-4 py-3">{getPresetCabinet(preset) || "Cabinet not set"}</div>
                         <div className="rounded-lg bg-neutral-50 px-4 py-3">{getPresetEffectsMode(preset).replaceAll("_", " ")}</div>
                         <div className="rounded-lg bg-neutral-50 px-4 py-3">{getPresetSelectedEffect(preset) || "Effects not set"}</div>
@@ -377,6 +398,20 @@ function getPresetEffectsMode(preset: Preset) {
 
 function getPresetSelectedEffect(preset: Preset) {
   return readPresetEffects(preset).selectedFx || preset.selectedFx || "";
+}
+
+function cleanPickupOverride(value: string) {
+  return value && value !== "Stock" ? value : undefined;
+}
+
+function formatPresetCustomPickups(preset: Preset) {
+  const custom = readPresetEffects(preset).customPickups;
+  if (!custom) return "";
+  return [
+    custom.neck ? `Neck: ${custom.neck}` : null,
+    custom.middle ? `Middle: ${custom.middle}` : null,
+    custom.bridge ? `Bridge: ${custom.bridge}` : null
+  ].filter(Boolean).join(" | ");
 }
 
 function selectDefaultCabinet(mode: "guitar" | "bass", cabinets: CatalogEntry[], current?: string) {

@@ -24,7 +24,7 @@ import { generateToneResultWithMetadata } from "@/lib/tone-ai";
 import { isToneCoreResolverEnabled, resolveCoreTone, TONE_CORE_MODEL_NAME } from "@/lib/tone-core";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { assertCanCreateAdaptation, incrementAdaptationUsage } from "@/lib/usage";
-import { buildResearchPayload, createMissingSongRequest, findToneProfile, listCommunityToneProfiles, type CommunityToneQuery } from "@/lib/tone-profiles";
+import { buildResearchPayload, createMissingSongRequest, findToneProfile, listCommunityToneProfiles, saveGeneratedMasterTone, type CommunityToneQuery } from "@/lib/tone-profiles";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -227,6 +227,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     let aiGeneration: Awaited<ReturnType<typeof generateToneResultWithMetadata>> | null = null;
     if (!coreResolution.result) {
       aiGeneration = await generateToneResultWithMetadata(requestBody, toneProfile);
+      if (!toneProfile && aiGeneration.openAiSucceeded) {
+        await saveGeneratedMasterTone(requestBody, aiGeneration.result, user?.id || null);
+      }
     }
     const result = coreResolution.result || aiGeneration!.result;
     const usedCore = coreResolution.source === "cache" || coreResolution.source === "rule";
@@ -310,7 +313,11 @@ async function safeBody(request: NextRequest) {
   }
 }
 
-function normalizeToneRequest(body: Partial<ToneRequest>): ToneRequest {
+function normalizeToneRequest(body: Partial<ToneRequest> & Record<string, unknown>): ToneRequest {
+  const effectsMode = typeof body.effectsMode === "string" ? body.effectsMode : "manual";
+  const goingDirect = body.goingDirect === true || effectsMode === "multi_fx";
+  const customPickups = normalizeCustomPickups(body) as ToneRequest["customPickups"];
+
   return {
     mode: body.mode === "bass" ? "bass" : "guitar",
     song: body.song || "Unknown Song",
@@ -322,8 +329,25 @@ function normalizeToneRequest(body: Partial<ToneRequest>): ToneRequest {
     amp: body.amp || (body.mode === "bass" ? "Ampeg SVT-CL" : "Fender Deluxe Reverb"),
     cabinet: body.cabinet || (body.mode === "bass" ? "Ampeg SVT-410HLF" : "Mesa/Boogie Rectifier 4x12"),
     pickup: body.pickup || "bridge pickup",
-    effectsMode: body.effectsMode || "manual"
+    effectsMode,
+    multiFx: typeof body.multiFx === "string" ? body.multiFx : undefined,
+    selectedFx: typeof body.selectedFx === "string" ? body.selectedFx : undefined,
+    goingDirect,
+    customPickups: customPickups && Object.keys(customPickups).length ? customPickups : undefined
   };
+}
+
+function normalizeCustomPickups(body: Record<string, unknown>) {
+  const source = body.customPickups && typeof body.customPickups === "object" && !Array.isArray(body.customPickups)
+    ? body.customPickups as Record<string, unknown>
+    : body;
+  const pickups = {
+    neck: typeof source.neck === "string" ? source.neck : typeof source.neckPickup === "string" ? source.neckPickup : "",
+    middle: typeof source.middle === "string" ? source.middle : typeof source.middlePickup === "string" ? source.middlePickup : "",
+    bridge: typeof source.bridge === "string" ? source.bridge : typeof source.bridgePickup === "string" ? source.bridgePickup : ""
+  };
+
+  return Object.fromEntries(Object.entries(pickups).filter(([, value]) => value.trim().length > 0));
 }
 
 function normalizePartType(value?: string, part?: string): TonePartType {
@@ -414,7 +438,12 @@ function buildAdaptationSourceLog(
       guitar: request.guitar,
       amp: request.amp,
       cabinet: request.cabinet || null,
-      pickup: request.pickup || null
+      pickup: request.pickup || null,
+      customPickups: request.customPickups || null,
+      effectsMode: request.effectsMode || null,
+      multiFx: request.multiFx || null,
+      selectedFx: request.selectedFx || null,
+      goingDirect: Boolean(request.goingDirect)
     }
   };
 }

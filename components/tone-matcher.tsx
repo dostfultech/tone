@@ -30,6 +30,7 @@ import {
   type ToneRequest,
   type ToneType
 } from "@/lib/mock-data";
+import { getAmpMetadata, getEffectCategories, getInstrumentMetadata } from "@/lib/equipment-metadata";
 import { brand } from "@/lib/brand";
 import { loadClientSubscriptionSnapshot, type ClientSubscriptionSnapshot } from "@/lib/subscription-client";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -111,7 +112,6 @@ export function ToneMatcher() {
   const autoAdaptTriggeredRef = useRef(false);
   const hasLoadedPreferencesRef = useRef(false);
   const resultRef = useRef<HTMLDivElement | null>(null);
-  const lastSelectedPresetRef = useRef<CatalogEntry | null>(null);
   const [mode, setMode] = useState<"guitar" | "bass">("guitar");
   const [song, setSong] = useState("");
   const [songDraft, setSongDraft] = useState("");
@@ -123,9 +123,14 @@ export function ToneMatcher() {
   const [amp, setAmp] = useState("Boss Katana Artist");
   const [cabinet, setCabinet] = useState("Mesa/Boogie Rectifier 4x12");
   const [pickup, setPickup] = useState("Vintage Single Coil");
+  const [neckPickup, setNeckPickup] = useState("");
+  const [middlePickup, setMiddlePickup] = useState("");
+  const [bridgePickup, setBridgePickup] = useState("");
+  const [showCustomPickups, setShowCustomPickups] = useState(false);
   const [effectsMode, setEffectsMode] = useState("manual");
   const [goingDirect, setGoingDirect] = useState(false);
   const [selectedFx, setSelectedFx] = useState("Ambient Lead");
+  const [selectedEffects, setSelectedEffects] = useState<string[]>(["10-Band EQ", "TS9 Tube Screamer"]);
   const [multiFx, setMultiFx] = useState("Line 6 Helix Floor");
   const [result, setResult] = useState<ToneResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -172,7 +177,12 @@ export function ToneMatcher() {
           amp: payload.amp,
           cabinet: payload.cabinet || null,
           pickup: payload.pickup || null
-        }
+        },
+        customPickups: payload.customPickups || null,
+        effectsMode: payload.effectsMode || null,
+        goingDirect: Boolean(payload.goingDirect),
+        multiFx: payload.multiFx || options?.multiFx || multiFx || null,
+        selectedFx: payload.selectedFx || options?.selectedFx || selectedFx || null
       });
 
       const progressTimer = window.setInterval(() => {
@@ -194,7 +204,12 @@ export function ToneMatcher() {
         const response = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...payload, multiFx: options?.multiFx || multiFx, selectedFx: options?.selectedFx || selectedFx })
+          body: JSON.stringify({
+            ...payload,
+            goingDirect: payload.goingDirect ?? goingDirect,
+            multiFx: payload.multiFx || options?.multiFx || multiFx,
+            selectedFx: payload.selectedFx || options?.selectedFx || selectedFx
+          })
         });
         const data = await response.json();
         if (response.status === 401) {
@@ -244,7 +259,7 @@ export function ToneMatcher() {
         window.setTimeout(() => setLoading(false), 350);
       }
     },
-    [multiFx, router, selectedFx]
+    [goingDirect, multiFx, router, selectedFx]
   );
 
   const runAdaptationRef = useRef(runAdaptation);
@@ -279,6 +294,9 @@ export function ToneMatcher() {
       ["toneMatch_amp", (value: string) => setAmp((current) => (current === value ? current : value))],
       ["toneMatch_cabinet", (value: string) => setCabinet((current) => (current === value ? current : value))],
       ["toneMatch_pickup", (value: string) => setPickup((current) => (current === value ? current : value))],
+      ["toneMatch_neckPickup", (value: string) => setNeckPickup((current) => (current === value ? current : value))],
+      ["toneMatch_middlePickup", (value: string) => setMiddlePickup((current) => (current === value ? current : value))],
+      ["toneMatch_bridgePickup", (value: string) => setBridgePickup((current) => (current === value ? current : value))],
       ["toneMatch_multiFx", (value: string) => setMultiFx((current) => (current === value ? current : value))],
       ["toneMatch_effectsMode", (value: string) => setEffectsMode((current) => (current === value ? current : value))],
       ["toneMatch_selectedEffects", (value: string) => setSelectedFx((current) => (current === value ? current : value))]
@@ -290,6 +308,7 @@ export function ToneMatcher() {
         setter(value);
       }
     });
+    setSelectedEffects(readStoredEffectList());
 
     const storedSong = localStorage.getItem("toneMatch_song") || "";
     const storedArtist = localStorage.getItem("toneMatch_artist") || "";
@@ -306,6 +325,7 @@ export function ToneMatcher() {
     }
 
     const shouldAutoAdapt = sessionStorage.getItem(AUTO_ADAPT_KEY) === "1";
+    setGoingDirect(localStorage.getItem("toneMatch_goingDirect") === "true" || localStorage.getItem("toneMatch_effectsMode") === "multi_fx");
     if (shouldAutoAdapt && !autoAdaptTriggeredRef.current) {
       autoAdaptTriggeredRef.current = true;
       sessionStorage.removeItem(AUTO_ADAPT_KEY);
@@ -329,7 +349,9 @@ export function ToneMatcher() {
         amp: payloadFromSession?.amp || localStorage.getItem("toneMatch_amp") || (storedMode === "bass" ? "Ampeg SVT-CL" : "Boss Katana Artist"),
         cabinet: payloadFromSession?.cabinet || localStorage.getItem("toneMatch_cabinet") || (storedMode === "bass" ? "Ampeg SVT-410HLF" : "Mesa/Boogie Rectifier 4x12"),
         pickup: payloadFromSession?.pickup || localStorage.getItem("toneMatch_pickup") || "Vintage Single Coil",
-        effectsMode: payloadFromSession?.effectsMode || localStorage.getItem("toneMatch_effectsMode") || "manual"
+        effectsMode: payloadFromSession?.effectsMode || localStorage.getItem("toneMatch_effectsMode") || "manual",
+        goingDirect: Boolean(payloadFromSession?.goingDirect),
+        customPickups: payloadFromSession?.customPickups
       };
       const nextMultiFx = payloadFromSession?.multiFx || localStorage.getItem("toneMatch_multiFx") || "Line 6 Helix Floor";
       const nextSelectedFx = payloadFromSession?.selectedFx || localStorage.getItem("toneMatch_selectedEffects") || "Ambient Lead";
@@ -345,7 +367,12 @@ export function ToneMatcher() {
       setAmp(payload.amp);
       setCabinet(payload.cabinet || "");
       setPickup(payload.pickup || "");
+      setNeckPickup(payload.customPickups?.neck || localStorage.getItem("toneMatch_neckPickup") || "");
+      setMiddlePickup(payload.customPickups?.middle || localStorage.getItem("toneMatch_middlePickup") || "");
+      setBridgePickup(payload.customPickups?.bridge || localStorage.getItem("toneMatch_bridgePickup") || "");
+      setShowCustomPickups(Boolean(payload.customPickups?.neck || payload.customPickups?.middle || payload.customPickups?.bridge));
       setEffectsMode(payload.effectsMode || "manual");
+      setGoingDirect(Boolean(payload.goingDirect || payload.effectsMode === "multi_fx"));
       setMultiFx(nextMultiFx);
       setSelectedFx(nextSelectedFx);
 
@@ -374,13 +401,18 @@ export function ToneMatcher() {
       localStorage.setItem("toneMatch_amp", amp);
       localStorage.setItem("toneMatch_cabinet", cabinet);
       localStorage.setItem("toneMatch_pickup", pickup);
+      localStorage.setItem("toneMatch_neckPickup", neckPickup);
+      localStorage.setItem("toneMatch_middlePickup", middlePickup);
+      localStorage.setItem("toneMatch_bridgePickup", bridgePickup);
       localStorage.setItem("toneMatch_multiFx", multiFx);
       localStorage.setItem("toneMatch_effectsMode", effectsMode);
       localStorage.setItem("toneMatch_selectedEffects", selectedFx);
+      localStorage.setItem("toneMatch_selectedEffectList", JSON.stringify(selectedEffects));
+      localStorage.setItem("toneMatch_goingDirect", goingDirect ? "true" : "false");
     }, 220);
 
     return () => window.clearTimeout(persistTimeout);
-  }, [songDraft, artist, part, partType, toneType, guitar, amp, cabinet, pickup, multiFx, effectsMode, selectedFx]);
+  }, [songDraft, artist, part, partType, toneType, guitar, amp, cabinet, pickup, neckPickup, middlePickup, bridgePickup, multiFx, effectsMode, selectedFx, selectedEffects, goingDirect]);
 
   useEffect(() => {
     const query = songDraft.trim();
@@ -620,7 +652,28 @@ export function ToneMatcher() {
     }
     const normalizedSong = songDraft.trim() || song.trim() || "Unknown Song";
     setSong(normalizedSong);
-    const payload: ToneRequest = { mode, song: normalizedSong, artist, part, partType, toneType, guitar, amp, cabinet, pickup, effectsMode };
+    const customPickups = {
+      neck: neckPickup || undefined,
+      middle: middlePickup || undefined,
+      bridge: bridgePickup || undefined
+    };
+    const payload: ToneRequest = {
+      mode,
+      song: normalizedSong,
+      artist,
+      part,
+      partType,
+      toneType,
+      guitar,
+      amp,
+      cabinet,
+      pickup,
+      effectsMode,
+      multiFx,
+      selectedFx: selectedEffects.length ? selectedEffects.join(", ") : selectedFx,
+      goingDirect: goingDirect || effectsMode === "multi_fx",
+      customPickups: Object.values(customPickups).some(Boolean) ? customPickups : undefined
+    };
     await runAdaptation(payload);
   }
 
@@ -667,16 +720,10 @@ export function ToneMatcher() {
 
   const selectedGuitar = currentGuitars.find((item) => item.name === guitar);
   const selectedAmp = currentAmps.find((item) => item.name === amp);
-  const selectedCabinet = cabinetCatalog.find((item) => item.name === cabinet);
-  const selectedPickup = pickupCatalog.find((item) => item.name === pickup);
-  const selectedPreset = pedalCatalog.find((item) => item.name === selectedFx || item.id === selectedFx);
-  useEffect(() => {
-    if (selectedPreset) {
-      lastSelectedPresetRef.current = selectedPreset;
-    }
-  }, [selectedPreset]);
-  const visiblePreset = selectedPreset ?? lastSelectedPresetRef.current;
-  const visiblePresetDetails = visiblePreset?.details ?? visiblePreset?.description?.split(" | ").filter(Boolean) ?? [];
+  const instrumentMeta = getInstrumentMetadata(guitar, mode, selectedGuitar);
+  const ampMeta = getAmpMetadata(goingDirect ? multiFx : amp, goingDirect ? multiFxCatalog.find((item) => item.name === multiFx) || selectedAmp : selectedAmp, goingDirect);
+  const effectCategories = getEffectCategories();
+  const builtInAmpEffects = ampMeta.features.filter((feature) => ["Reverb", "Delay", "Chorus", "Flanger", "Presets", "Noise Gate"].includes(feature));
   const partChoices = partOptions.filter((option) => mode === "bass" || option.value !== "bassline");
   const toneChoices = toneTypeOptions.filter((option) => {
     if (mode === "bass") return option.value === "auto" || option.value === "bass_clean" || option.value === "bass_drive" || option.value === "clean" || option.value === "distorted";
@@ -687,6 +734,22 @@ export function ToneMatcher() {
   const selectedSongLabel = songDraft.trim() || song.trim() || "selected song";
   const selectedArtistLabel = artist.trim();
   const songLinkLabel = song.trim() ? `"${song.trim()}"` : "this song";
+
+  function addSelectedEffect(effectName: string) {
+    if (pedalCatalog.some((item) => item.name === effectName)) {
+      setSelectedFx(effectName);
+    }
+    setSelectedEffects((current) => current.includes(effectName) ? current : [...current, effectName].slice(0, 8));
+  }
+
+  function removeSelectedEffect(effectName: string) {
+    setSelectedEffects((current) => current.filter((item) => item !== effectName));
+  }
+
+  function selectAllActiveEffects() {
+    const active = [...builtInAmpEffects, "10-Band EQ", "TS9 Tube Screamer"].filter(Boolean);
+    setSelectedEffects(Array.from(new Set(active)).slice(0, 8));
+  }
 
   return (
     <div className="px-4 pb-14 pt-24 sm:px-6 lg:px-8">
@@ -800,7 +863,12 @@ export function ToneMatcher() {
               </div>
 
               <div className="grid gap-8 lg:grid-cols-3">
-                <SelectField label={mode === "bass" ? "Bass archetype" : "Guitar archetype"} value={guitar} onChange={setGuitar} options={currentGuitars.map((item) => item.name)} />
+                <div>
+                  <SelectField label={mode === "bass" ? "Bass archetype" : "Guitar archetype"} value={guitar} onChange={setGuitar} options={currentGuitars.map((item) => item.name)} />
+                  <Link href="/contact?kind=gear" className="mt-2 inline-block text-xs font-semibold text-slate-500 hover:text-ink">
+                    Can&apos;t find your {mode === "bass" ? "bass" : "guitar"}?
+                  </Link>
+                </div>
                 <div>
                   <div className="mb-2 flex items-center justify-between gap-4">
                     <label className="label">Amplifier</label>
@@ -823,6 +891,9 @@ export function ToneMatcher() {
                       </option>
                     ))}
                   </select>
+                  <Link href="/contact?kind=gear" className="mt-2 inline-block text-xs font-semibold text-slate-500 hover:text-ink">
+                    Can&apos;t find your amp?
+                  </Link>
                 </div>
                 <SelectField label="Cabinet" value={cabinet} onChange={setCabinet} options={cabinetCatalog.map((item) => item.name)} />
               </div>
@@ -843,6 +914,37 @@ export function ToneMatcher() {
                       <option value={pickup}>{pickup || "Loading pickups..."}</option>
                     )}
                   </select>
+                  <button type="button" className="mt-2 text-xs font-semibold text-slate-500 hover:text-ink" onClick={() => setShowCustomPickups(true)}>
+                    Custom pickups?
+                  </button>
+                </div>
+              ) : null}
+
+              {mode === "guitar" && showCustomPickups ? (
+                <div className="rounded-lg border border-white/80 bg-blue-50/70 p-5">
+                  <div className="mb-4 flex items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-bold">Custom Pickups</h3>
+                      <p className="mt-1 text-sm text-slate-600">Leave stock positions blank, or override each pickup position independently.</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-xs font-bold text-slate-500 hover:text-ink"
+                      onClick={() => {
+                        setNeckPickup("");
+                        setMiddlePickup("");
+                        setBridgePickup("");
+                        setShowCustomPickups(false);
+                      }}
+                    >
+                      Clear & close
+                    </button>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <PickupOverrideSelect label="Neck" value={neckPickup} onChange={setNeckPickup} options={pickupCatalog} />
+                    <PickupOverrideSelect label="Middle" value={middlePickup} onChange={setMiddlePickup} options={pickupCatalog} />
+                    <PickupOverrideSelect label="Bridge" value={bridgePickup} onChange={setBridgePickup} options={pickupCatalog} />
+                  </div>
                 </div>
               ) : null}
 
@@ -852,8 +954,8 @@ export function ToneMatcher() {
                   Selected gear
                 </label>
                 <div className="mt-4 grid gap-5 lg:grid-cols-2">
-                  <GearSummaryCard icon={<Guitar className="h-8 w-8" />} title={guitar} description={selectedGuitar?.description || "Custom instrument selected for this adaptation."} tags={mode === "bass" ? ["bass", "touch-sensitive"] : [selectedPickup?.category || "pickup", "adaptable"]} />
-                  <GearSummaryCard icon={<Volume2 className="h-8 w-8" />} title={amp} description={selectedAmp?.description || "Selected amp or modeler for the adapted settings."} tags={goingDirect ? ["direct", selectedCabinet?.name || "modeler-ready"] : ["amp", selectedCabinet?.name || "speaker chain"]} />
+                  <GearSummaryCard icon={<Guitar className="h-8 w-8" />} title={guitar} description={instrumentMeta.description} tags={instrumentMeta.tags} />
+                  <GearSummaryCard icon={<Volume2 className="h-8 w-8" />} title={goingDirect ? multiFx : amp} description={ampMeta.description} tags={ampMeta.tags} />
                 </div>
               </div>
 
@@ -876,6 +978,9 @@ export function ToneMatcher() {
                         onClick={() => {
                           const nextMode = value as string;
                           setEffectsMode((current) => (current === nextMode ? current : nextMode));
+                          if (nextMode === "multi_fx") {
+                            setGoingDirect(true);
+                          }
                         }}
                       >
                         <ActiveIcon className="h-5 w-5" />
@@ -896,19 +1001,63 @@ export function ToneMatcher() {
                     <div className="mt-4 rounded-lg bg-white/80 p-4 text-sm text-slate-600">Using effects, modulation, delay, and reverb around your selected amp choice.</div>
                   </div>
                 ) : (
-                  <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.55fr)]">
+                  <div className="mt-6 grid gap-4">
+                    <div className="rounded-lg border border-moss/50 bg-moss/10 px-4 py-3 text-sm font-semibold text-ink">
+                      Tip: switch to Multi FX mode for complete amp models, cab simulation, and preset translation.
+                    </div>
+                    <div className="theme-blue-panel rounded-lg border border-white/80 p-4">
+                      <div className="mb-3 flex items-center justify-between gap-4">
+                        <h4 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">Built-in amp effects</h4>
+                        <button type="button" className="text-xs font-bold text-ocean hover:text-ink" onClick={selectAllActiveEffects}>
+                          Select all active
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(builtInAmpEffects.length ? builtInAmpEffects : ["Reverb", "Delay", "Chorus"]).map((effect) => (
+                          <button
+                            key={effect}
+                            type="button"
+                            className={`rounded-md border px-3 py-1 text-xs font-bold transition ${
+                              selectedEffects.includes(effect) ? "border-ocean bg-white text-ink shadow-sm" : "border-white/80 bg-white/70 text-slate-600 hover:border-ocean/40"
+                            }`}
+                            onClick={() => addSelectedEffect(effect)}
+                          >
+                            {effect}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <SelectField
                       label="Effect preset"
                       value={selectedFx}
-                      onChange={(value) => setSelectedFx((current) => (current === value ? current : value))}
+                      onChange={addSelectedEffect}
                       options={pedalCatalog.map((preset) => preset.name)}
                     />
                     <div className="flex min-h-[112px] flex-col rounded-lg border border-white/80 bg-blue-50/70 p-4">
-                      <div className="text-sm font-bold">{visiblePreset?.name ?? ""}</div>
-                      <div className="mt-2 flex flex-1 flex-wrap content-start gap-2 overflow-hidden">
-                        {visiblePresetDetails.map((pedal) => (
-                          <span key={pedal} className="rounded-md bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-                            {pedal}
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="text-sm font-bold">Your Pedals</div>
+                        <div className="text-xs font-semibold text-slate-500">{selectedEffects.length} active</div>
+                      </div>
+                      <div className="mt-3 flex flex-1 flex-wrap content-start gap-2 overflow-hidden">
+                        {selectedEffects.length ? (
+                          selectedEffects.map((effect) => (
+                            <button
+                              key={effect}
+                              type="button"
+                              className="rounded-md border border-ocean/30 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-ink"
+                              onClick={() => removeSelectedEffect(effect)}
+                            >
+                              {effect} x
+                            </button>
+                          ))
+                        ) : (
+                          <span className="text-sm text-slate-500">No pedals selected.</span>
+                        )}
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2 border-t border-white/80 pt-3">
+                        {effectCategories.slice(0, 12).map((category) => (
+                          <span key={category} className="rounded-md bg-white/80 px-2 py-1 text-[11px] font-bold text-slate-500">
+                            {category}
                           </span>
                         ))}
                       </div>
@@ -1171,11 +1320,27 @@ function readAutoAdaptPayload() {
       effectsMode?: string;
       multiFx?: string;
       selectedFx?: string;
+      goingDirect?: boolean;
+      customPickups?: ToneRequest["customPickups"];
     };
   } catch {
     sessionStorage.removeItem(AUTO_ADAPT_PAYLOAD_KEY);
     return null;
   }
+}
+
+function readStoredEffectList() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("toneMatch_selectedEffectList") || "[]");
+    if (Array.isArray(parsed)) {
+      const effects = parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+      if (effects.length) return effects.slice(0, 8);
+    }
+  } catch {
+    // Ignore corrupt local preference data.
+  }
+
+  return ["10-Band EQ", "TS9 Tube Screamer"];
 }
 
 function StepProgress() {
@@ -1271,6 +1436,22 @@ function SelectField({ label, value, onChange, options }: { label: string; value
         ) : (
           <option value={value || ""}>{value || "Loading options..."}</option>
         )}
+      </select>
+    </div>
+  );
+}
+
+function PickupOverrideSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: CatalogEntry[] }) {
+  return (
+    <div>
+      <label className="label">{label}</label>
+      <select className="field mt-2 h-12" value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">Stock</option>
+        {options.map((item) => (
+          <option key={item.id} value={item.name}>
+            {item.name}
+          </option>
+        ))}
       </select>
     </div>
   );

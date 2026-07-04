@@ -45,7 +45,9 @@ export function SavedToneDetail({ song, artist, part, mode, notes, result }: Sav
       effectsMode: request.effectsMode || "manual",
       mode: mode === "bass" ? "bass" : "guitar",
       multiFx: request.multiFx,
-      selectedFx: request.selectedFx
+      selectedFx: request.selectedFx,
+      goingDirect: request.goingDirect,
+      customPickups: request.customPickups
     };
 
     sessionStorage.setItem(`${brand.storagePrefix}_auto_adapt_payload`, JSON.stringify(payload));
@@ -117,7 +119,11 @@ function parseSavedToneRequest(value: Record<string, unknown>) {
     pickup: toOptionalText(request.pickup),
     effectsMode: toOptionalText(request.effectsMode),
     multiFx: toOptionalText(request.multiFx),
-    selectedFx: toOptionalText(request.selectedFx)
+    selectedFx: toOptionalText(request.selectedFx),
+    goingDirect: request.goingDirect === true,
+    customPickups: request.customPickups && typeof request.customPickups === "object" && !Array.isArray(request.customPickups)
+      ? request.customPickups as { neck?: string; middle?: string; bridge?: string }
+      : undefined
   };
 }
 

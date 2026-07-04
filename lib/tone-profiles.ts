@@ -116,6 +116,16 @@ type CommunityToneListItem = {
   verificationStatus?: string;
 };
 
+type GeneratedToneResultForIngestion = {
+  accuracy?: number;
+  originalRig?: string;
+  originalSettings?: Record<string, number>;
+  targetSettings?: Record<string, number>;
+  effects?: string[];
+  playingTips?: string[];
+  pickupAdvice?: string;
+};
+
 const starterProfiles: ToneProfile[] = [
   starter("perfect-ed-sheeran-rhythm", "Perfect", "Ed Sheeran", "guitar", "rhythm", "main acoustic progression", "acoustic", "Steel-string acoustic with piezo or mic blend", "Studio acoustic preamp / DI", "acoustic pickup or mic", { gain: 2, bass: 4, mids: 5, treble: 7, presence: 6, compression: 3, reverb: 3, delay: 0 }, ["Light compressor", "Small room reverb"], 72),
   starter("comfortably-numb-second-solo", "Comfortably Numb", "Pink Floyd", "guitar", "solo", "second solo", "distorted", "Strat-style single-coil guitar", "Hiwatt-style clean platform with sustain pedals", "bridge or bridge/neck single coil", { gain: 6, bass: 4, mids: 6, treble: 6, presence: 6, reverb: 3, delay: 4 }, ["Sustain/fuzz drive", "Tape-style delay", "Plate reverb"], 78),
@@ -345,6 +355,125 @@ export async function createMissingSongRequest(request: ToneRequest, userId?: st
   }
 }
 
+export async function saveGeneratedMasterTone(request: ToneRequest, result: GeneratedToneResultForIngestion, _userId?: string | null) {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return null;
+
+  const artistName = request.artist || "Unknown Artist";
+  const songTitle = request.song || "Unknown Song";
+  const artistSlug = slugify(artistName);
+  const songSlug = slugify(songTitle);
+  const partType = request.partType || inferPartType(request.part);
+  const toneType = request.toneType || "auto";
+  const partLabel = request.part || "main part";
+  const confidence = clampConfidence(Math.min(result.accuracy || 65, 78));
+  const sourceSummary = "AI fallback generated this reusable master tone after a missing catalog profile.";
+
+  try {
+    const { data: artist } = await admin
+      .from("artists")
+      .upsert(
+        {
+          name: artistName,
+          slug: artistSlug,
+          search_text: normalize(`${artistName} ${artistSlug}`),
+          is_active: true
+        },
+        { onConflict: "slug" }
+      )
+      .select("id")
+      .single();
+
+    if (!artist?.id) return null;
+
+    const { data: song } = await admin
+      .from("songs")
+      .upsert(
+        {
+          artist_id: artist.id,
+          title: songTitle,
+          slug: songSlug,
+          search_text: normalize(`${songTitle} ${artistName} ${songSlug}`),
+          is_active: true
+        },
+        { onConflict: "artist_id,slug" }
+      )
+      .select("id")
+      .single();
+
+    if (!song?.id) return null;
+
+    const { data: profile } = await admin
+      .from("song_tone_profiles")
+      .upsert(
+        {
+          song_id: song.id,
+          song_title: songTitle,
+          artist_name: artistName,
+          mode: request.mode,
+          part_type: partType,
+          part_label: partLabel,
+          tone_type: toneType,
+          tone_category: toneType === "clean" || toneType === "acoustic" || toneType === "bass_clean" ? "clean" : partType === "solo" || partType === "lead" ? "lead" : "rhythm",
+          difficulty: confidence >= 76 ? "intermediate" : "beginner",
+          original_guitar: request.guitar || null,
+          original_amp: request.goingDirect || request.effectsMode === "multi_fx" ? request.multiFx || request.amp || null : request.amp || null,
+          original_cab: request.cabinet || null,
+          original_pickup: formatCustomPickupSummary(request.customPickups) || request.pickup || null,
+          original_settings: result.originalSettings || result.targetSettings || {},
+          adaptation_notes: [
+            "Generated once during AI fallback, then stored as a reusable master tone for future rule-engine adaptations.",
+            result.pickupAdvice || "Review pickup output and source rig details before admin verification."
+          ],
+          playing_notes: result.playingTips?.slice(0, 6) || [],
+          source_summary: sourceSummary,
+          confidence,
+          verification_status: "needs_review",
+          search_text: normalize(`${songTitle} ${artistName} ${partLabel} ${toneType}`),
+          is_public: true
+        },
+        { onConflict: "song_id,mode,part_type,tone_type,part_label" }
+      )
+      .select("id")
+      .single();
+
+    if (!profile?.id) return null;
+
+    await admin.from("tone_profile_effects").delete().eq("profile_id", profile.id);
+    const effects = (result.effects || []).slice(0, 8).map((effectName, index) => ({
+      profile_id: profile.id,
+      effect_order: index + 1,
+      effect_type: normalize(effectName).split(" ")[0] || "effect",
+      effect_name: effectName,
+      placement: index === 0 ? "front" : "post",
+      settings: {}
+    }));
+    if (effects.length) {
+      await admin.from("tone_profile_effects").insert(effects);
+    }
+
+    await admin.from("tone_profile_sources").delete().eq("profile_id", profile.id).eq("source_type", "internal_seed");
+    await admin.from("tone_profile_sources").insert({
+      profile_id: profile.id,
+      source_type: "internal_seed",
+      title: `${brand.appName} AI fallback ingestion`,
+      notes: "Stored automatically to avoid repeating live AI generation for the same master tone.",
+      credibility: 45
+    });
+
+    await admin
+      .from("song_requests")
+      .update({ status: "fulfilled" })
+      .eq("song_title", songTitle)
+      .eq("artist_name", artistName)
+      .eq("mode", request.mode);
+
+    return profile.id as string;
+  } catch {
+    return null;
+  }
+}
+
 export function buildResearchPayload(request: ToneRequest, toneProfile: ToneProfile | null) {
   if (!toneProfile) {
     return {
@@ -570,6 +699,24 @@ function inferPartType(part: string): TonePartType {
 
 function normalize(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function slugify(value: string) {
+  const slug = normalize(value).replaceAll(" ", "-");
+  return slug || "unknown";
+}
+
+function clampConfidence(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function formatCustomPickupSummary(pickups: ToneRequest["customPickups"]) {
+  if (!pickups) return "";
+  return [
+    pickups.neck ? `neck: ${pickups.neck}` : null,
+    pickups.middle ? `middle: ${pickups.middle}` : null,
+    pickups.bridge ? `bridge: ${pickups.bridge}` : null
+  ].filter(Boolean).join(", ");
 }
 
 function escapeLike(value: string) {

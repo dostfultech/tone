@@ -54,9 +54,13 @@ type EquipmentResolution = {
   guitar: EquipmentProfile | null;
   amp: EquipmentProfile | null;
   pickup: EquipmentProfile | null;
+  pickupProfiles: Array<{ slot: "neck" | "middle" | "bridge" | "primary"; name: string; profile: EquipmentProfile | null }>;
   cabinet: EquipmentProfile | null;
   missing: string[];
   signature: string;
+  goingDirect: boolean;
+  multiFxName: string | null;
+  selectedFxName: string | null;
 };
 
 const CORE_SCHEMA_VERSION = 2;
@@ -280,51 +284,77 @@ function buildToneRequestSignature(request: ToneRequest) {
     amp: normalizeText(request.amp),
     cabinet: normalizeText(request.cabinet || ""),
     pickup: normalizeText(request.pickup || ""),
-    effectsMode: request.effectsMode || null
+    customPickups: normalizeCustomPickups(request.customPickups),
+    effectsMode: request.effectsMode || null,
+    multiFx: normalizeText(request.multiFx || ""),
+    selectedFx: normalizeText(request.selectedFx || ""),
+    goingDirect: isGoingDirectRequest(request)
   });
 }
 
 async function resolveEquipmentProfiles(admin: SupabaseClient | null | undefined, request: ToneRequest): Promise<EquipmentResolution> {
   if (!admin) {
-    return buildEquipmentResolution(null, null, null, null);
+    return buildEquipmentResolution(null, null, [], null, request);
   }
 
   const guitarTypes: EquipmentProfileType[] = request.mode === "bass" ? ["bass_guitar"] : ["guitar"];
-  const ampTypes: EquipmentProfileType[] = request.mode === "bass" ? ["bass_amp"] : ["amp", "multi_fx"];
+  const goingDirect = isGoingDirectRequest(request);
+  const ampTypes: EquipmentProfileType[] = goingDirect ? ["multi_fx"] : request.mode === "bass" ? ["bass_amp"] : ["amp"];
+  const ampName = goingDirect ? request.multiFx || request.amp : request.amp;
   const pickupTypes: EquipmentProfileType[] = ["pickup"];
   const cabinetTypes: EquipmentProfileType[] = ["cabinet"];
   const [guitar, amp] = await Promise.all([
     findEquipmentProfile(admin, request.guitar, guitarTypes),
-    findEquipmentProfile(admin, request.amp, ampTypes)
+    findEquipmentProfile(admin, ampName, ampTypes)
   ]);
-  const [pickup, cabinet] = await Promise.all([
-    request.pickup ? findEquipmentProfile(admin, request.pickup, pickupTypes) : Promise.resolve(null),
+  const pickupSelections = buildPickupSelections(request);
+  const [pickupProfiles, cabinet] = await Promise.all([
+    Promise.all(pickupSelections.map(async (selection) => ({
+      ...selection,
+      profile: await findEquipmentProfile(admin, selection.name, pickupTypes)
+    }))),
     request.cabinet ? findEquipmentProfile(admin, request.cabinet, cabinetTypes) : Promise.resolve(null)
   ]);
+  const pickup = getPrimaryPickupProfile(pickupProfiles);
 
-  return buildEquipmentResolution(guitar, amp, pickup, cabinet);
+  return buildEquipmentResolution(guitar, amp, pickupProfiles, cabinet, request);
 }
 
-function buildEquipmentResolution(guitar: EquipmentProfile | null, amp: EquipmentProfile | null, pickup: EquipmentProfile | null, cabinet: EquipmentProfile | null): EquipmentResolution {
+function buildEquipmentResolution(
+  guitar: EquipmentProfile | null,
+  amp: EquipmentProfile | null,
+  pickupProfiles: EquipmentResolution["pickupProfiles"],
+  cabinet: EquipmentProfile | null,
+  request: ToneRequest
+): EquipmentResolution {
+  const pickup = getPrimaryPickupProfile(pickupProfiles);
+  const goingDirect = isGoingDirectRequest(request);
   const missing = [
     guitar ? null : "instrument_profile",
     amp ? null : "amp_profile",
-    pickup ? null : "pickup_profile",
-    cabinet ? null : "cabinet_profile"
+    pickupProfiles.length && !pickupProfiles.some((selection) => selection.profile) ? "pickup_profile" : null,
+    request.cabinet && !cabinet ? "cabinet_profile" : null
   ].filter(Boolean) as string[];
 
   return {
     guitar,
     amp,
     pickup,
+    pickupProfiles,
     cabinet,
     missing,
     signature: [
+      `direct:${goingDirect ? "yes" : "no"}`,
+      `fx:${normalizeText(request.selectedFx || "") || "none"}`,
+      `multi:${normalizeText(request.multiFx || "") || "none"}`,
       `g:${guitar ? `${guitar.id}:${guitar.profile_version}` : "none"}`,
       `a:${amp ? `${amp.id}:${amp.profile_version}` : "none"}`,
-      `p:${pickup ? `${pickup.id}:${pickup.profile_version}` : "none"}`,
+      `p:${buildPickupSignature(pickupProfiles)}`,
       `c:${cabinet ? `${cabinet.id}:${cabinet.profile_version}` : "none"}`
-    ].join("|")
+    ].join("|"),
+    goingDirect,
+    multiFxName: request.multiFx || null,
+    selectedFxName: request.selectedFx || null
   };
 }
 
@@ -439,6 +469,52 @@ function buildEquipmentSearchQuery(normalizedGearName: string) {
   return uniqueTokens.join(" OR ");
 }
 
+function isGoingDirectRequest(request: ToneRequest) {
+  return Boolean(request.goingDirect || request.effectsMode === "multi_fx");
+}
+
+function normalizeCustomPickups(value: ToneRequest["customPickups"]) {
+  return {
+    neck: normalizeText(value?.neck || ""),
+    middle: normalizeText(value?.middle || ""),
+    bridge: normalizeText(value?.bridge || "")
+  };
+}
+
+function buildPickupSelections(request: ToneRequest): EquipmentResolution["pickupProfiles"] {
+  const custom = request.customPickups || {};
+  const selections = [
+    custom.neck ? { slot: "neck" as const, name: custom.neck, profile: null } : null,
+    custom.middle ? { slot: "middle" as const, name: custom.middle, profile: null } : null,
+    custom.bridge ? { slot: "bridge" as const, name: custom.bridge, profile: null } : null
+  ].filter(Boolean) as EquipmentResolution["pickupProfiles"];
+
+  if (selections.length) {
+    return selections;
+  }
+
+  return request.pickup ? [{ slot: "primary", name: request.pickup, profile: null }] : [];
+}
+
+function getPrimaryPickupProfile(pickupProfiles: EquipmentResolution["pickupProfiles"]) {
+  return (
+    pickupProfiles.find((selection) => selection.slot === "bridge" && selection.profile)?.profile ||
+    pickupProfiles.find((selection) => selection.slot === "primary" && selection.profile)?.profile ||
+    pickupProfiles.find((selection) => selection.profile)?.profile ||
+    null
+  );
+}
+
+function buildPickupSignature(pickupProfiles: EquipmentResolution["pickupProfiles"]) {
+  if (!pickupProfiles.length) {
+    return "none";
+  }
+
+  return pickupProfiles
+    .map((selection) => `${selection.slot}:${normalizeText(selection.name)}:${selection.profile ? `${selection.profile.id}:${selection.profile.profile_version}` : "none"}`)
+    .join(",");
+}
+
 function applyEquipmentProfileAdjustments(
   result: CoreToneResult,
   request: ToneRequest,
@@ -449,11 +525,11 @@ function applyEquipmentProfileAdjustments(
   const deltas = mergeKnobDeltas([
     equipment.guitar ? getProfileKnobDeltas(equipment.guitar, toneType) : {},
     equipment.amp ? getProfileKnobDeltas(equipment.amp, toneType) : {},
-    equipment.pickup ? getProfileKnobDeltas(equipment.pickup, toneType) : {},
+    getPickupProfileDeltas(equipment, toneType),
     equipment.cabinet ? getProfileKnobDeltas(equipment.cabinet, toneType) : {}
   ]);
 
-  if (!Object.keys(deltas).length && !equipment.guitar && !equipment.amp) {
+  if (!Object.keys(deltas).length && !equipment.guitar && !equipment.amp && !equipment.goingDirect) {
     return result;
   }
 
@@ -468,12 +544,14 @@ function applyEquipmentProfileAdjustments(
   const pickupAdvice = equipment.guitar
     ? `${result.pickupAdvice} ${summarizeProfileAdvice(equipment.guitar)}`
     : result.pickupAdvice;
+  const effects = equipment.goingDirect ? buildDirectPatchEffects(result.effects, request, toneProfile, equipment, targetSettings) : result.effects;
 
   return {
     ...result,
     accuracy: equipment.guitar && equipment.amp ? Math.min(96, result.accuracy + 2) : result.accuracy,
     targetSettings,
     pickupAdvice,
+    effects,
     playingTips: [...adaptationNotes, ...equipmentTips, ...result.playingTips].slice(0, 6)
   };
 }
@@ -509,7 +587,54 @@ function buildAdaptationNotes(
     notes.push("Used available gear profiles and kept unprofiled gear conservative so the settings remain a practical starting point.");
   }
 
+  if (equipment.goingDirect) {
+    notes.push(`Mapped this tone as a direct patch for ${equipment.multiFxName || request.amp}.`);
+  }
+
   return notes;
+}
+
+function getPickupProfileDeltas(equipment: EquipmentResolution, toneType: ToneType) {
+  const profiledPickups = equipment.pickupProfiles
+    .map((selection) => selection.profile)
+    .filter((profile): profile is EquipmentProfile => Boolean(profile));
+
+  if (!profiledPickups.length) {
+    return equipment.pickup ? getProfileKnobDeltas(equipment.pickup, toneType) : {};
+  }
+
+  const merged = mergeKnobDeltas(profiledPickups.map((profile) => getProfileKnobDeltas(profile, toneType)));
+  return Object.fromEntries(Object.entries(merged).map(([key, value]) => [key, clampDelta(value / profiledPickups.length)]));
+}
+
+function buildDirectPatchEffects(
+  existingEffects: string[],
+  request: ToneRequest,
+  toneProfile: ToneProfile,
+  equipment: EquipmentResolution,
+  targetSettings: Record<string, number>
+) {
+  const unit = equipment.multiFxName || request.multiFx || request.amp || "your modeler";
+  const cab = request.cabinet || toneProfile.originalCab || "matching cab IR";
+  const ampModel = toneProfile.originalAmp || inferDirectAmpModel(toneProfile.toneType);
+  const postEq = `Post EQ: bass ${targetSettings.bass ?? 5}, mids ${targetSettings.mids ?? 5}, treble ${targetSettings.treble ?? 5}, presence ${targetSettings.presence ?? 5}`;
+
+  return [
+    `Multi-FX patch: ${unit}`,
+    `Amp block: ${ampModel}`,
+    `Cab/IR block: ${cab}`,
+    `Noise gate: ${toneProfile.toneType === "high_gain" || toneProfile.toneType === "distorted" ? "tight before amp" : "light or off"}`,
+    postEq,
+    equipment.selectedFxName ? `Available effects: ${equipment.selectedFxName}` : null,
+    ...existingEffects
+  ].filter((effect): effect is string => Boolean(effect)).slice(0, 8);
+}
+
+function inferDirectAmpModel(toneType: ToneType) {
+  if (toneType === "high_gain" || toneType === "distorted") return "modern high-gain amp model";
+  if (toneType === "crunch" || toneType === "fuzz") return "British crunch amp model";
+  if (toneType === "bass_clean" || toneType === "bass_drive") return "bass amp model with cab simulation";
+  return "clean combo amp model";
 }
 
 function getProfileKnobDeltas(profile: EquipmentProfile, toneType: ToneType) {
@@ -567,8 +692,18 @@ function summarizeEquipmentResolution(equipment: EquipmentResolution) {
   return {
     signature: equipment.signature,
     missing: equipment.missing,
+    goingDirect: equipment.goingDirect,
+    multiFxName: equipment.multiFxName,
+    selectedFxName: equipment.selectedFxName,
     guitar: equipment.guitar ? summarizeEquipmentProfile(equipment.guitar) : null,
-    amp: equipment.amp ? summarizeEquipmentProfile(equipment.amp) : null
+    amp: equipment.amp ? summarizeEquipmentProfile(equipment.amp) : null,
+    pickup: equipment.pickup ? summarizeEquipmentProfile(equipment.pickup) : null,
+    cabinet: equipment.cabinet ? summarizeEquipmentProfile(equipment.cabinet) : null,
+    pickupSlots: equipment.pickupProfiles.map((selection) => ({
+      slot: selection.slot,
+      name: selection.name,
+      profile: selection.profile ? summarizeEquipmentProfile(selection.profile) : null
+    }))
   };
 }
 
@@ -648,12 +783,22 @@ async function writeCachedTone(
           amp_name: request.amp,
           cabinet_name: request.cabinet || null,
           pickup_name: request.pickup || null,
+          effects_mode: request.effectsMode || null,
+          multi_fx_name: request.multiFx || null,
+          selected_fx_name: request.selectedFx || null,
+          going_direct: equipment.goingDirect,
           schema_version: CORE_SCHEMA_VERSION,
           source_profile_version: sourceProfileVersion,
           guitar_profile_id: equipment.guitar?.id || null,
           amp_profile_id: equipment.amp?.id || null,
+          pickup_profile_id: equipment.pickup?.id || null,
+          cabinet_profile_id: equipment.cabinet?.id || null,
+          multi_fx_profile_id: equipment.goingDirect ? equipment.amp?.id || null : null,
           guitar_profile_version: equipment.guitar?.profile_version || 0,
           amp_profile_version: equipment.amp?.profile_version || 0,
+          pickup_profile_version: equipment.pickup?.profile_version || 0,
+          cabinet_profile_version: equipment.cabinet?.profile_version || 0,
+          multi_fx_profile_version: equipment.goingDirect ? equipment.amp?.profile_version || 0 : 0,
           result_json: result,
           result_source: "rule",
           confidence: result.accuracy,
