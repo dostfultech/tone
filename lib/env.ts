@@ -6,10 +6,6 @@ export function getSiteUrl() {
     return normalizeUrl(explicitSiteUrl);
   }
 
-  if (process.env.NODE_ENV === "production") {
-    return "https://tonefex.com";
-  }
-
   const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
   if (vercelUrl) {
     return normalizeUrl(vercelUrl);
@@ -18,6 +14,10 @@ export function getSiteUrl() {
   const checkoutReturnUrl = process.env.DODO_PAYMENTS_RETURN_URL?.replace(/\/checkout\/success\/?$/, "");
   if (checkoutReturnUrl) {
     return normalizeUrl(checkoutReturnUrl);
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    return "https://tonefex.com";
   }
 
   return "http://localhost:3000";

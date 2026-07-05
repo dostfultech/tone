@@ -24,6 +24,10 @@ export const planLimits = {
 } as const;
 
 export function getBypassEntitlement(user: User | null): Entitlement | null {
+  if (!isTestAccessEnabled()) {
+    return null;
+  }
+
   const email = user?.email?.toLowerCase();
   if (!email || !getTestAccessEmails().has(email)) {
     return null;
@@ -37,6 +41,14 @@ export function getBypassEntitlement(user: User | null): Entitlement | null {
     monthlyAdaptations: null,
     savedTonesLimit: null
   };
+}
+
+function isTestAccessEnabled() {
+  if (process.env.NODE_ENV !== "production") {
+    return true;
+  }
+
+  return process.env.ENABLE_TEST_ACCESS_IN_PRODUCTION === "true";
 }
 
 export function mapSubscriptionEntitlement(subscription: {

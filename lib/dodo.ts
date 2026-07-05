@@ -49,7 +49,7 @@ export function inferBillingIntervalFromProductId(productId: string | null | und
 }
 
 export function isDodoConfigured() {
-  return Boolean(process.env.DODO_PAYMENTS_API_KEY);
+  return Boolean(process.env.DODO_PAYMENTS_API_KEY && normalizeDodoEnvironment(process.env.DODO_PAYMENTS_ENVIRONMENT));
 }
 
 export function createDodoClient() {
@@ -60,8 +60,12 @@ export function createDodoClient() {
 
   return new DodoPayments({
     bearerToken,
-    environment: process.env.DODO_PAYMENTS_ENVIRONMENT === "live_mode" ? "live_mode" : "test_mode"
+    environment: resolveDodoEnvironment()
   });
+}
+
+export function resolveDodoEnvironment(): "live_mode" | "test_mode" {
+  return normalizeDodoEnvironment(process.env.DODO_PAYMENTS_ENVIRONMENT) ?? "test_mode";
 }
 
 export function normalizeDodoStatus(status: string | undefined) {
@@ -73,4 +77,21 @@ export function normalizeDodoStatus(status: string | undefined) {
   if (["failed", "payment_failed", "subscription.failed"].includes(normalized)) return "failed";
   if (["expired", "subscription.expired"].includes(normalized)) return "expired";
   return normalized || "inactive";
+}
+
+function normalizeDodoEnvironment(value: string | undefined) {
+  const normalized = (value || "").trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  if (["live", "live_mode", "production", "prod"].includes(normalized)) {
+    return "live_mode" as const;
+  }
+
+  if (["test", "test_mode", "sandbox", "development", "dev"].includes(normalized)) {
+    return "test_mode" as const;
+  }
+
+  return null;
 }

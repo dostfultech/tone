@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { brand } from "@/lib/brand";
-import { type BillingInterval, createDodoClient, getDodoProductId, isDodoConfigured, type PlanId } from "@/lib/dodo";
+import { type BillingInterval, createDodoClient, getDodoProductId, isDodoConfigured, resolveDodoEnvironment, type PlanId } from "@/lib/dodo";
 import { getSiteUrl } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getCurrentSession } from "@/lib/server-access";
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!isDodoConfigured()) {
-    return NextResponse.json({ error: "Dodo Payments is not configured. Add DODO_PAYMENTS_API_KEY to .env.local." }, { status: 503 });
+    return NextResponse.json({ error: "Dodo Payments is not configured for this environment." }, { status: 503 });
   }
 
   const productId = getDodoProductId(planId as PlanId, billing as BillingInterval);
@@ -38,19 +38,30 @@ export async function POST(request: NextRequest) {
   returnUrl.searchParams.set("plan_id", planId);
   returnUrl.searchParams.set("billing_interval", billing);
 
-  const checkout = await client.checkoutSessions.create({
-    product_cart: [{ product_id: productId, quantity: 1 }],
-    customer: {
-      email: user.email || "",
-      name: user.user_metadata?.full_name || user.email || `${brand.appName} user`
-    },
-    return_url: returnUrl.toString(),
-    metadata: {
-      user_id: user.id,
-      plan_id: planId,
-      billing_interval: billing
-    }
-  } as never);
+  let checkout;
+  try {
+    checkout = await client.checkoutSessions.create({
+      product_cart: [{ product_id: productId, quantity: 1 }],
+      customer: {
+        email: user.email || "",
+        name: user.user_metadata?.full_name || user.email || `${brand.appName} user`
+      },
+      return_url: returnUrl.toString(),
+      metadata: {
+        user_id: user.id,
+        plan_id: planId,
+        billing_interval: billing,
+        environment: resolveDodoEnvironment()
+      }
+    } as never);
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Unable to create Dodo checkout session."
+      },
+      { status: 502 }
+    );
+  }
 
   const admin = createSupabaseAdminClient();
   await admin?.from("usage_events").insert({

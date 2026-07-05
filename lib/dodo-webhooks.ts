@@ -21,9 +21,9 @@ export async function syncDodoSubscription(payload: DodoWebhookPayload) {
   const userId = stringValue(metadata.user_id || data.user_id);
   const planIdFromPayload = stringValue(metadata.plan_id || data.plan_id);
   const billingIntervalFromPayload = stringValue(metadata.billing_interval || data.billing_interval);
-  const customerId = stringValue(data.customer_id || data.customer?.valueOf?.() || data.customer);
-  const subscriptionId = stringValue(data.subscription_id || data.id);
-  const productId = stringValue(data.product_id || data.product?.valueOf?.() || data.product);
+  const customerId = stringValue(data.customer_id || nestedIdentifier(data.customer) || nestedIdentifier(data.customer_details));
+  const subscriptionId = stringValue(data.subscription_id || nestedIdentifier(data.subscription) || data.id);
+  const productId = stringValue(data.product_id || nestedIdentifier(data.product) || nestedIdentifier(data.product_cart));
   const inferredPlanId = inferPlanIdFromProductId(productId);
   const inferredBillingInterval = inferBillingIntervalFromProductId(productId);
   const planId = planIdFromPayload || inferredPlanId;
@@ -67,6 +67,29 @@ export async function syncDodoSubscription(payload: DodoWebhookPayload) {
 
 function stringValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function nestedIdentifier(value: unknown): string {
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const identifier = nestedIdentifier(entry);
+      if (identifier) {
+        return identifier;
+      }
+    }
+    return "";
+  }
+
+  if (!value || typeof value !== "object") {
+    return "";
+  }
+
+  const record = value as Record<string, unknown>;
+  return stringValue(record.id || record.product_id || record.subscription_id || record.customer_id);
 }
 
 function dateValue(value: unknown) {
