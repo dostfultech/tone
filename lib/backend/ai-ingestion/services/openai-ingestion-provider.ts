@@ -1,4 +1,4 @@
-import { createOpenAIClient } from "@/lib/provider-clients";
+import { createOpenAIClient } from "../../../provider-clients";
 import type { GenerateSongRequestDto, NormalizedMasterToneDraft } from "../dtos";
 import { ingestionConfigError } from "../errors";
 import { validateAiDraft } from "../validation";
@@ -59,7 +59,9 @@ const normalizedMasterToneSchema = {
         "modern_metal",
         "distorted",
         "ambient",
-        "acoustic"
+        "acoustic",
+        "bass_clean",
+        "bass_drive"
       ]
     },
     mode: { type: "string", enum: ["guitar", "bass"] },

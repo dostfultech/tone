@@ -75,8 +75,9 @@ export interface ToneAdaptationLogSummary {
   ruleEngineTimeMs: number;
   responseTimeMs: number;
   cacheKey: string;
-  aiUsed: false;
-  openAiCalled: false;
+  aiUsed: boolean;
+  openAiCalled: boolean;
+  sourceHydrationUsed: boolean;
 }
 
 export interface ToneAdaptationResponseDto {

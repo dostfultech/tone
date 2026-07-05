@@ -1,4 +1,4 @@
-import { createOpenAIClient } from "@/lib/provider-clients";
+import { createOpenAIClient } from "../../../provider-clients";
 import type { NormalizedMasterToneDraft } from "../dtos";
 import { ingestionConfigError } from "../errors";
 

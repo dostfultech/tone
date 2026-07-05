@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { generateToneCacheKey } from "../lib/backend/tone-adaptation/cache-key";
 import { toCacheIdentity } from "../lib/backend/tone-adaptation/services/cache-service";
 import { ToneService } from "../lib/backend/tone-adaptation/services/tone-service";
+import { notFoundError } from "../lib/backend/tone-adaptation/errors";
 import type {
   FinalToneOutput,
   RuleEngineInput,
@@ -133,19 +134,41 @@ test("cache write failure prevents returning an uncached rule-engine result", as
   assert.equal(harness.cacheWrites.length, 0);
 });
 
+test("missing source tone hydrates once with AI-backed ingestion and then completes adaptation", async () => {
+  const harness = createHarness({ failFirstMasterToneLoad: true, hydratedMasterToneId: "master-hydrated-1" });
+
+  const response = await harness.service.adaptTone(harness.request);
+
+  assert.equal(response.source.finalSource, "RULE_ENGINE");
+  assert.equal(response.source.aiUsed, true);
+  assert.equal(response.source.openAiCalled, true);
+  assert.equal(response.source.sourceHydrationUsed, true);
+  assert.equal(harness.sourceHydrationCalls, 1);
+  assert.equal(harness.ruleEngineCalls, 1);
+});
+
 function createHarness(options: {
   cacheRecord?: ToneCacheRecord | null;
   generatedResult?: FinalToneOutput;
   failCacheWrite?: boolean;
+  failFirstMasterToneLoad?: boolean;
+  hydratedMasterToneId?: string;
 } = {}) {
   let ruleEngineCalls = 0;
   let cacheTouches = 0;
+  let masterToneLoadCalls = 0;
+  let sourceHydrationCalls = 0;
   const cacheWrites: Array<Omit<ToneCacheWriteInput, "schemaVersion">> = [];
   const context = loadedContext();
 
   const service = new ToneService({
     songService: {
       async loadMasterTone() {
+        masterToneLoadCalls += 1;
+        if (options.failFirstMasterToneLoad && masterToneLoadCalls === 1) {
+          throw notFoundError("Required master tone was not found.", { tableName: "master_tones" });
+        }
+
         return context.masterTone;
       }
     },
@@ -178,6 +201,12 @@ function createHarness(options: {
         return options.generatedResult ?? finalTone({ gain: 6 });
       }
     },
+    sourceHydrationService: {
+      async hydrateSourceTone() {
+        sourceHydrationCalls += 1;
+        return { masterToneId: options.hydratedMasterToneId ?? "master-1" };
+      }
+    },
     logger: {
       info() {},
       warn() {},
@@ -203,6 +232,9 @@ function createHarness(options: {
     },
     get cacheTouches() {
       return cacheTouches;
+    },
+    get sourceHydrationCalls() {
+      return sourceHydrationCalls;
     },
     cacheWrites
   };

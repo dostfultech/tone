@@ -104,7 +104,8 @@ test("cache prewarming uses deterministic tone service and reports no AI", async
           responseTimeMs: 2,
           cacheKey: "cache-1",
           aiUsed: false,
-          openAiCalled: false
+          openAiCalled: false,
+          sourceHydrationUsed: false
         },
         masterTone: {
           id: "master-1",

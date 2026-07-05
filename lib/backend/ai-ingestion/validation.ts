@@ -40,7 +40,9 @@ export const INGESTION_TONE_TYPES: ToneType[] = [
   "modern_metal",
   "distorted",
   "ambient",
-  "acoustic"
+  "acoustic",
+  "bass_clean",
+  "bass_drive"
 ];
 
 const JOB_TYPES: IngestionJobType[] = ["song_generation", "metadata_enrichment", "gear_matching", "cache_prewarming"];

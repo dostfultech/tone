@@ -3,6 +3,7 @@ import { elapsedMs, nowMs, type ToneBackendLogger, consoleToneBackendLogger } fr
 import type { GeneratedToneCacheKey } from "../cache-key";
 import type { RuleEngineService } from "./rule-engine-service";
 import type { LoadedGearContext, LoadedMasterToneContext, LoadedToneRequestContext, ToneCacheRecord, ToneCacheWriteInput } from "../types";
+import { isToneBackendError } from "../errors";
 
 export interface ToneServiceDependencies {
   songService: {
@@ -18,6 +19,9 @@ export interface ToneServiceDependencies {
     write: (input: Omit<ToneCacheWriteInput, "schemaVersion">) => Promise<{ id?: string }>;
   };
   ruleEngineService: RuleEngineService;
+  sourceHydrationService?: {
+    hydrateSourceTone: (request: NormalizedToneAdaptationRequest) => Promise<{ masterToneId?: string } | null>;
+  };
   logger?: ToneBackendLogger;
 }
 
@@ -33,13 +37,14 @@ export class ToneService {
     let databaseTimeMs = 0;
     let ruleEngineTimeMs = 0;
     let cacheWrite: ToneAdaptationLogSummary["cacheWrite"] = "not_attempted";
+    let aiUsed = false;
+    let sourceHydrationUsed = false;
 
-    const dbLoadStart = nowMs();
-    const [masterTone, gear] = await Promise.all([
-      this.dependencies.songService.loadMasterTone(request),
-      this.dependencies.gearService.loadGear(request)
-    ]);
-    databaseTimeMs += elapsedMs(dbLoadStart);
+    const { masterTone, gear } = await this.loadContextWithHydration(request, (timing) => {
+      databaseTimeMs += timing.databaseTimeMs;
+      aiUsed = aiUsed || timing.aiUsed;
+      sourceHydrationUsed = sourceHydrationUsed || timing.sourceHydrationUsed;
+    });
 
     const context: LoadedToneRequestContext = {
       masterTone,
@@ -75,7 +80,10 @@ export class ToneService {
         databaseTimeMs,
         ruleEngineTimeMs,
         responseTimeMs: elapsedMs(responseStart),
-        cacheWrite: "not_attempted"
+        cacheWrite: "not_attempted",
+        aiUsed,
+        openAiCalled: aiUsed,
+        sourceHydrationUsed
       });
       this.logger.info("cache_hit", source);
       return this.createResponse(request.requestId, context, cached.result, source);
@@ -136,11 +144,71 @@ export class ToneService {
       databaseTimeMs,
       ruleEngineTimeMs,
       responseTimeMs: elapsedMs(responseStart),
-      cacheWrite
+      cacheWrite,
+      aiUsed,
+      openAiCalled: aiUsed,
+      sourceHydrationUsed
     });
     this.logger.info("rule_engine_complete", source);
 
     return this.createResponse(request.requestId, context, result, source);
+  }
+
+  private async loadContextWithHydration(
+    request: NormalizedToneAdaptationRequest,
+    record: (timing: { databaseTimeMs: number; aiUsed: boolean; sourceHydrationUsed: boolean }) => void
+  ) {
+    let dbLoadStart = nowMs();
+
+    try {
+      const [masterTone, gear] = await Promise.all([
+        this.dependencies.songService.loadMasterTone(request),
+        this.dependencies.gearService.loadGear(request)
+      ]);
+      record({ databaseTimeMs: elapsedMs(dbLoadStart), aiUsed: false, sourceHydrationUsed: false });
+      return { masterTone, gear };
+    } catch (error) {
+      const hydrationService = this.dependencies.sourceHydrationService;
+      const canHydrate =
+        hydrationService &&
+        isToneBackendError(error) &&
+        error.code === "NOT_FOUND" &&
+        Boolean(request.song && request.artist);
+
+      if (!canHydrate) {
+        record({ databaseTimeMs: elapsedMs(dbLoadStart), aiUsed: false, sourceHydrationUsed: false });
+        throw error;
+      }
+
+      this.logger.warn("source_tone_missing_attempting_ai_hydration", {
+        requestId: request.requestId,
+        song: request.song,
+        artist: request.artist,
+        part: request.part,
+        toneType: request.toneType,
+        mode: request.mode
+      });
+
+      const hydrated = await hydrationService.hydrateSourceTone(request);
+      record({ databaseTimeMs: elapsedMs(dbLoadStart), aiUsed: true, sourceHydrationUsed: true });
+
+      dbLoadStart = nowMs();
+      const retryRequest = hydrated?.masterToneId ? { ...request, masterToneId: hydrated.masterToneId } : request;
+      const [masterTone, gear] = await Promise.all([
+        this.dependencies.songService.loadMasterTone(retryRequest),
+        this.dependencies.gearService.loadGear(retryRequest)
+      ]);
+      record({ databaseTimeMs: elapsedMs(dbLoadStart), aiUsed: false, sourceHydrationUsed: false });
+
+      this.logger.info("source_tone_hydrated_and_loaded", {
+        requestId: request.requestId,
+        song: request.song,
+        artist: request.artist,
+        masterToneId: hydrated?.masterToneId || masterTone.source.id
+      });
+
+      return { masterTone, gear };
+    }
   }
 
   private createResponse(
@@ -185,6 +253,9 @@ export class ToneService {
     ruleEngineTimeMs: number;
     responseTimeMs: number;
     cacheWrite: ToneAdaptationLogSummary["cacheWrite"];
+    aiUsed: boolean;
+    openAiCalled: boolean;
+    sourceHydrationUsed: boolean;
   }): ToneAdaptationLogSummary {
     return {
       event: "tone_backend_adaptation_complete",
@@ -199,8 +270,9 @@ export class ToneService {
       ruleEngineTimeMs: input.ruleEngineTimeMs,
       responseTimeMs: input.responseTimeMs,
       cacheKey: input.cacheKey,
-      aiUsed: false,
-      openAiCalled: false
+      aiUsed: input.aiUsed,
+      openAiCalled: input.openAiCalled,
+      sourceHydrationUsed: input.sourceHydrationUsed
     };
   }
 }
