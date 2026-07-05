@@ -217,6 +217,7 @@ function amplifierProfileRule(): RuleDefinition {
   };
 }
 
+// check where this cabinet is present in UI
 function cabinetProfileRule(): RuleDefinition {
   return {
     id: "gear.apply_cabinet_profile",

@@ -1,3 +1,5 @@
+import { getSupabaseConfiguration } from "@/lib/supabase/config";
+
 export function getSiteUrl() {
   const explicitSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
   if (explicitSiteUrl) {
@@ -40,9 +42,15 @@ export function getTestAccessEmails() {
 }
 
 export function isSupabaseConfigured() {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const config = getSupabaseConfiguration();
+  return (
+    Boolean(config.url && config.anonKey && config.issues.length === 0)
+  );
 }
 
 export function isSupabaseAdminConfigured() {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const config = getSupabaseConfiguration();
+  return (
+    Boolean(config.url && config.serviceRoleKey && config.issues.length === 0)
+  );
 }

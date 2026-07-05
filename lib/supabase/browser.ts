@@ -2,10 +2,17 @@
 
 import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getSupabaseConfiguration, logSupabaseConfigIssues } from "@/lib/supabase/config";
 
 export function createSupabaseBrowserClient(): SupabaseClient | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const config = getSupabaseConfiguration();
+
+  if (config.issues.length > 0) {
+    logSupabaseConfigIssues("browser", config.issues);
+    return null;
+  }
+
+  const { url, anonKey } = config;
 
   if (!url || !anonKey) {
     return null;
