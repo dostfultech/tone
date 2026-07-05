@@ -17,6 +17,7 @@ export interface LoadedMasterToneContext {
   masterTone: MasterToneInput;
   source: {
     id: string;
+    sourceType: "master_tones" | "song_tone_profiles_bridge";
     songId: string;
     songTitle: string;
     artistId: string;

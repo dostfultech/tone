@@ -158,8 +158,11 @@ export class ToneService {
         song: context.masterTone.source.songTitle,
         artist: context.masterTone.source.artistName,
         part: context.masterTone.source.partLabel,
+        partType: context.masterTone.source.partType,
         toneType: context.masterTone.source.toneType,
-        version: context.masterTone.source.version
+        version: context.masterTone.source.version,
+        confidence: context.masterTone.source.confidence,
+        sourceType: context.masterTone.source.sourceType
       },
       gear: {
         guitar: context.gear.guitar?.name,

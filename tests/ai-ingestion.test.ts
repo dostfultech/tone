@@ -111,8 +111,11 @@ test("cache prewarming uses deterministic tone service and reports no AI", async
           song: "Song",
           artist: "Artist",
           part: "Riff",
+          partType: "riff",
           toneType: "metal",
-          version: 1
+          version: 1,
+          confidence: 80,
+          sourceType: "master_tones"
         },
         gear: {
           pickups: [],

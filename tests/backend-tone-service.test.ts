@@ -223,6 +223,7 @@ function loadedContext(): LoadedToneRequestContext {
     },
     source: {
       id: "master-1",
+      sourceType: "master_tones",
       songId: "song-1",
       songTitle: "Example Song",
       artistId: "artist-1",

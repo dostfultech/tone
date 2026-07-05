@@ -88,8 +88,11 @@ export interface ToneAdaptationResponseDto {
     song: string;
     artist: string;
     part: string;
+    partType: string;
     toneType: ToneType;
     version: number;
+    confidence: number;
+    sourceType: "master_tones" | "song_tone_profiles_bridge";
   };
   gear: {
     guitar?: string;

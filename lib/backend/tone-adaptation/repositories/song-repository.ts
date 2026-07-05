@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { repositoryError, notFoundError } from "../errors";
+import type { ToneType } from "../../../rule-engine";
+import { isToneBackendError, repositoryError, notFoundError } from "../errors";
 import { mapMasterToneRow } from "../mappers";
 import type { NormalizedToneAdaptationRequest } from "../dtos";
 import type { LoadedMasterToneContext } from "../types";
@@ -20,13 +21,24 @@ export class SupabaseSongRepository implements SongRepository {
       return this.findMasterToneById(request.masterToneId);
     }
 
-    const artist = await this.findArtist(request.artist ?? "");
-    const song = await this.findSong(idOf(artist), request.song ?? "");
-    const part = await this.findSongPart(idOf(song), request.partType, request.part);
-    const masterTone = await this.findMasterToneForPart(idOf(part), request.mode, request.toneType);
-    const suggestedPedals = await this.findSuggestedPedals(idOf(masterTone));
+    try {
+      const artist = await this.findArtist(request.artist ?? "");
+      const song = await this.findSong(idOf(artist), request.song ?? "");
+      const part = await this.findSongPart(idOf(song), request.partType, request.part);
+      const masterTone = await this.findMasterToneForPart(idOf(part), request.mode, request.toneType);
+      const suggestedPedals = await this.findSuggestedPedals(idOf(masterTone));
 
-    return mapMasterToneRow(masterTone, part, song, artist, suggestedPedals);
+      return mapMasterToneRow(masterTone, part, song, artist, suggestedPedals);
+    } catch (error) {
+      if (isToneBackendError(error) && error.code === "NOT_FOUND") {
+        const legacyToneProfile = await this.findLegacyToneProfile(request);
+        if (legacyToneProfile) {
+          return legacyToneProfile;
+        }
+      }
+
+      throw error;
+    }
   }
 
   private async findMasterToneById(masterToneId: string) {
@@ -156,6 +168,59 @@ export class SupabaseSongRepository implements SongRepository {
     return (data ?? []).map((row) => String(row.pedal_type_id));
   }
 
+  private async findLegacyToneProfile(request: NormalizedToneAdaptationRequest) {
+    const song = request.song ?? "";
+    const artist = request.artist ?? "";
+    if (!song || !artist) {
+      return null;
+    }
+
+    const { data, error } = await this.supabase
+      .from("song_tone_profiles")
+      .select(
+        "id, song_id, song_title, artist_name, mode, part_type, part_label, tone_type, original_guitar, original_amp, original_cab, original_pickup, original_settings, confidence, updated_at, tone_profile_effects(effect_name)"
+      )
+      .eq("is_public", true)
+      .eq("mode", request.mode)
+      .ilike("song_title", `%${song}%`)
+      .ilike("artist_name", `%${artist}%`)
+      .limit(20);
+
+    if (error) {
+      throw repositoryError("Failed to query song_tone_profiles.", { error: error.message });
+    }
+
+    const ranked = ((data ?? []) as Array<Record<string, unknown>>)
+      .map((row) => ({ row, score: this.scoreLegacyToneProfile(row, request) }))
+      .filter(({ score }) => score > 25)
+      .sort((left, right) => right.score - left.score);
+
+    const legacy = ranked[0]?.row;
+    return legacy ? mapLegacyToneProfileRow(legacy, request) : null;
+  }
+
+  private scoreLegacyToneProfile(row: Record<string, unknown>, request: NormalizedToneAdaptationRequest) {
+    const title = normalizeText(stringField(row, "song_title"));
+    const artist = normalizeText(stringField(row, "artist_name"));
+    const requestedSong = normalizeText(request.song ?? "");
+    const requestedArtist = normalizeText(request.artist ?? "");
+    const partType = request.partType ?? "";
+    const toneType = request.toneType ?? "auto";
+    const legacyToneType = stringField(row, "tone_type");
+
+    let score = 0;
+    if (title === requestedSong) score += 100;
+    else if (title.includes(requestedSong) || requestedSong.includes(title)) score += 55;
+    if (artist === requestedArtist) score += 45;
+    else if (artist.includes(requestedArtist) || requestedArtist.includes(artist)) score += 20;
+    if (stringField(row, "part_type") === partType) score += 20;
+    if (toneType === "auto" || legacyToneType === toneType || legacyToneType === "auto") {
+      score += 15;
+    }
+
+    return score;
+  }
+
   private async optionalSingle(
     tableName: string,
     execute: (query: SupabaseQuery) => SupabaseSingleResult
@@ -186,4 +251,123 @@ function idOf(row: Record<string, unknown>) {
 
 function stringField(row: Record<string, unknown>, key: string) {
   return typeof row[key] === "string" ? row[key] : "";
+}
+
+function mapLegacyToneProfileRow(
+  row: Record<string, unknown>,
+  request: NormalizedToneAdaptationRequest
+): LoadedMasterToneContext {
+  const originalSettings = recordField(row, "original_settings");
+  const updatedAt = stringField(row, "updated_at");
+  const suggestedPedals = relationValues(row.tone_profile_effects, "effect_name");
+  const partType = stringField(row, "part_type") || request.partType || "main";
+  const toneType = normalizeLegacyToneType(stringField(row, "tone_type"));
+
+  return {
+    masterTone: {
+      id: stringField(row, "id"),
+      songId: stringField(row, "song_id") || stringField(row, "id"),
+      songPartId: stringField(row, "id"),
+      instrumentType: request.mode,
+      toneType,
+      settings: mapLegacySettings(originalSettings),
+      eqProfile: {},
+      modulationProfile: {},
+      tempoBpm: null,
+      toneArchetype: null,
+      pickupPreference: stringField(row, "original_pickup") || null,
+      suggestedAmpArchetype: null,
+      suggestedCabinetArchetype: null,
+      suggestedPedals,
+      metadata: {
+        sourceType: "song_tone_profiles_bridge",
+        originalGuitar: stringField(row, "original_guitar") || null,
+        originalAmp: stringField(row, "original_amp") || null,
+        originalCab: stringField(row, "original_cab") || null,
+        originalPickup: stringField(row, "original_pickup") || null
+      }
+    },
+    source: {
+      id: stringField(row, "id"),
+      sourceType: "song_tone_profiles_bridge",
+      songId: stringField(row, "song_id") || stringField(row, "id"),
+      songTitle: stringField(row, "song_title") || request.song || "Unknown Song",
+      artistId: `legacy-artist:${slugify(stringField(row, "artist_name") || request.artist || "unknown-artist")}`,
+      artistName: stringField(row, "artist_name") || request.artist || "Unknown Artist",
+      songPartId: stringField(row, "id"),
+      partLabel: stringField(row, "part_label") || request.part || "Main",
+      partType,
+      toneType,
+      mode: request.mode,
+      version: deriveLegacyVersion(updatedAt, originalSettings),
+      confidence: Math.round(numberField(row, "confidence") ?? 70)
+    }
+  };
+}
+
+function mapLegacySettings(originalSettings: Record<string, unknown>): LoadedMasterToneContext["masterTone"]["settings"] {
+  return {
+    gain: numberValue(originalSettings.gain),
+    bass: numberValue(originalSettings.bass),
+    middle: numberValue(originalSettings.middle) ?? numberValue(originalSettings.mids) ?? undefined,
+    treble: numberValue(originalSettings.treble),
+    presence: numberValue(originalSettings.presence),
+    resonance: numberValue(originalSettings.resonance),
+    depth: numberValue(originalSettings.depth),
+    masterVolume: numberValue(originalSettings.master_volume) ?? numberValue(originalSettings.master) ?? undefined,
+    noiseGate: numberValue(originalSettings.noise_gate) ?? numberValue(originalSettings.noiseGate) ?? undefined,
+    compression: numberValue(originalSettings.compression),
+    delay: numberValue(originalSettings.delay),
+    reverb: numberValue(originalSettings.reverb)
+  };
+}
+
+function normalizeLegacyToneType(value: string): ToneType {
+  if (value === "auto" || value === "auto_detect" || !value) {
+    return "auto_detect";
+  }
+
+  return value as ToneType;
+}
+
+function deriveLegacyVersion(updatedAt: string, settings: Record<string, unknown>) {
+  const signature = updatedAt || JSON.stringify(settings);
+  let hash = 0;
+  for (let index = 0; index < signature.length; index += 1) {
+    hash = ((hash << 5) - hash + signature.charCodeAt(index)) | 0;
+  }
+  return Math.max(1, Math.abs(hash));
+}
+
+function normalizeText(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
+}
+
+function numberValue(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  return undefined;
+}
+
+function numberField(row: Record<string, unknown>, key: string) {
+  return numberValue(row[key]);
+}
+
+function recordField(row: Record<string, unknown>, key: string) {
+  const value = row[key];
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function relationValues(value: unknown, key: string) {
+  const list = Array.isArray(value) ? value : [];
+  return list
+    .map((entry) => (entry && typeof entry === "object" && !Array.isArray(entry) ? (entry as Record<string, unknown>)[key] : null))
+    .filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
 }

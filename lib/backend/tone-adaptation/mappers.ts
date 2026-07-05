@@ -72,6 +72,7 @@ export function mapMasterToneRow(
     },
     source: {
       id: stringValue(row.id, "unknown-master-tone"),
+      sourceType: "master_tones",
       songId: stringValue(song.id),
       songTitle: stringValue(song.title, "Unknown Song"),
       artistId: stringValue(artist.id),

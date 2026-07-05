@@ -59,6 +59,53 @@ type ToneResult = {
   } | null;
 };
 
+type ToneBackendApiResponse = {
+  requestId: string;
+  result: {
+    masterToneId: string;
+    toneType: string;
+    settings: Record<string, number>;
+    effectsChain: string[];
+    multifxParameters: Record<string, number | string | boolean>;
+    notes: string[];
+    warnings: string[];
+    metadata?: Record<string, unknown>;
+  };
+  source: {
+    finalSource: "DATABASE_CACHE" | "RULE_ENGINE";
+    cacheStatus: "hit" | "miss";
+    cacheHit: boolean;
+    cacheMiss: boolean;
+    cacheWrite: "not_attempted" | "succeeded" | "failed";
+    databaseTimeMs: number;
+    ruleEngineTimeMs: number;
+    responseTimeMs: number;
+    cacheKey: string;
+    aiUsed: false;
+    openAiCalled: false;
+  };
+  masterTone: {
+    id: string;
+    song: string;
+    artist: string;
+    part: string;
+    partType: string;
+    toneType: string;
+    version: number;
+    confidence: number;
+    sourceType: "master_tones" | "song_tone_profiles_bridge";
+  };
+  gear: {
+    guitar?: string;
+    pickups: string[];
+    amp?: string;
+    cabinet?: string;
+    pedals: string[];
+    goingDirect: boolean;
+    multiFx?: string;
+  };
+};
+
 type SongSuggestion = SongItem;
 type SaveToneOutcome = "synced" | "local" | "redirected";
 
@@ -188,26 +235,18 @@ export function ToneMatcher() {
       }, 350);
 
       try {
-        await fetch(payload.mode === "bass" ? "/api/research-bass-tone" : "/api/research-tone", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-        const endpoint =
-          payload.mode === "bass"
-            ? "/api/adapt-bass-tone"
-            : payload.effectsMode === "multi_fx"
-              ? "/api/adapt-multi-fx-tone"
-              : "/api/adapt-tone";
+        const endpoint = "/api/v1/tones/adapt";
         const response = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...payload,
-            goingDirect: payload.goingDirect ?? goingDirect,
-            multiFx: payload.multiFx || options?.multiFx || multiFx,
-            selectedFx: payload.selectedFx || options?.selectedFx || selectedFx
-          })
+          body: JSON.stringify(
+            buildToneAdaptationApiPayload(payload, {
+              goingDirect: payload.goingDirect ?? goingDirect,
+              multiFx: payload.multiFx || options?.multiFx || multiFx,
+              selectedFx: payload.selectedFx || options?.selectedFx || selectedFx,
+              selectedEffects
+            })
+          )
         });
         const data = await response.json();
         if (response.status === 401) {
@@ -224,31 +263,33 @@ export function ToneMatcher() {
           return;
         }
         if (!response.ok) {
-          throw new Error(data.error || "Tone adaptation failed.");
+          throw new Error(data.error?.message || data.error || "Tone adaptation failed.");
         }
-        const source = data.source || {};
+        const adapted = mapToneAdaptationApiResponse(payload, data as ToneBackendApiResponse);
+        const source = (data as ToneBackendApiResponse).source || {};
         console.info("[tonefex:adaptation:response]", {
           event: "tone_adaptation_response",
           trigger,
           endpoint,
           finalSource: source.finalSource || "UNKNOWN",
-          resultPath: source.resultPath || "unknown",
+          resultPath: source.finalSource === "DATABASE_CACHE" ? "database_cache" : "tone_core_rule_engine",
           cacheStatus: source.cacheStatus || "unknown",
           cacheHit: Boolean(source.cacheHit),
           cacheMiss: Boolean(source.cacheMiss),
           cacheWrite: source.cacheWrite || "unknown",
-          databaseCacheUsed: Boolean(source.databaseCacheUsed),
-          ruleEngineUsed: Boolean(source.ruleEngineUsed),
-          aiFallbackTriggered: Boolean(source.aiFallbackTriggered),
-          openAiCalled: Boolean(source.openAiCalled),
-          openAiSucceeded: Boolean(source.openAiSucceeded),
-          aiResultUsed: Boolean(source.aiResultUsed),
-          masterToneSource: source.masterToneSource || "unknown",
-          fallbackReason: source.fallbackReason || null,
-          source
+          databaseCacheUsed: source.finalSource === "DATABASE_CACHE",
+          ruleEngineUsed: source.finalSource === "RULE_ENGINE",
+          aiFallbackTriggered: false,
+          openAiCalled: false,
+          openAiSucceeded: false,
+          aiResultUsed: false,
+          masterToneSource: (data as ToneBackendApiResponse).masterTone?.sourceType || "unknown",
+          fallbackReason: null,
+          source,
+          masterTone: (data as ToneBackendApiResponse).masterTone || null
         });
-        setResult(data.result);
-        trackUsage(data.result);
+        setResult(adapted);
+        trackUsage(adapted);
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "The adaptation endpoint did not respond.");
       } finally {
@@ -257,7 +298,7 @@ export function ToneMatcher() {
         window.setTimeout(() => setLoading(false), 350);
       }
     },
-    [goingDirect, multiFx, router, selectedFx]
+    [goingDirect, multiFx, router, selectedEffects, selectedFx]
   );
 
   const runAdaptationRef = useRef(runAdaptation);
@@ -1526,6 +1567,144 @@ async function fetchCatalog(url: string): Promise<CatalogEntry[]> {
   } catch {
     return [];
   }
+}
+
+function buildToneAdaptationApiPayload(
+  payload: ToneRequest,
+  options: {
+    goingDirect: boolean;
+    multiFx: string;
+    selectedFx: string;
+    selectedEffects: string[];
+  }
+) {
+  const pickups = payload.customPickups
+    ? [
+        payload.customPickups.neck ? { name: payload.customPickups.neck, position: "neck" as const } : null,
+        payload.customPickups.middle ? { name: payload.customPickups.middle, position: "middle" as const } : null,
+        payload.customPickups.bridge ? { name: payload.customPickups.bridge, position: "bridge" as const } : null
+      ].filter(Boolean)
+    : payload.pickup
+      ? [{ name: payload.pickup, position: "primary" as const }]
+      : [];
+
+  const pedalNames = Array.from(
+    new Set(
+      [
+        ...options.selectedEffects,
+        ...(options.selectedEffects.length ? [] : payload.selectedFx ? payload.selectedFx.split(",").map((value) => value.trim()) : []),
+        ...(options.selectedFx ? [options.selectedFx] : [])
+      ].filter((value) => value && value.trim().length > 0)
+    )
+  ).slice(0, 8);
+
+  return {
+    song: payload.song,
+    artist: payload.artist,
+    part: payload.part,
+    partType: payload.partType,
+    toneType: normalizeBackendToneType(payload.toneType),
+    mode: payload.mode,
+    guitar: payload.guitar,
+    pickups,
+    amp: payload.amp,
+    cabinet: payload.cabinet,
+    pedals: pedalNames.map((name, index) => ({ name, order: index + 1 })),
+    goingDirect: options.goingDirect,
+    multiFx: options.goingDirect ? options.multiFx : undefined
+  };
+}
+
+function mapToneAdaptationApiResponse(payload: ToneRequest, response: ToneBackendApiResponse): ToneResult {
+  const originalSettings = toUiToneSettings(recordValue(response.result.metadata?.initialSettings));
+  const targetSettings = toUiToneSettings(response.result.settings || {});
+  const pickupNames = payload.customPickups
+    ? [payload.customPickups.neck, payload.customPickups.middle, payload.customPickups.bridge].filter(Boolean)
+    : payload.pickup
+      ? [payload.pickup]
+      : [];
+  const pickupAdvice =
+    pickupNames.length > 0
+      ? `Adapted around ${pickupNames.join(", ")}. Start there, then fine-tune gain and presence by ear on your rig.`
+      : "Use your selected pickup position first, then fine-tune gain and treble by ear on your rig.";
+
+  return {
+    id: response.requestId,
+    request: payload,
+    accuracy: response.masterTone.confidence,
+    originalRig: `${response.masterTone.song} by ${response.masterTone.artist}`,
+    originalSettings,
+    targetSettings,
+    pickupAdvice,
+    effects: response.result.effectsChain || [],
+    playingTips: [...(response.result.notes || []), ...(response.result.warnings || [])].slice(0, 6),
+    sourceProfile: {
+      id: response.masterTone.id,
+      partType: normalizePartType(response.masterTone.partType, response.masterTone.part),
+      toneType: normalizeUiToneType(response.masterTone.toneType),
+      partLabel: response.masterTone.part,
+      confidence: response.masterTone.confidence,
+      verificationStatus:
+        response.masterTone.sourceType === "master_tones" ? "normalized_master_tone" : "legacy_song_tone_profile"
+    }
+  };
+}
+
+function toUiToneSettings(settings: Record<string, unknown>) {
+  return Object.fromEntries(
+    [
+      ["gain", numberValue(settings.gain)],
+      ["bass", numberValue(settings.bass)],
+      ["mids", numberValue(settings.middle) ?? numberValue(settings.mids)],
+      ["treble", numberValue(settings.treble)],
+      ["presence", numberValue(settings.presence)],
+      ["reverb", numberValue(settings.reverb)],
+      ["delay", numberValue(settings.delay)],
+      ["compression", numberValue(settings.compression)],
+      ["master", numberValue(settings.masterVolume) ?? numberValue(settings.master)]
+    ].filter((entry): entry is [string, number] => typeof entry[1] === "number")
+  );
+}
+
+function normalizeBackendToneType(value?: string) {
+  if (value === "auto" || !value) {
+    return "auto_detect";
+  }
+
+  return value;
+}
+
+function normalizeUiToneType(value: string): ToneType {
+  switch (value) {
+    case "auto_detect":
+      return "auto";
+    case "edge_of_breakup":
+    case "classic_rock":
+      return "crunch";
+    case "heavy":
+    case "metal":
+    case "modern_metal":
+      return "high_gain";
+    default:
+      return normalizeToneType(value);
+  }
+}
+
+function recordValue(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function numberValue(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  return undefined;
 }
 
 function partLabelFromType(value: TonePartType) {
