@@ -87,9 +87,21 @@ const normalizedMasterToneSchema = {
     },
     pickupPreference: { type: ["string", "null"] },
     toneArchetype: { type: ["string", "null"] },
-    eqProfile: { type: "object", additionalProperties: true },
-    modulationProfile: { type: "object", additionalProperties: true },
-    metadata: { type: "object", additionalProperties: true },
+    eqProfile: {
+      type: "object",
+      additionalProperties: false,
+      properties: {}
+    },
+    modulationProfile: {
+      type: "object",
+      additionalProperties: false,
+      properties: {}
+    },
+    metadata: {
+      type: "object",
+      additionalProperties: false,
+      properties: {}
+    },
     sourceSummary: { type: "string" },
     confidence: { type: "integer", minimum: 0, maximum: 100 }
   }
