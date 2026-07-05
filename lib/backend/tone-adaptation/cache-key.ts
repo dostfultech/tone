@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { ToneType } from "../../rule-engine";
 
-export const TONE_BACKEND_CACHE_SCHEMA_VERSION = 2;
+export const TONE_BACKEND_CACHE_SCHEMA_VERSION = 3;
 export const TONE_BACKEND_RULE_ENGINE_VERSION = "deterministic-rule-engine-v1";
 
 export interface ToneCacheKeyIdentity {
@@ -59,6 +59,10 @@ export function generateToneCacheKey(identity: ToneCacheKeyIdentity): GeneratedT
 }
 
 export function stableStringify(value: unknown): string {
+  if (value === undefined) {
+    return "null";
+  }
+
   if (value === null || typeof value !== "object") {
     return JSON.stringify(value);
   }
@@ -70,6 +74,7 @@ export function stableStringify(value: unknown): string {
   const record = value as Record<string, unknown>;
   return `{${Object.keys(record)
     .sort()
+    .filter((key) => record[key] !== undefined)
     .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
     .join(",")}}`;
 }

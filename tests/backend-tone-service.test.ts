@@ -64,7 +64,9 @@ test("cache miss runs the deterministic rule engine once and writes cache", asyn
   assert.equal(response.source.cacheWrite, "succeeded");
   assert.equal(harness.ruleEngineCalls, 1);
   assert.equal(harness.cacheWrites.length, 1);
-  assert.deepEqual(response.result, generatedResult);
+  assert.equal(response.result.settings.treble, 6);
+  assert.equal(response.result.metadata.aiUsed, false);
+  assert.equal((response.result.metadata as Record<string, unknown>).storageFormatVersion, "tone-cache-v3");
   assert.equal(harness.cacheWrites[0].result.metadata.aiUsed, false);
 });
 
@@ -113,6 +115,13 @@ test("cache key changes when pickup position, pedal order, or direct device chan
   assert.notEqual(baseKey, multiFxKey);
 });
 
+test("cache request signature is stable valid JSON", () => {
+  const parsed = JSON.parse(generateToneCacheKey(toCacheIdentity(loadedContext())).requestSignature) as Record<string, unknown>;
+
+  assert.equal(parsed.schemaVersion, 3);
+  assert.equal(parsed.song, "Example Song");
+});
+
 test("source logs explicitly state cache, rule-engine, database, response, and AI status", async () => {
   const harness = createHarness();
   const response = await harness.service.adaptTone(harness.request);
@@ -147,19 +156,56 @@ test("missing source tone hydrates once with AI-backed ingestion and then comple
   assert.equal(harness.ruleEngineCalls, 1);
 });
 
+test("cache write preserves requested gear labels and effect metadata when profiles are unresolved", async () => {
+  const harness = createHarness({
+    loadedContext: {
+      ...loadedContext(),
+      gear: {
+        guitar: null,
+        pickups: [],
+        amplifier: null,
+        cabinet: null,
+        pedals: [],
+        goingDirect: false,
+        multiFx: null
+      }
+    }
+  });
+
+  await harness.service.adaptTone({
+    ...harness.request,
+    guitar: { name: "Martin D-28" },
+    amp: { name: "Fender Mustang LT25" },
+    cabinet: { name: "Fender Deluxe Reverb 1x12" },
+    pickups: [{ name: "EMG 89", position: "bridge" }],
+    pedals: [{ name: "Delay", order: 1 }],
+    effectsMode: "manual",
+    selectedFx: "Delay"
+  });
+
+  assert.equal(harness.cacheWrites[0].guitarName, "Martin D-28");
+  assert.equal(harness.cacheWrites[0].ampName, "Fender Mustang LT25");
+  assert.equal(harness.cacheWrites[0].cabinetName, "Fender Deluxe Reverb 1x12");
+  assert.equal(harness.cacheWrites[0].pickupName, "EMG 89");
+  assert.equal(harness.cacheWrites[0].pedalsName, "Delay");
+  assert.equal(harness.cacheWrites[0].effectsMode, "manual");
+  assert.equal(harness.cacheWrites[0].selectedFxName, "Delay");
+});
+
 function createHarness(options: {
   cacheRecord?: ToneCacheRecord | null;
   generatedResult?: FinalToneOutput;
   failCacheWrite?: boolean;
   failFirstMasterToneLoad?: boolean;
   hydratedMasterToneId?: string;
+  loadedContext?: LoadedToneRequestContext;
 } = {}) {
   let ruleEngineCalls = 0;
   let cacheTouches = 0;
   let masterToneLoadCalls = 0;
   let sourceHydrationCalls = 0;
   const cacheWrites: Array<Omit<ToneCacheWriteInput, "schemaVersion">> = [];
-  const context = loadedContext();
+  const context = options.loadedContext ?? loadedContext();
 
   const service = new ToneService({
     songService: {
@@ -225,7 +271,9 @@ function createHarness(options: {
       mode: "guitar" as const,
       pickups: [],
       pedals: [],
-      goingDirect: false
+      goingDirect: false,
+      effectsMode: "manual",
+      selectedFx: "Analog Delay"
     },
     get ruleEngineCalls() {
       return ruleEngineCalls;

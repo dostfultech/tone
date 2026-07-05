@@ -73,6 +73,7 @@ export function mapMasterToneRow(
     source: {
       id: stringValue(row.id, "unknown-master-tone"),
       sourceType: "master_tones",
+      cacheSourceProfileId: nullableString(jsonRecord(row.metadata).legacyProfileId),
       songId: stringValue(song.id),
       songTitle: stringValue(song.title, "Unknown Song"),
       artistId: stringValue(artist.id),

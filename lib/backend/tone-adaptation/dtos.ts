@@ -23,6 +23,8 @@ export interface ToneAdaptationGearDto {
   goingDirect?: boolean;
   multiFxId?: string;
   multiFx?: string;
+  effectsMode?: string;
+  selectedFx?: string;
 }
 
 export interface ToneAdaptationRequestDto extends ToneAdaptationGearDto {
@@ -60,6 +62,8 @@ export interface NormalizedToneAdaptationRequest {
   pedals: NormalizedSelection[];
   goingDirect: boolean;
   multiFx?: NormalizedSelection;
+  effectsMode?: string;
+  selectedFx?: string;
 }
 
 export interface ToneAdaptationLogSummary {

@@ -61,7 +61,9 @@ export function validateToneAdaptationRequest(payload: unknown): NormalizedToneA
     cabinet: normalizeSelection(dto.cabinetId ?? gear.cabinetId, dto.cabinet ?? gear.cabinet),
     pedals: normalizeSelections(dto.pedalIds ?? gear.pedalIds, dto.pedals ?? gear.pedals),
     goingDirect: Boolean(dto.goingDirect ?? gear.goingDirect ?? false),
-    multiFx: normalizeSelection(dto.multiFxId ?? gear.multiFxId, dto.multiFx ?? gear.multiFx)
+    multiFx: normalizeSelection(dto.multiFxId ?? gear.multiFxId, dto.multiFx ?? gear.multiFx),
+    effectsMode: cleanString(dto.effectsMode ?? gear.effectsMode),
+    selectedFx: cleanString(dto.selectedFx ?? gear.selectedFx)
   };
 }
 

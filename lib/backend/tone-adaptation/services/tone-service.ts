@@ -99,6 +99,7 @@ export class ToneService {
     const ruleEngineStart = nowMs();
     const result = this.dependencies.ruleEngineService.transform(context.ruleEngineInput);
     ruleEngineTimeMs = elapsedMs(ruleEngineStart);
+    const persistedResult = this.enrichResultForStorage(request, context, result, generatedCacheKey);
 
     const cacheWriteStart = nowMs();
     try {
@@ -109,15 +110,18 @@ export class ToneService {
         songTitle: masterTone.source.songTitle,
         artistName: masterTone.source.artistName,
         partLabel: masterTone.source.partLabel,
-        guitarName: gear.guitar?.name,
-        ampName: gear.amplifier?.name,
-        cabinetName: gear.cabinet?.name,
-        pickupName: gear.pickups.map((pickup) => pickup.name).join(", ") || null,
-        pedalsName: gear.pedals.map((pedal) => pedal.name).join(", ") || null,
-        multiFxName: gear.multiFx?.name,
+        guitarName: gear.guitar?.name ?? request.guitar?.name ?? null,
+        ampName: gear.amplifier?.name ?? request.amp?.name ?? null,
+        cabinetName: gear.cabinet?.name ?? request.cabinet?.name ?? null,
+        pickupName: joinNames(gear.pickups.map((pickup) => pickup.name)) ?? joinNames(request.pickups.map(selectionName)),
+        pedalsName: joinNames(gear.pedals.map((pedal) => pedal.name)) ?? joinNames(request.pedals.map(selectionName)),
+        multiFxName: gear.multiFx?.name ?? request.multiFx?.name ?? null,
+        effectsMode: request.effectsMode ?? null,
+        selectedFxName: request.selectedFx ?? null,
         goingDirect: gear.goingDirect,
         sourceProfileVersion: masterTone.source.version,
-        result,
+        sourceProfileId: masterTone.source.cacheSourceProfileId ?? null,
+        result: persistedResult,
         confidence: masterTone.source.confidence,
         metadata: {
           cacheIdentity: generatedCacheKey.identity
@@ -151,7 +155,7 @@ export class ToneService {
     });
     this.logger.info("rule_engine_complete", source);
 
-    return this.createResponse(request.requestId, context, result, source);
+    return this.createResponse(request.requestId, context, persistedResult, source);
   }
 
   private async loadContextWithHydration(
@@ -217,6 +221,18 @@ export class ToneService {
     result: ToneAdaptationResponseDto["result"],
     source: ToneAdaptationLogSummary
   ): ToneAdaptationResponseDto {
+    const requestSnapshot = recordValue((result as unknown as Record<string, unknown>).request);
+    const pickupSnapshot = Array.isArray(requestSnapshot.pickups)
+      ? requestSnapshot.pickups
+          .map((entry) => (entry && typeof entry === "object" && !Array.isArray(entry) ? stringValue((entry as Record<string, unknown>).name) : null))
+          .filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+      : [];
+    const pedalSnapshot = Array.isArray(requestSnapshot.pedals)
+      ? requestSnapshot.pedals
+          .map((entry) => (entry && typeof entry === "object" && !Array.isArray(entry) ? stringValue((entry as Record<string, unknown>).name) : null))
+          .filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+      : [];
+
     return {
       requestId,
       result,
@@ -233,13 +249,13 @@ export class ToneService {
         sourceType: context.masterTone.source.sourceType
       },
       gear: {
-        guitar: context.gear.guitar?.name,
-        pickups: context.gear.pickups.map((pickup) => pickup.name),
-        amp: context.gear.amplifier?.name,
-        cabinet: context.gear.cabinet?.name,
-        pedals: context.gear.pedals.map((pedal) => pedal.name),
+        guitar: context.gear.guitar?.name ?? stringValue(requestSnapshot.guitar),
+        pickups: context.gear.pickups.map((pickup) => pickup.name).length ? context.gear.pickups.map((pickup) => pickup.name) : pickupSnapshot,
+        amp: context.gear.amplifier?.name ?? stringValue(requestSnapshot.amp),
+        cabinet: context.gear.cabinet?.name ?? stringValue(requestSnapshot.cabinet),
+        pedals: context.gear.pedals.map((pedal) => pedal.name).length ? context.gear.pedals.map((pedal) => pedal.name) : pedalSnapshot,
         goingDirect: context.gear.goingDirect,
-        multiFx: context.gear.multiFx?.name
+        multiFx: context.gear.multiFx?.name ?? stringValue(requestSnapshot.multiFx)
       }
     };
   }
@@ -275,4 +291,96 @@ export class ToneService {
       sourceHydrationUsed: input.sourceHydrationUsed
     };
   }
+
+  private enrichResultForStorage(
+    request: NormalizedToneAdaptationRequest,
+    context: LoadedToneRequestContext,
+    result: ToneAdaptationResponseDto["result"],
+    generatedCacheKey: GeneratedToneCacheKey
+  ): ToneAdaptationResponseDto["result"] {
+    const requestSnapshot = {
+      song: request.song ?? context.masterTone.source.songTitle,
+      artist: request.artist ?? context.masterTone.source.artistName,
+      part: request.part ?? context.masterTone.source.partLabel,
+      partType: request.partType ?? context.masterTone.source.partType,
+      toneType: request.toneType,
+      mode: request.mode,
+      guitar: context.gear.guitar?.name ?? request.guitar?.name ?? null,
+      pickups: request.pickups.map((pickup) => ({
+        id: pickup.id ?? null,
+        name: pickup.name ?? null,
+        position: pickup.position ?? null
+      })),
+      amp: context.gear.amplifier?.name ?? request.amp?.name ?? null,
+      cabinet: context.gear.cabinet?.name ?? request.cabinet?.name ?? null,
+      pedals: request.pedals.map((pedal) => ({
+        id: pedal.id ?? null,
+        name: pedal.name ?? null,
+        order: pedal.order ?? null
+      })),
+      goingDirect: request.goingDirect,
+      multiFx: context.gear.multiFx?.name ?? request.multiFx?.name ?? null,
+      effectsMode: request.effectsMode ?? null,
+      selectedFx: request.selectedFx ?? null
+    };
+
+    const originalSettings =
+      recordValue(result.metadata?.initialSettings) && Object.keys(recordValue(result.metadata?.initialSettings)).length > 0
+        ? recordValue(result.metadata?.initialSettings)
+        : context.masterTone.masterTone.settings;
+
+    return {
+      ...result,
+      metadata: {
+        ...(result.metadata ?? {}),
+        storageFormatVersion: "tone-cache-v3",
+        cacheIdentity: generatedCacheKey.identity,
+        requestSnapshot,
+        sourceContext: {
+          masterToneId: context.masterTone.masterTone.id,
+          sourceId: context.masterTone.source.id,
+          sourceType: context.masterTone.source.sourceType,
+          sourceProfileId: context.masterTone.source.cacheSourceProfileId ?? null,
+          confidence: context.masterTone.source.confidence,
+          version: context.masterTone.source.version
+        },
+        originalSettings,
+        targetSettings: result.settings
+      },
+      request: requestSnapshot,
+      accuracy: context.masterTone.source.confidence,
+      sourceProfile: {
+        id: context.masterTone.source.cacheSourceProfileId ?? context.masterTone.source.id,
+        masterToneId: context.masterTone.masterTone.id,
+        sourceType: context.masterTone.source.sourceType,
+        partType: context.masterTone.source.partType,
+        toneType: context.masterTone.source.toneType,
+        partLabel: context.masterTone.source.partLabel,
+        confidence: context.masterTone.source.confidence,
+        version: context.masterTone.source.version
+      },
+      originalSettings,
+      targetSettings: result.settings,
+      storageFormatVersion: "tone-cache-v3"
+    } as ToneAdaptationResponseDto["result"];
+  }
+}
+
+function joinNames(values: Array<string | null | undefined>) {
+  const cleaned = values.map((value) => (typeof value === "string" ? value.trim() : "")).filter(Boolean);
+  return cleaned.length ? cleaned.join(", ") : null;
+}
+
+function selectionName(
+  selection: { name?: string | null } | undefined
+) {
+  return selection?.name ?? null;
+}
+
+function recordValue(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : undefined;
 }

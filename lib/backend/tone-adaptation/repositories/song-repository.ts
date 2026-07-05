@@ -290,6 +290,7 @@ function mapLegacyToneProfileRow(
     source: {
       id: stringField(row, "id"),
       sourceType: "song_tone_profiles_bridge",
+      cacheSourceProfileId: stringField(row, "id"),
       songId: stringField(row, "song_id") || stringField(row, "id"),
       songTitle: stringField(row, "song_title") || request.song || "Unknown Song",
       artistId: `legacy-artist:${slugify(stringField(row, "artist_name") || request.artist || "unknown-artist")}`,

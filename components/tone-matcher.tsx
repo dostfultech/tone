@@ -1611,7 +1611,9 @@ function buildToneAdaptationApiPayload(
     cabinet: payload.cabinet,
     pedals: pedalNames.map((name, index) => ({ name, order: index + 1 })),
     goingDirect: options.goingDirect,
-    multiFx: options.goingDirect ? options.multiFx : undefined
+    multiFx: options.goingDirect ? options.multiFx : undefined,
+    effectsMode: payload.effectsMode,
+    selectedFx: options.selectedFx
   };
 }
 

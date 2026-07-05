@@ -31,6 +31,14 @@ export class SupabaseMasterToneRepository implements MasterToneRepository {
     const existing = await this.findLatestMasterTone(part.id, draft.mode, draft.toneType);
 
     if (existing && !options.regenerate) {
+      const legacyProfileId = await this.upsertLegacyToneProfileMirror(existing.id, song.id, draft);
+      if (legacyProfileId) {
+        await this.enrichMetadata(existing.id, {
+          legacyProfileId,
+          legacyMirrorSource: "song_tone_profiles",
+          legacyMirroredAt: new Date().toISOString()
+        });
+      }
       return {
         artistId: artist.id,
         songId: song.id,
@@ -84,13 +92,22 @@ export class SupabaseMasterToneRepository implements MasterToneRepository {
       throw ingestionDatabaseError("Failed to store normalized master tone.", { error: error.message });
     }
 
-    await this.replaceSuggestedPedals(String(data.id), draft.suggestedPedals);
+    const masterToneId = String(data.id);
+    await this.replaceSuggestedPedals(masterToneId, draft.suggestedPedals);
+    const legacyProfileId = await this.upsertLegacyToneProfileMirror(masterToneId, song.id, draft);
+    if (legacyProfileId) {
+      await this.enrichMetadata(masterToneId, {
+        legacyProfileId,
+        legacyMirrorSource: "song_tone_profiles",
+        legacyMirroredAt: new Date().toISOString()
+      });
+    }
 
     return {
       artistId: artist.id,
       songId: song.id,
       songPartId: part.id,
-      masterToneId: String(data.id),
+      masterToneId,
       version: Number(data.version ?? version)
     };
   }
@@ -302,6 +319,128 @@ export class SupabaseMasterToneRepository implements MasterToneRepository {
     }
   }
 
+  private async upsertLegacyToneProfileMirror(masterToneId: string, songId: string, draft: NormalizedMasterToneDraft) {
+    const legacyPartType = toLegacyPartType(draft.partType, draft.mode);
+    const legacyToneType = toLegacyToneType(draft.toneType);
+    const originalSettings = {
+      gain: draft.gain,
+      bass: draft.bass,
+      middle: draft.middle,
+      treble: draft.treble,
+      presence: draft.presence,
+      resonance: draft.resonance,
+      depth: draft.depth,
+      master_volume: draft.masterVolume,
+      noise_gate: draft.noiseGate,
+      compression: draft.compression,
+      delay: draft.delay,
+      reverb: draft.reverb
+    };
+    const sourceMetadata = record(draft.metadata);
+    const originalEffects = draft.suggestedPedals.map((effectName, index) => ({
+      order: index + 1,
+      type: normalizePedalType(effectName),
+      name: effectName
+    }));
+    const searchText = `${draft.song} ${draft.artist} ${draft.part} ${legacyPartType} ${legacyToneType}`.toLowerCase();
+
+    const { data, error } = await this.supabase
+      .from("song_tone_profiles")
+      .upsert(
+        {
+          song_id: songId,
+          song_title: draft.song,
+          artist_name: draft.artist,
+          mode: draft.mode,
+          part_type: legacyPartType,
+          part_label: draft.part,
+          tone_type: legacyToneType,
+          original_guitar: stringOrNull(sourceMetadata.originalGuitar),
+          original_amp: stringOrNull(sourceMetadata.originalAmp) ?? draft.suggestedAmpArchetype ?? null,
+          original_cab: stringOrNull(sourceMetadata.originalCab) ?? draft.suggestedCabinetArchetype ?? null,
+          original_pickup: stringOrNull(sourceMetadata.originalPickup) ?? draft.pickupPreference ?? null,
+          original_effects: originalEffects,
+          original_settings: originalSettings,
+          adaptation_notes: ["Mirrored from normalized master_tones for deterministic tone-core compatibility."],
+          playing_notes: readTextList(sourceMetadata.playingNotes),
+          source_summary: draft.sourceSummary,
+          confidence: draft.confidence,
+          verification_status: "needs_review",
+          search_text: searchText,
+          is_public: true
+        },
+        { onConflict: "song_id,mode,part_type,tone_type,part_label" }
+      )
+      .select("id")
+      .single();
+
+    if (error) {
+      throw ingestionDatabaseError("Failed to mirror master tone into song_tone_profiles.", {
+        error: error.message,
+        masterToneId
+      });
+    }
+
+    const legacyProfileId = String(data.id);
+    await this.replaceLegacyToneProfileEffects(legacyProfileId, draft.suggestedPedals);
+    await this.replaceLegacyToneProfileSources(legacyProfileId, draft, masterToneId);
+    return legacyProfileId;
+  }
+
+  private async replaceLegacyToneProfileEffects(profileId: string, pedals: string[]) {
+    const { error: deleteError } = await this.supabase.from("tone_profile_effects").delete().eq("profile_id", profileId);
+    if (deleteError) {
+      throw ingestionDatabaseError("Failed to clear legacy tone profile effects.", {
+        error: deleteError.message,
+        profileId
+      });
+    }
+
+    if (!pedals.length) {
+      return;
+    }
+
+    const { error } = await this.supabase.from("tone_profile_effects").insert(
+      pedals.map((pedal, index) => ({
+        profile_id: profileId,
+        effect_order: index + 1,
+        effect_type: normalizePedalType(pedal),
+        effect_name: pedal,
+        placement: "post_gain",
+        settings: {}
+      }))
+    );
+
+    if (error) {
+      throw ingestionDatabaseError("Failed to store legacy tone profile effects.", { error: error.message, profileId });
+    }
+  }
+
+  private async replaceLegacyToneProfileSources(profileId: string, draft: NormalizedMasterToneDraft, masterToneId: string) {
+    const { error: deleteError } = await this.supabase.from("tone_profile_sources").delete().eq("profile_id", profileId);
+    if (deleteError) {
+      throw ingestionDatabaseError("Failed to clear legacy tone profile sources.", {
+        error: deleteError.message,
+        profileId
+      });
+    }
+
+    const { error } = await this.supabase.from("tone_profile_sources").insert({
+      profile_id: profileId,
+      source_type: "internal_seed",
+      title: `Normalized master tone mirror for ${draft.song}`,
+      notes: `Mirrored from master_tones ${masterToneId}. ${draft.sourceSummary}`.trim(),
+      credibility: draft.confidence
+    });
+
+    if (error) {
+      throw ingestionDatabaseError("Failed to store legacy tone profile source metadata.", {
+        error: error.message,
+        profileId
+      });
+    }
+  }
+
   private async setReviewDecision(
     masterToneId: string,
     decision: "approved" | "rejected",
@@ -446,8 +585,69 @@ function normalizePedalType(value: string) {
   return supported.has(normalized) ? normalized : "eq";
 }
 
+function toLegacyPartType(value: string, mode: NormalizedMasterToneDraft["mode"]) {
+  const normalized = value.toLowerCase();
+  if (normalized === "verse" || normalized === "outro" || normalized === "clean") {
+    return "main";
+  }
+  if (normalized === "breakdown") {
+    return mode === "bass" ? "bassline" : "riff";
+  }
+  if (normalized === "lead") {
+    return "lead";
+  }
+  if (normalized === "solo") {
+    return "solo";
+  }
+  if (normalized === "rhythm") {
+    return "rhythm";
+  }
+  if (normalized === "intro") {
+    return "intro";
+  }
+  if (normalized === "chorus") {
+    return "chorus";
+  }
+  if (normalized === "bridge") {
+    return "bridge";
+  }
+  if (mode === "bass" && normalized === "riff") {
+    return "bassline";
+  }
+  if (normalized === "riff") {
+    return "riff";
+  }
+  return "main";
+}
+
+function toLegacyToneType(value: string) {
+  switch (value) {
+    case "auto_detect":
+      return "auto";
+    case "edge_of_breakup":
+    case "classic_rock":
+      return "crunch";
+    case "heavy":
+    case "metal":
+    case "modern_metal":
+      return "high_gain";
+    case "ambient":
+      return "clean";
+    default:
+      return value;
+  }
+}
+
 function record(value: unknown) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function stringOrNull(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function readTextList(value: unknown) {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0) : [];
 }
 
 function stringField(row: Record<string, unknown>, key: string) {

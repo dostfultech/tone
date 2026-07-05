@@ -18,6 +18,7 @@ export interface LoadedMasterToneContext {
   source: {
     id: string;
     sourceType: "master_tones" | "song_tone_profiles_bridge";
+    cacheSourceProfileId?: string | null;
     songId: string;
     songTitle: string;
     artistId: string;
@@ -69,9 +70,12 @@ export interface ToneCacheWriteInput {
   pickupName?: string | null;
   pedalsName?: string | null;
   multiFxName?: string | null;
+  effectsMode?: string | null;
+  selectedFxName?: string | null;
   goingDirect: boolean;
   schemaVersion: number;
   sourceProfileVersion: number;
+  sourceProfileId?: string | null;
   result: FinalToneOutput;
   confidence: number;
   metadata?: JsonRecord;

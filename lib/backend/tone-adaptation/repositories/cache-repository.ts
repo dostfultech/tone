@@ -60,7 +60,7 @@ export class SupabaseCacheRepository implements CacheRepository {
       .from("tone_adaptation_cache")
       .upsert(
         {
-          source_profile_id: null,
+          source_profile_id: input.sourceProfileId ?? null,
           request_signature: input.requestSignature,
           cache_key: input.cacheKey,
           mode: input.mode,
@@ -71,9 +71,9 @@ export class SupabaseCacheRepository implements CacheRepository {
           amp_name: input.ampName ?? null,
           cabinet_name: input.cabinetName ?? null,
           pickup_name: input.pickupName ?? null,
-          effects_mode: input.pedalsName ?? null,
+          effects_mode: input.effectsMode ?? null,
           multi_fx_name: input.multiFxName ?? null,
-          selected_fx_name: input.pedalsName ?? null,
+          selected_fx_name: input.selectedFxName ?? null,
           going_direct: input.goingDirect,
           schema_version: input.schemaVersion,
           source_profile_version: input.sourceProfileVersion,
