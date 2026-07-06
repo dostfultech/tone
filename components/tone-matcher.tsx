@@ -38,7 +38,6 @@ import {
   formatToneControlName,
   useAnimatedToneControls
 } from "@/components/tone-control-animation";
-import { ExpertUpgradeModal } from "@/components/expert-upgrade-modal";
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
 import { OnboardingProgress } from "@/components/onboarding-progress";
 import { getAdaptationSummaryProps, getFreeAdaptationBannerCopy, shouldShowFreeOnboardingJourney } from "@/lib/subscription-display";
@@ -114,6 +113,8 @@ type ToneBackendApiResponse = {
     toneResultId: string | null;
     usageConfirmationRequired: boolean;
     freeAdaptationsRemaining: number | null;
+    freeAdaptationsUsed?: number | null;
+    freeAdaptationLimit?: number | null;
     monthlyAdaptationsRemaining: number | null;
     accessPath: string;
   };
@@ -238,7 +239,6 @@ export function ToneMatcher() {
   const [highlightedSongIndex, setHighlightedSongIndex] = useState(0);
   const [songSearchTouched, setSongSearchTouched] = useState(false);
   const [subscriptionSnapshot, setSubscriptionSnapshot] = useState<ClientSubscriptionSnapshot | null>(null);
-  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [guitarCatalog, setGuitarCatalog] = useState<CatalogEntry[]>([]);
   const [bassGuitarCatalog, setBassGuitarCatalog] = useState<CatalogEntry[]>([]);
   const [ampCatalog, setAmpCatalog] = useState<CatalogEntry[]>([]);
@@ -261,6 +261,46 @@ export function ToneMatcher() {
     return nextSnapshot;
   }, []);
 
+  const applyFreeUsageSnapshot = useCallback(
+    (usage: {
+      freeAdaptationsRemaining?: number | null;
+      freeAdaptationsUsed?: number | null;
+      freeAdaptationLimit?: number | null;
+      firstAdaptationCompleted?: boolean | null;
+    }) => {
+      if (typeof usage.freeAdaptationsRemaining !== "number") {
+        return;
+      }
+
+      const freeAdaptationsRemaining = usage.freeAdaptationsRemaining;
+      setSubscriptionSnapshot((current) => {
+        if (!current || current.hasAccess) {
+          return current;
+        }
+
+        const freeAdaptationLimit = typeof usage.freeAdaptationLimit === "number" ? usage.freeAdaptationLimit : current.usage.freeAdaptationLimit;
+        const freeAdaptationsUsed = typeof usage.freeAdaptationsUsed === "number" ? usage.freeAdaptationsUsed : Math.max(freeAdaptationLimit - freeAdaptationsRemaining, 0);
+
+        return {
+          ...current,
+          onboarding: {
+            ...current.onboarding,
+            firstAdaptationCompleted: Boolean(usage.firstAdaptationCompleted || current.onboarding.firstAdaptationCompleted)
+          },
+          usage: {
+            ...current.usage,
+            adaptationsUsed: freeAdaptationsUsed,
+            adaptationsRemaining: freeAdaptationsRemaining,
+            freeAdaptationLimit,
+            freeAdaptationsUsed,
+            freeAdaptationsRemaining
+          }
+        };
+      });
+    },
+    []
+  );
+
   const confirmSuccessfulAdaptation = useCallback(
     async (toneResultId: string) => {
       const response = await fetch("/api/v1/tones/confirm", {
@@ -280,35 +320,10 @@ export function ToneMatcher() {
         firstAdaptationCompleted?: boolean;
       };
       const beforeFirstAdaptation = !subscriptionSnapshot?.onboarding.firstAdaptationCompleted;
-      const applyConfirmedUsage = (current: ClientSubscriptionSnapshot | null) => {
-        if (!current || current.hasAccess || typeof data.freeAdaptationsRemaining !== "number") {
-          return current;
-        }
-
-        const freeAdaptationLimit = typeof data.freeAdaptationLimit === "number" ? data.freeAdaptationLimit : current.usage.freeAdaptationLimit;
-        const freeAdaptationsUsed = typeof data.freeAdaptationsUsed === "number" ? data.freeAdaptationsUsed : Math.max(freeAdaptationLimit - data.freeAdaptationsRemaining, 0);
-
-        return {
-          ...current,
-          onboarding: {
-            ...current.onboarding,
-            firstAdaptationCompleted: Boolean(data.firstAdaptationCompleted || current.onboarding.firstAdaptationCompleted)
-          },
-          usage: {
-            ...current.usage,
-            adaptationsUsed: freeAdaptationsUsed,
-            adaptationsRemaining: data.freeAdaptationsRemaining,
-            freeAdaptationLimit,
-            freeAdaptationsUsed,
-            freeAdaptationsRemaining: data.freeAdaptationsRemaining
-          }
-        };
-      };
-
-      setSubscriptionSnapshot(applyConfirmedUsage);
+      applyFreeUsageSnapshot(data);
       const nextSnapshot = await refreshSubscriptionSnapshot();
       if (nextSnapshot && !nextSnapshot.hasAccess && typeof data.freeAdaptationsRemaining === "number" && nextSnapshot.usage.freeAdaptationsRemaining !== data.freeAdaptationsRemaining) {
-        setSubscriptionSnapshot(applyConfirmedUsage);
+        applyFreeUsageSnapshot(data);
       }
       dispatchSubscriptionRefresh();
 
@@ -322,7 +337,7 @@ export function ToneMatcher() {
         firstAdaptationCompleted: boolean;
       };
     },
-    [refreshSubscriptionSnapshot, subscriptionSnapshot?.hasAccess, subscriptionSnapshot?.onboarding.firstAdaptationCompleted]
+    [applyFreeUsageSnapshot, refreshSubscriptionSnapshot, subscriptionSnapshot?.hasAccess, subscriptionSnapshot?.onboarding.firstAdaptationCompleted]
   );
 
   const runAdaptation = useCallback(
@@ -385,7 +400,7 @@ export function ToneMatcher() {
         }
         if (response.status === 402) {
           setMessage(data.error?.message || "Upgrade to Expert to continue adapting tones.");
-          setUpgradeModalOpen(true);
+          router.push(`/plans?required=subscription&redirect=${encodeURIComponent(matcherRedirectTarget)}&source=free-adaptation-limit`);
           return;
         }
         if (!response.ok) {
@@ -415,8 +430,18 @@ export function ToneMatcher() {
           masterTone: (data as ToneBackendApiResponse).masterTone || null
         });
         setResult(adapted);
-        if ((data as ToneBackendApiResponse).tracking?.toneResultId) {
-          await confirmSuccessfulAdaptation((data as ToneBackendApiResponse).tracking?.toneResultId as string);
+        const tracking = (data as ToneBackendApiResponse).tracking;
+        if (tracking?.accessPath === "free") {
+          applyFreeUsageSnapshot({
+            freeAdaptationsRemaining: tracking.freeAdaptationsRemaining,
+            freeAdaptationsUsed: tracking.freeAdaptationsUsed,
+            freeAdaptationLimit: tracking.freeAdaptationLimit,
+            firstAdaptationCompleted: true
+          });
+          dispatchSubscriptionRefresh();
+        }
+        if (tracking?.usageConfirmationRequired !== false && tracking?.toneResultId) {
+          await confirmSuccessfulAdaptation(tracking.toneResultId);
         }
         trackUsage(adapted);
       } catch (error) {
@@ -427,7 +452,7 @@ export function ToneMatcher() {
         window.setTimeout(() => setLoading(false), 350);
       }
     },
-    [confirmSuccessfulAdaptation, goingDirect, matcherRedirectTarget, multiFx, router, selectedEffects, selectedFx]
+    [applyFreeUsageSnapshot, confirmSuccessfulAdaptation, goingDirect, matcherRedirectTarget, multiFx, router, selectedEffects, selectedFx]
   );
 
   const runAdaptationRef = useRef(runAdaptation);
@@ -929,7 +954,7 @@ export function ToneMatcher() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (subscriptionSnapshot?.user && !subscriptionSnapshot.hasAccess && subscriptionSnapshot.usage.freeAdaptationsRemaining <= 0) {
-      setUpgradeModalOpen(true);
+      router.push(`/plans?required=subscription&redirect=${encodeURIComponent(matcherRedirectTarget)}&source=free-adaptation-limit`);
       return;
     }
 
@@ -1584,9 +1609,6 @@ export function ToneMatcher() {
           </div>
         </form>
       </div>
-
-      <ExpertUpgradeModal open={upgradeModalOpen} onClose={() => setUpgradeModalOpen(false)} redirect={matcherRedirectTarget} />
-
       <AnimatePresence>
         {loading ? (
           <motion.div className="fixed inset-0 z-[80] grid place-items-center bg-ink/35 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>

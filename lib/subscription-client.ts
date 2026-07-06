@@ -97,13 +97,19 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
   const subscription = normalizeSubscription(activeResult.data || latestResult.data || null);
   const usageWindow = currentUsageWindow();
 
-  const [monthlyUsageResult, savedThisMonthResult, presetsThisMonthResult, savedTotalResult, presetsTotalResult] = await Promise.all([
+  const [monthlyUsageResult, freeUsageEventsResult, savedThisMonthResult, presetsThisMonthResult, savedTotalResult, presetsTotalResult] = await Promise.all([
     client
       .from("monthly_usage")
       .select("adaptations_used")
       .eq("user_id", user.id)
       .eq("usage_month", usageWindow.usageMonth)
       .maybeSingle(),
+    client
+      .from("usage_events")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("event_type", "tone_adaptation")
+      .contains("metadata", { plan: "free" }),
     client
       .from("saved_tones")
       .select("id", { count: "exact", head: true })
@@ -128,7 +134,8 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
   const plan = planId ? plans.find((item) => item.id === planId) || null : null;
   const limits = planId ? planLimits[planId] : null;
   const profile = (profileResult.data as RawProfile | null) || null;
-  const freeQuota = createFreeAdaptationQuota(profile?.free_adaptation_limit, profile?.free_adaptations_used);
+  const freeAdaptationsUsed = Math.max(profile?.free_adaptations_used || 0, freeUsageEventsResult.count || 0);
+  const freeQuota = createFreeAdaptationQuota(profile?.free_adaptation_limit, freeAdaptationsUsed);
   const onboarding = createOnboardingProgressState(profile);
   const adaptationsUsed = monthlyUsageResult.data?.adaptations_used || 0;
   const savedTonesUsed = savedThisMonthResult.count || 0;

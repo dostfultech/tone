@@ -44,11 +44,7 @@ export function getBypassEntitlement(user: User | null): Entitlement | null {
 }
 
 function isTestAccessEnabled() {
-  if (process.env.NODE_ENV !== "production") {
-    return true;
-  }
-
-  return process.env.ENABLE_TEST_ACCESS_IN_PRODUCTION === "true";
+  return process.env.NODE_ENV !== "production";
 }
 
 export function mapSubscriptionEntitlement(subscription: {

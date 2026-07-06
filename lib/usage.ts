@@ -135,7 +135,7 @@ export async function incrementAdaptationUsage(admin: SupabaseClient | null, use
   });
 }
 
-export async function confirmToneAdaptationUsage(
+export async function recordSuccessfulAdaptationUsage(
   admin: SupabaseClient | null,
   user: User,
   toneResultId: string,
@@ -320,6 +320,15 @@ export async function confirmToneAdaptationUsage(
     monthlyAdaptationsRemaining: null,
     firstAdaptationCompleted: true
   };
+}
+
+export async function confirmToneAdaptationUsage(
+  admin: SupabaseClient | null,
+  user: User,
+  toneResultId: string,
+  entitlement: Entitlement
+): Promise<AdaptationConfirmationResult> {
+  return recordSuccessfulAdaptationUsage(admin, user, toneResultId, entitlement);
 }
 
 async function loadProfileUsage(admin: SupabaseClient, userId: string) {

@@ -22,7 +22,7 @@ import { getEntitlement, getCurrentSession } from "@/lib/server-access";
 import { lookupGearFromSupabase } from "@/lib/gear-catalog";
 import { resolveCoreTone, TONE_CORE_MODEL_NAME } from "@/lib/tone-core";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { assertCanCreateAdaptation, incrementAdaptationUsage } from "@/lib/usage";
+import { assertCanCreateAdaptation, recordSuccessfulAdaptationUsage } from "@/lib/usage";
 import { buildResearchPayload, createMissingSongRequest, findToneProfile, listCommunityToneProfiles, type CommunityToneQuery } from "@/lib/tone-profiles";
 
 export const runtime = "nodejs";
@@ -264,7 +264,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
         result,
         confidence: result.accuracy
       }).select("id").single();
-      await incrementAdaptationUsage(admin, user.id, toneJobId);
+
+      if (!savedResult?.id) {
+        return NextResponse.json({ error: "Tone adaptation usage could not be recorded." }, { status: 503 });
+      }
+
+      const usageEntitlement = await getEntitlement(supabase, user);
+      const usage = await recordSuccessfulAdaptationUsage(admin, user, String(savedResult.id), usageEntitlement);
+      if (!usage.ok) {
+        return NextResponse.json({ error: usage.error || "Tone adaptation usage could not be recorded." }, { status: 503 });
+      }
+
       return json({ result: { ...result, toneResultId: savedResult?.id || null }, source });
     }
 

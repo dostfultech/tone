@@ -5,7 +5,7 @@ import { configurationError, isToneBackendError } from "@/lib/backend/tone-adapt
 import { validateToneAdaptationRequest } from "@/lib/backend/tone-adaptation/validation";
 import { getEntitlement, getCurrentSession } from "@/lib/server-access";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { assertCanCreateAdaptation } from "@/lib/usage";
+import { assertCanCreateAdaptation, recordSuccessfulAdaptationUsage } from "@/lib/usage";
 
 export const runtime = "nodejs";
 
@@ -77,14 +77,23 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       response
     });
+    const usage = await recordSuccessfulAdaptationUsage(admin, user, toneResultId, entitlement);
+
+    if (!usage.ok) {
+      throw configurationError("Tone adaptation usage could not be recorded.", {
+        message: usage.error || "Usage recording failed."
+      });
+    }
 
     return NextResponse.json({
       ...response,
       tracking: {
         toneResultId,
-        usageConfirmationRequired: true,
-        freeAdaptationsRemaining: eligibility.freeAdaptationsRemaining ?? null,
-        monthlyAdaptationsRemaining: eligibility.monthlyAdaptationsRemaining ?? null,
+        usageConfirmationRequired: false,
+        freeAdaptationsRemaining: usage.freeAdaptationsRemaining,
+        freeAdaptationsUsed: usage.freeAdaptationsUsed,
+        freeAdaptationLimit: usage.freeAdaptationLimit,
+        monthlyAdaptationsRemaining: usage.monthlyAdaptationsRemaining,
         accessPath: eligibility.path ?? "free"
       }
     });
