@@ -160,7 +160,7 @@ export async function recordSuccessfulAdaptationUsage(
 
   const { data: toneResult, error: toneResultError } = await admin
     .from("tone_results")
-    .select("id, job_id, usage_confirmed_at")
+    .select("id, job_id")
     .eq("id", toneResultId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -180,33 +180,7 @@ export async function recordSuccessfulAdaptationUsage(
   }
 
   const profileQuota = await loadProfileUsage(admin, userId);
-  const alreadyConfirmed = Boolean(toneResult.usage_confirmed_at);
-
-  if (!alreadyConfirmed) {
-    const confirmedAt = new Date().toISOString();
-    const { error: confirmError } = await admin
-      .from("tone_results")
-      .update({ usage_confirmed_at: confirmedAt })
-      .eq("id", toneResultId)
-      .eq("user_id", userId)
-      .is("usage_confirmed_at", null);
-
-    if (confirmError) {
-      return {
-        ok: false,
-        confirmed: false,
-        usageApplied: false,
-        freeAdaptationsRemaining: profileQuota.remaining,
-        freeAdaptationsUsed: profileQuota.used,
-        freeAdaptationLimit: profileQuota.limit,
-        monthlyAdaptationsRemaining: entitlement.monthlyAdaptations,
-        firstAdaptationCompleted: Boolean(profileQuota.firstAdaptationCompletedAt),
-        error: confirmError.message
-      };
-    }
-
-    await markFirstAdaptationCompleted(admin, userId, confirmedAt);
-  }
+  const alreadyConfirmed = await hasUsageEventForToneResult(admin, userId, toneResultId);
 
   if (alreadyConfirmed) {
     const currentMonthlyRemaining = await readMonthlyAdaptationsRemaining(admin, userId, entitlement);
@@ -221,6 +195,8 @@ export async function recordSuccessfulAdaptationUsage(
       firstAdaptationCompleted: true
     };
   }
+
+  await markFirstAdaptationCompleted(admin, userId, new Date().toISOString());
 
   if (entitlement.source === "test" || (entitlement.hasAccess && entitlement.planId === "expert")) {
     const refreshedQuota = await loadProfileUsage(admin, userId);
@@ -241,19 +217,47 @@ export async function recordSuccessfulAdaptationUsage(
     const { data } = await admin.from("monthly_usage").select("adaptations_used").eq("user_id", userId).eq("usage_month", month).maybeSingle();
     const nextCount = (data?.adaptations_used || 0) + 1;
 
-    await admin.from("monthly_usage").upsert({
+    const { error: monthlyUsageError } = await admin.from("monthly_usage").upsert({
       user_id: userId,
       usage_month: month,
       adaptations_used: nextCount
     });
 
-    await admin.from("usage_events").insert({
+    if (monthlyUsageError) {
+      return {
+        ok: false,
+        confirmed: false,
+        usageApplied: false,
+        freeAdaptationsRemaining: profileQuota.remaining,
+        freeAdaptationsUsed: profileQuota.used,
+        freeAdaptationLimit: profileQuota.limit,
+        monthlyAdaptationsRemaining: entitlement.monthlyAdaptations,
+        firstAdaptationCompleted: Boolean(profileQuota.firstAdaptationCompletedAt),
+        error: monthlyUsageError.message
+      };
+    }
+
+    const { error: eventError } = await admin.from("usage_events").insert({
       user_id: userId,
       event_type: "tone_adaptation",
       tone_job_id: toneResult.job_id,
       quantity: 1,
       metadata: { source: "tone_result_confirmation", tone_result_id: toneResultId }
     });
+
+    if (eventError) {
+      return {
+        ok: false,
+        confirmed: false,
+        usageApplied: false,
+        freeAdaptationsRemaining: profileQuota.remaining,
+        freeAdaptationsUsed: profileQuota.used,
+        freeAdaptationLimit: profileQuota.limit,
+        monthlyAdaptationsRemaining: entitlement.monthlyAdaptations,
+        firstAdaptationCompleted: Boolean(profileQuota.firstAdaptationCompletedAt),
+        error: eventError.message
+      };
+    }
 
     const refreshedQuota = await loadProfileUsage(admin, userId);
     return {
@@ -268,15 +272,30 @@ export async function recordSuccessfulAdaptationUsage(
     };
   }
 
-  const nextFreeUsed = Math.min(profileQuota.used + 1, profileQuota.limit);
-  const { error: freeUsageError } = await admin
-    .from("profiles")
-    .update({
-      free_adaptations_used: nextFreeUsed
-    })
-    .eq("id", userId);
+  if (profileQuota.remaining <= 0) {
+    return {
+      ok: false,
+      confirmed: false,
+      usageApplied: false,
+      freeAdaptationsRemaining: 0,
+      freeAdaptationsUsed: profileQuota.used,
+      freeAdaptationLimit: profileQuota.limit,
+      monthlyAdaptationsRemaining: null,
+      firstAdaptationCompleted: Boolean(profileQuota.firstAdaptationCompletedAt),
+      error: "You've used your 3 free adaptations. Upgrade to Expert for unlimited tone adaptations."
+    };
+  }
 
-  if (freeUsageError) {
+  const nextFreeUsed = Math.min(profileQuota.used + 1, profileQuota.limit);
+  const { error: eventError } = await admin.from("usage_events").insert({
+    user_id: userId,
+    event_type: "tone_adaptation",
+    tone_job_id: toneResult.job_id,
+    quantity: 1,
+    metadata: { source: "tone_result_confirmation", tone_result_id: toneResultId, plan: "free" }
+  });
+
+  if (eventError) {
     return {
       ok: false,
       confirmed: false,
@@ -286,26 +305,23 @@ export async function recordSuccessfulAdaptationUsage(
       freeAdaptationLimit: profileQuota.limit,
       monthlyAdaptationsRemaining: null,
       firstAdaptationCompleted: Boolean(profileQuota.firstAdaptationCompletedAt),
-      error: freeUsageError.message
+      error: eventError.message
     };
   }
 
-  if (nextFreeUsed > profileQuota.used) {
-    const { error: eventError } = await admin.from("usage_events").insert({
-      user_id: userId,
-      event_type: "tone_adaptation",
-      tone_job_id: toneResult.job_id,
-      quantity: 1,
-      metadata: { source: "tone_result_confirmation", tone_result_id: toneResultId, plan: "free" }
-    });
+  const { error: freeUsageError } = await admin
+    .from("profiles")
+    .update({
+      free_adaptations_used: nextFreeUsed
+    })
+    .eq("id", userId);
 
-    if (eventError) {
-      console.error("[tonefex:usage] Failed to record free adaptation usage event.", {
-        userId,
-        toneResultId,
-        message: eventError.message
-      });
-    }
+  if (freeUsageError) {
+    console.error("[tonefex:usage] Failed to update profile free adaptation counter after recording event.", {
+      userId,
+      toneResultId,
+      message: freeUsageError.message
+    });
   }
 
   const refreshedQuota = await loadProfileUsage(admin, userId);
@@ -313,7 +329,7 @@ export async function recordSuccessfulAdaptationUsage(
   return {
     ok: true,
     confirmed: true,
-    usageApplied: nextFreeUsed > profileQuota.used,
+    usageApplied: true,
     freeAdaptationsRemaining: refreshedQuota.remaining,
     freeAdaptationsUsed: refreshedQuota.used,
     freeAdaptationLimit: refreshedQuota.limit,
@@ -418,6 +434,27 @@ async function countConfirmedFreeAdaptations(admin: SupabaseClient, userId: stri
   }
 
   return count || 0;
+}
+
+async function hasUsageEventForToneResult(admin: SupabaseClient, userId: string, toneResultId: string) {
+  const { data, error } = await admin
+    .from("usage_events")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("event_type", "tone_adaptation")
+    .contains("metadata", { tone_result_id: toneResultId })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[tonefex:usage] Failed to check existing adaptation usage event.", {
+      userId,
+      toneResultId,
+      message: error.message
+    });
+  }
+
+  return Boolean(data?.id);
 }
 
 async function readMonthlyAdaptationsRemaining(admin: SupabaseClient, userId: string, entitlement: Entitlement) {
