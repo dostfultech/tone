@@ -147,7 +147,11 @@ export function CommunityView() {
           <h1 className="text-4xl font-bold tracking-normal sm:text-5xl">
             Tone <span className="lime-highlight">Database</span>
           </h1>
-          <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-neutral-600 sm:text-lg">Browse community tone research, compare gear assumptions, and preview source rigs before adapting them to your setup.</p>
+          <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-neutral-600 sm:text-lg">
+            {onboardingMode && snapshot?.user && !snapshot.onboarding.firstAdaptationCompleted
+              ? "Search for the first song you want adapted to your saved gear. You can browse as much as you like before using a free adaptation."
+              : "Browse community tone research, compare gear assumptions, and preview source rigs before adapting them to your setup."}
+          </p>
           <div className="relative mx-auto mt-10 max-w-3xl">
             <Search className="absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400" />
             <input
@@ -170,6 +174,15 @@ export function CommunityView() {
             ))}
           </div>
         </section>
+
+        {onboardingMode && snapshot?.user && !snapshot.onboarding.firstAdaptationCompleted ? (
+          <div className="mt-8 rounded-lg border border-moss/50 bg-moss/10 px-5 py-4 text-sm text-ink">
+            <div className="font-bold">Step 2: find a song you know.</div>
+            <div className="mt-1 text-slate-700">
+              Open any song page, then use <span className="font-semibold">Adapt to My Gear</span>. Searching and browsing do not use a free adaptation.
+            </div>
+          </div>
+        ) : null}
 
         {snapshot?.user ? (
           <div className="mt-8">

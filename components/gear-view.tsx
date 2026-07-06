@@ -62,6 +62,7 @@ export function GearView() {
   const [multiFx, setMultiFx] = useState("");
   const [selectedFx, setSelectedFx] = useState("");
   const [activeTab, setActiveTab] = useState<"presets" | "pedals" | "multi_fx" | "catalog">("presets");
+  const [showAdvancedSetup, setShowAdvancedSetup] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [electricGuitars, setElectricGuitars] = useState<CatalogEntry[]>([]);
@@ -309,32 +310,85 @@ export function GearView() {
                 ))}
               </div>
 
-              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-                <div>
-                  <label className="label" htmlFor="preset-name">
-                    Preset name
-                  </label>
-                  <input id="preset-name" className="field mt-2 h-12" value={name} onChange={(event) => setName(event.target.value)} required />
-                </div>
+              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {!onboardingMode ? (
+                  <div>
+                    <label className="label" htmlFor="preset-name">
+                      Preset name
+                    </label>
+                    <input id="preset-name" className="field mt-2 h-12" value={name} onChange={(event) => setName(event.target.value)} required />
+                  </div>
+                ) : null}
                 <Select label={`${presetInstrument === "bass" ? "Bass" : "Guitar"}${onboardingMode ? " *" : ""}`} value={guitar} setValue={setGuitar} options={currentGuitars.map((item) => item.name)} />
                 <Select label={`Amplifier${onboardingMode ? " *" : ""}`} value={amp} setValue={setAmp} options={currentAmps.map((item) => item.name)} />
-                <Select label="Pickup" value={pickup} setValue={setPickup} options={pickups.map((item) => item.name)} />
-                {presetInstrument === "guitar" ? (
-                  <>
-                    <Select label="Neck pickup override" value={neckPickup} setValue={setNeckPickup} options={["Stock", ...pickups.map((item) => item.name)]} />
-                    <Select label="Middle pickup override" value={middlePickup} setValue={setMiddlePickup} options={["Stock", ...pickups.map((item) => item.name)]} />
-                    <Select label="Bridge pickup override" value={bridgePickup} setValue={setBridgePickup} options={["Stock", ...pickups.map((item) => item.name)]} />
-                  </>
-                ) : null}
-                <Select label="Cabinet / Speaker" value={cabinet} setValue={setCabinet} options={cabinets.map((item) => item.name)} />
-                <Select label="Effects mode" value={effectsMode} setValue={setEffectsMode} options={["manual", "amp_with_effects", "multi_fx"]} />
-                <Select label="Available effects" value={selectedFx} setValue={setSelectedFx} options={[...pedals, ...effects].map((item) => item.name)} />
-                <Select label="Multi-FX unit" value={multiFx} setValue={setMultiFx} options={multiFxUnits.map((item) => item.name)} />
               </div>
+              {onboardingMode ? (
+                <div className="mt-6 rounded-lg border border-white/80 bg-blue-50/70 p-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold">Optional gear details</h3>
+                      <p className="mt-1 text-sm text-slate-600">Cabinet, pickups, pedals, and direct mode can make your future adaptations more accurate.</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="button-secondary min-h-10 rounded-lg px-4 text-sm"
+                      onClick={() => setShowAdvancedSetup((value) => !value)}
+                    >
+                      {showAdvancedSetup ? "Hide details" : "Add optional details"}
+                    </button>
+                  </div>
+                  {showAdvancedSetup ? (
+                    <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                      <Select label="Cabinet / Speaker" value={cabinet} setValue={setCabinet} options={cabinets.map((item) => item.name)} />
+                      <Select label="Primary pickup" value={pickup} setValue={setPickup} options={pickups.map((item) => item.name)} />
+                      <div>
+                        <label className="label">Going direct</label>
+                        <button
+                          type="button"
+                          className={`mt-2 flex h-12 w-full items-center justify-between rounded-lg border px-4 text-sm font-semibold transition ${
+                            effectsMode === "multi_fx" ? "border-ink bg-ink text-white" : "border-white/80 bg-white text-slate-700"
+                          }`}
+                          onClick={() => setEffectsMode((current) => (current === "multi_fx" ? "manual" : "multi_fx"))}
+                        >
+                          <span>{effectsMode === "multi_fx" ? "Enabled" : "Disabled"}</span>
+                          <span className={`flex h-6 w-11 items-center rounded-full p-1 ${effectsMode === "multi_fx" ? "bg-white/20" : "bg-slate-200"}`}>
+                            <span className={`h-4 w-4 rounded-full bg-white shadow transition ${effectsMode === "multi_fx" ? "translate-x-5" : ""}`} />
+                          </span>
+                        </button>
+                      </div>
+                      <Select label="Available effects" value={selectedFx} setValue={setSelectedFx} options={[...pedals, ...effects].map((item) => item.name)} />
+                      <Select label="Multi-FX unit" value={multiFx} setValue={setMultiFx} options={multiFxUnits.map((item) => item.name)} />
+                      {presetInstrument === "guitar" ? (
+                        <>
+                          <Select label="Neck pickup override" value={neckPickup} setValue={setNeckPickup} options={["Stock", ...pickups.map((item) => item.name)]} />
+                          <Select label="Middle pickup override" value={middlePickup} setValue={setMiddlePickup} options={["Stock", ...pickups.map((item) => item.name)]} />
+                          <Select label="Bridge pickup override" value={bridgePickup} setValue={setBridgePickup} options={["Stock", ...pickups.map((item) => item.name)]} />
+                        </>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+                  <Select label="Pickup" value={pickup} setValue={setPickup} options={pickups.map((item) => item.name)} />
+                  {presetInstrument === "guitar" ? (
+                    <>
+                      <Select label="Neck pickup override" value={neckPickup} setValue={setNeckPickup} options={["Stock", ...pickups.map((item) => item.name)]} />
+                      <Select label="Middle pickup override" value={middlePickup} setValue={setMiddlePickup} options={["Stock", ...pickups.map((item) => item.name)]} />
+                      <Select label="Bridge pickup override" value={bridgePickup} setValue={setBridgePickup} options={["Stock", ...pickups.map((item) => item.name)]} />
+                    </>
+                  ) : null}
+                  <Select label="Cabinet / Speaker" value={cabinet} setValue={setCabinet} options={cabinets.map((item) => item.name)} />
+                  <Select label="Effects mode" value={effectsMode} setValue={setEffectsMode} options={["manual", "amp_with_effects", "multi_fx"]} />
+                  <Select label="Available effects" value={selectedFx} setValue={setSelectedFx} options={[...pedals, ...effects].map((item) => item.name)} />
+                  <Select label="Multi-FX unit" value={multiFx} setValue={setMultiFx} options={multiFxUnits.map((item) => item.name)} />
+                </div>
+              )}
               <button className="button-primary mt-6 min-h-12 rounded-lg">
                 <Plus className="h-4 w-4" />
-                {onboardingMode ? "Save My Gear" : "Save preset"}
+                {onboardingMode ? "Save My Gear and Continue" : "Save preset"}
               </button>
+              {onboardingMode ? <p className="mt-3 text-sm text-slate-500">You can update your saved gear anytime from My Gear.</p> : null}
             </form>
 
             {!onboardingMode ? (

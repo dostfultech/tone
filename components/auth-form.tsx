@@ -8,6 +8,8 @@ import { Chrome, Loader2 } from "lucide-react";
 import { brand } from "@/lib/brand";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
+const OAUTH_PROGRESS_KEY = "tonefex_oauth_in_progress";
+
 export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "update" }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -20,12 +22,17 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
   const [error, setError] = useState("");
   const [updateComplete, setUpdateComplete] = useState(false);
   const [recoveryReady, setRecoveryReady] = useState(mode !== "update");
+  const [oauthRedirecting, setOauthRedirecting] = useState(false);
   const googleAuthEnabled = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED !== "false";
 
   useEffect(() => {
     const authMessage = searchParams.get("message");
     const authError = searchParams.get("error");
     const passwordReset = searchParams.get("passwordReset");
+    if (authError || passwordReset === "success") {
+      clearOauthInProgress();
+      setOauthRedirecting(false);
+    }
     if (authError) {
       setError(authMessage || "Authentication could not be completed. Please try again.");
     } else if (passwordReset === "success") {
@@ -40,6 +47,8 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
       return;
     }
 
+    setOauthRedirecting(readOauthInProgress());
+
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
       return;
@@ -49,6 +58,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
 
     supabase.auth.getSession().then(({ data }) => {
       if (data.session?.user) {
+        clearOauthInProgress();
         window.location.replace(redirectTo);
       }
     });
@@ -57,6 +67,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
       data: { subscription }
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
+        clearOauthInProgress();
         window.location.replace(redirectTo);
       }
     });
@@ -197,6 +208,9 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
 
     const next = searchParams.get("redirect") || defaultRedirect;
     const origin = getAuthOrigin();
+    setLoading(true);
+    setOauthRedirecting(true);
+    markOauthInProgress();
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -204,6 +218,9 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
       }
     });
     if (oauthError) {
+      clearOauthInProgress();
+      setOauthRedirecting(false);
+      setLoading(false);
       setError(oauthError.message);
     }
   }
@@ -228,14 +245,24 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
           <h1 className="text-2xl font-semibold">{title}</h1>
           <p className="mt-2 text-sm leading-6 text-neutral-600">{description}</p>
 
-          {mode === "login" || mode === "signup" ? (
+          {oauthRedirecting && (mode === "login" || mode === "signup") ? (
+            <div className="mt-6 rounded-lg border border-white/80 bg-neutral-50 px-4 py-5">
+              <div className="inline-flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-slate-600">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Finishing your Google sign-in...
+              </div>
+              <p className="mt-4 text-sm leading-6 text-neutral-600">
+                We&apos;re handing your session back to {brand.appName}. This should only take a moment.
+              </p>
+            </div>
+          ) : mode === "login" || mode === "signup" ? (
             <button className="button-secondary mt-6 w-full" type="button" onClick={signInWithGoogle}>
               <Chrome className="h-4 w-4" />
               Continue with Google
             </button>
           ) : null}
 
-          {updateComplete ? (
+          {oauthRedirecting && (mode === "login" || mode === "signup") ? null : updateComplete ? (
             <div className="mt-6 grid gap-4">
               {message ? <div className="rounded-md bg-blue-50/80 px-3 py-2 text-sm font-semibold text-ink">{message}</div> : null}
               <Link href="/login?passwordReset=success" className="button-primary w-full justify-center">
@@ -346,6 +373,46 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
       </div>
     </div>
   );
+}
+
+function markOauthInProgress() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.setItem(OAUTH_PROGRESS_KEY, String(Date.now()));
+}
+
+function clearOauthInProgress() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.removeItem(OAUTH_PROGRESS_KEY);
+}
+
+function readOauthInProgress() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const value = window.sessionStorage.getItem(OAUTH_PROGRESS_KEY);
+  if (!value) {
+    return false;
+  }
+
+  const timestamp = Number(value);
+  if (!Number.isFinite(timestamp)) {
+    window.sessionStorage.removeItem(OAUTH_PROGRESS_KEY);
+    return false;
+  }
+
+  const stillFresh = Date.now() - timestamp < 2 * 60 * 1000;
+  if (!stillFresh) {
+    window.sessionStorage.removeItem(OAUTH_PROGRESS_KEY);
+  }
+
+  return stillFresh;
 }
 
 function getAuthOrigin() {

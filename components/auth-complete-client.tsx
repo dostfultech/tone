@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
+const OAUTH_PROGRESS_KEY = "tonefex_oauth_in_progress";
+
 type AuthCompleteClientProps = {
   searchParams: Record<string, string | string[] | undefined>;
 };
@@ -38,6 +40,7 @@ export function AuthCompleteClient({ searchParams }: AuthCompleteClientProps) {
       data: { subscription }
     } = client.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
+        clearOauthInProgress();
         window.location.replace(next);
       }
     });
@@ -50,6 +53,7 @@ export function AuthCompleteClient({ searchParams }: AuthCompleteClientProps) {
       if (!initialSession) {
         const authActionError = await completeBrowserAuth(client, { code, tokenHash, otpType });
         if (authActionError) {
+          clearOauthInProgress();
           setError(authActionError);
           window.setTimeout(() => {
             window.location.replace(`/login?error=callback_failed&message=${encodeURIComponent(authActionError)}`);
@@ -70,6 +74,7 @@ export function AuthCompleteClient({ searchParams }: AuthCompleteClientProps) {
         }
 
         if (session?.user) {
+          clearOauthInProgress();
           window.location.replace(next);
           return;
         }
@@ -79,6 +84,7 @@ export function AuthCompleteClient({ searchParams }: AuthCompleteClientProps) {
       }
 
       if (!cancelled) {
+        clearOauthInProgress();
         window.location.replace(`/login?error=session_sync&message=${encodeURIComponent("We could not confirm your session. Please try again.")}`);
       }
     }
@@ -137,4 +143,12 @@ function getSearchParam(searchParams: Record<string, string | string[] | undefin
 
 function isSupportedOtpType(value: string): value is "signup" | "invite" | "magiclink" | "recovery" | "email_change" | "email" {
   return ["signup", "invite", "magiclink", "recovery", "email_change", "email"].includes(value);
+}
+
+function clearOauthInProgress() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.removeItem(OAUTH_PROGRESS_KEY);
 }

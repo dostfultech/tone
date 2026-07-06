@@ -45,6 +45,8 @@ export async function GET(request: NextRequest) {
       loginUrl.searchParams.set("message", error.message);
       return NextResponse.redirect(loginUrl);
     }
+
+    return NextResponse.redirect(new URL(next, origin));
   }
 
   const authCompleteUrl = new URL("/auth/complete", origin);

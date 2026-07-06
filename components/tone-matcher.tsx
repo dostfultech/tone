@@ -140,6 +140,35 @@ type CatalogEntry = {
   details?: string[];
 };
 
+type MatcherPresetEffects = {
+  cabinetName?: string;
+  effectsMode?: string;
+  multiFx?: string;
+  selectedFx?: string;
+  customPickups?: {
+    neck?: string;
+    middle?: string;
+    bridge?: string;
+  };
+};
+
+type MatcherGearPreset = {
+  id: string;
+  name?: string;
+  instrument_type?: "guitar" | "bass";
+  guitar_name?: string;
+  amp_name?: string;
+  pickup_name?: string | null;
+  effects?: MatcherPresetEffects | MatcherPresetEffects[] | null;
+  guitar?: string;
+  amp?: string;
+  pickup?: string;
+  cabinet?: string;
+  multiFx?: string;
+  selectedFx?: string;
+  effectsMode?: string;
+};
+
 const progressSteps = [
   "Searching for this song...",
   "Finding original gear used...",
@@ -160,6 +189,7 @@ const trendingTones = [
 
 const AUTO_ADAPT_KEY = `${brand.storagePrefix}_auto_adapt_from_community`;
 const AUTO_ADAPT_PAYLOAD_KEY = `${brand.storagePrefix}_auto_adapt_payload`;
+const SAVED_GEAR_KEY = `${brand.storagePrefix}_saved_gear_presets`;
 const LEGACY_DEFAULT_SONG = "Comfortably Numb";
 const LEGACY_DEFAULT_ARTIST = "Pink Floyd";
 const LEGACY_DEFAULT_PART = "second solo";
@@ -196,6 +226,9 @@ export function ToneMatcher() {
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("");
   const [celebrationMessage, setCelebrationMessage] = useState("");
+  const [gearPresets, setGearPresets] = useState<MatcherGearPreset[]>([]);
+  const [selectedPresetId, setSelectedPresetId] = useState("");
+  const [showAdvancedGear, setShowAdvancedGear] = useState(false);
   const [songSuggestions, setSongSuggestions] = useState<SongSuggestion[]>([]);
   const [songSearchOpen, setSongSearchOpen] = useState(false);
   const [songSearchLoading, setSongSearchLoading] = useState(false);
@@ -211,6 +244,7 @@ export function ToneMatcher() {
   const [pickupCatalog, setPickupCatalog] = useState<CatalogEntry[]>([]);
   const [pedalCatalog, setPedalCatalog] = useState<CatalogEntry[]>([]);
   const [multiFxCatalog, setMultiFxCatalog] = useState<CatalogEntry[]>([]);
+  const firstAdaptationOnboarding = Boolean(onboardingMode && subscriptionSnapshot?.user && !subscriptionSnapshot.onboarding.firstAdaptationCompleted);
 
   const refreshSubscriptionSnapshot = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
@@ -567,6 +601,47 @@ export function ToneMatcher() {
   useEffect(() => {
     let cancelled = false;
 
+    async function loadGearPresets() {
+      const supabase = createSupabaseBrowserClient();
+      let nextPresets: MatcherGearPreset[] = [];
+
+      if (supabase) {
+        const {
+          data: { user }
+        } = await supabase.auth.getUser();
+
+        if (user) {
+          const { data, error } = await supabase
+            .from("gear_presets")
+            .select("id, name, instrument_type, guitar_name, amp_name, pickup_name, effects, created_at")
+            .order("created_at", { ascending: false })
+            .limit(20);
+
+          if (!error && data?.length) {
+            nextPresets = data as MatcherGearPreset[];
+          }
+        }
+      }
+
+      if (!nextPresets.length) {
+        nextPresets = readLocalGearPresets();
+      }
+
+      if (!cancelled) {
+        setGearPresets(nextPresets);
+      }
+    }
+
+    void loadGearPresets();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
     async function loadCatalog() {
       const [guitarsResponse, bassGuitarsResponse, ampsResponse, bassAmpsResponse, cabinetsResponse, pickupsResponse, pedalsResponse, multiFxResponse] = await Promise.all([
         fetchCatalog("/api/guitars/lookup"),
@@ -655,6 +730,47 @@ export function ToneMatcher() {
 
   const currentGuitars = mode === "bass" ? bassGuitarCatalog : guitarCatalog;
   const currentAmps = mode === "bass" ? bassAmpCatalog : ampCatalog;
+
+  const applyGearPreset = useCallback((preset: MatcherGearPreset) => {
+    const presetEffects = readMatcherPresetEffects(preset);
+    const nextMode = preset.instrument_type === "bass" ? "bass" : "guitar";
+    const nextGoingDirect = (presetEffects.effectsMode || preset.effectsMode) === "multi_fx";
+    const nextSelectedFx = presetEffects.selectedFx || preset.selectedFx || selectedFx;
+
+    setSelectedPresetId(preset.id);
+    setMode(nextMode);
+    setGuitar(preset.guitar_name || preset.guitar || (nextMode === "bass" ? "Fender Precision Bass" : "Fender Stratocaster"));
+    setAmp(preset.amp_name || preset.amp || (nextMode === "bass" ? "Ampeg SVT-CL" : "Boss Katana Artist"));
+    setPickup(preset.pickup_name || preset.pickup || "");
+    setCabinet(
+      presetEffects.cabinetName ||
+        preset.cabinet ||
+        (nextMode === "bass"
+          ? cabinetCatalog.find((item) => item.name.includes("Ampeg"))?.name || "Ampeg SVT-410HLF"
+          : cabinetCatalog.find((item) => !item.name.includes("Ampeg") && !item.name.includes("Darkglass"))?.name || "Mesa/Boogie Rectifier 4x12")
+    );
+    setEffectsMode(presetEffects.effectsMode || preset.effectsMode || "manual");
+    setGoingDirect(nextGoingDirect);
+    setMultiFx(presetEffects.multiFx || preset.multiFx || multiFx);
+    setSelectedFx(nextSelectedFx);
+    setSelectedEffects(nextSelectedFx ? nextSelectedFx.split(",").map((value) => value.trim()).filter(Boolean).slice(0, 8) : []);
+    setNeckPickup(presetEffects.customPickups?.neck || "");
+    setMiddlePickup(presetEffects.customPickups?.middle || "");
+    setBridgePickup(presetEffects.customPickups?.bridge || "");
+  }, [cabinetCatalog, multiFx, selectedFx]);
+
+  useEffect(() => {
+    if (!gearPresets.length || selectedPresetId || autoAdaptTriggeredRef.current) {
+      return;
+    }
+
+    const compatiblePreset = selectCompatibleGearPreset(gearPresets, mode);
+    if (!compatiblePreset) {
+      return;
+    }
+
+    applyGearPreset(compatiblePreset);
+  }, [applyGearPreset, gearPresets, mode, selectedPresetId]);
 
   useEffect(() => {
     if (currentGuitars.length && !currentGuitars.some((item) => item.name === guitar)) {
@@ -863,13 +979,26 @@ export function ToneMatcher() {
         <section className="theme-panel theme-blue-panel mx-auto max-w-5xl px-6 py-12 text-center lg:py-14">
           <div className="inline-flex items-center gap-2 rounded-md border border-white/80 bg-white/80 px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-600 shadow-sm">
             <Sparkles className="h-4 w-4" />
-            Gear-matched tone settings
+            {firstAdaptationOnboarding ? "Adapt your first tone" : "Gear-matched tone settings"}
           </div>
           <h1 className="mx-auto mt-7 max-w-4xl text-4xl font-bold leading-tight tracking-normal text-ink sm:text-5xl">
-            <span className="block">Shape iconic tones with</span>
-            <span className="mt-2 inline-block max-w-full break-words rounded-md bg-moss px-3 py-1 leading-tight text-ink">AI-matched gear</span>
+            {firstAdaptationOnboarding ? (
+              <>
+                <span className="block">Your gear is ready.</span>
+                <span className="mt-2 inline-block max-w-full break-words rounded-md bg-moss px-3 py-1 leading-tight text-ink">Now pick a song and adapt it.</span>
+              </>
+            ) : (
+              <>
+                <span className="block">Shape iconic tones with</span>
+                <span className="mt-2 inline-block max-w-full break-words rounded-md bg-moss px-3 py-1 leading-tight text-ink">AI-matched gear</span>
+              </>
+            )}
           </h1>
-          <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-slate-600">{brand.appName} turns song research into clean, playable settings for the guitar, amp, pedals, and modelers you own.</p>
+          <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-slate-600">
+            {firstAdaptationOnboarding
+              ? "We’ll use your saved rig automatically. Search for a song, choose the part you want, and get your first personalized tone in one clean flow."
+              : `${brand.appName} turns song research into clean, playable settings for the guitar, amp, pedals, and modelers you own.`}
+          </p>
           <div className="mx-auto mt-9 grid w-full max-w-md grid-cols-2 rounded-lg border border-white/80 bg-white/80 p-2 shadow-xl">
             {[
               { value: "guitar", label: "Guitar", icon: Guitar },
@@ -909,7 +1038,8 @@ export function ToneMatcher() {
           </div>
         </section>
 
-        <section className="mt-14">
+        {!firstAdaptationOnboarding ? (
+          <section className="mt-14">
           <div className="mb-6 text-center">
             <div className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-ink text-moss shadow-lg">
               <Flame className="h-6 w-6" />
@@ -947,9 +1077,15 @@ export function ToneMatcher() {
               </button>
             ))}
           </div>
-        </section>
+          </section>
+        ) : (
+          <div className="mt-10 rounded-lg border border-moss/50 bg-moss/10 px-5 py-4 text-sm text-ink">
+            <div className="font-bold">Use one of your 3 free adaptations here.</div>
+            <div className="mt-1 text-slate-700">Only a successful adapted tone uses a credit. Searching, browsing, and changing your gear do not.</div>
+          </div>
+        )}
 
-        {onboardingMode && subscriptionSnapshot?.user && !subscriptionSnapshot.onboarding.firstAdaptationCompleted ? (
+        {firstAdaptationOnboarding ? (
           <div className="mt-10">
             <OnboardingProgress currentStep={3} />
           </div>
@@ -991,14 +1127,35 @@ export function ToneMatcher() {
                   <Sparkles className="h-4 w-4 text-ocean" />
                   Saved preset
                 </label>
-                <select className="field mt-3 h-16 text-lg" defaultValue="">
-                  <option value="">Select preset or choose manually...</option>
+                <select
+                  className="field mt-3 h-16 text-lg"
+                  value={selectedPresetId}
+                  onChange={(event) => {
+                    const nextId = event.target.value;
+                    setSelectedPresetId(nextId);
+                    const nextPreset = gearPresets.find((preset) => preset.id === nextId);
+                    if (nextPreset) {
+                      applyGearPreset(nextPreset);
+                    }
+                  }}
+                >
+                  <option value="">{gearPresets.length ? "Select your saved rig..." : "No saved gear found yet"}</option>
+                  {gearPresets.map((preset) => (
+                    <option key={preset.id} value={preset.id}>
+                      {preset.name || "Saved rig"} - {preset.guitar_name || preset.guitar || "Guitar"} / {preset.amp_name || preset.amp || "Amp"}
+                    </option>
+                  ))}
                 </select>
+                {firstAdaptationOnboarding ? (
+                  <p className="mt-3 text-sm text-slate-600">
+                    We&apos;ll use your saved rig automatically. You can still fine-tune it below if this song needs something different.
+                  </p>
+                ) : null}
               </div>
 
               <div className="flex items-center gap-4">
                 <div className="h-px flex-1 bg-blue-100" />
-                <span className="text-sm font-bold uppercase tracking-[0.14em] text-slate-500">or select manually</span>
+                <span className="text-sm font-bold uppercase tracking-[0.14em] text-slate-500">{gearPresets.length ? "or adjust manually" : "select manually"}</span>
                 <div className="h-px flex-1 bg-blue-100" />
               </div>
 
@@ -1057,7 +1214,21 @@ export function ToneMatcher() {
                 </div>
               </div>
 
-              {mode === "guitar" ? (
+              {firstAdaptationOnboarding ? (
+                <div className="rounded-lg border border-white/80 bg-neutral-50 px-4 py-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-base font-bold text-ink">Advanced gear details</h3>
+                      <p className="mt-1 text-sm text-slate-600">Custom pickups and pedal details are optional. Your first adaptation will still work without them.</p>
+                    </div>
+                    <button type="button" className="button-secondary min-h-10 rounded-lg px-4 text-sm" onClick={() => setShowAdvancedGear((value) => !value)}>
+                      {showAdvancedGear ? "Hide advanced options" : "Add advanced options"}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {mode === "guitar" && (!firstAdaptationOnboarding || showAdvancedGear) ? (
                 <div className="rounded-lg border border-white/80 bg-blue-50/70 p-5">
                   <div className="mb-4 flex items-center justify-between gap-4">
                     <div>
@@ -1095,7 +1266,7 @@ export function ToneMatcher() {
                 </div>
               </div>
 
-              <div className="border-t border-blue-100 pt-8">
+              <div className={`border-t border-blue-100 pt-8 ${firstAdaptationOnboarding && !showAdvancedGear ? "hidden" : ""}`}>
                 <h3 className="mb-5 text-xl font-bold">Select Your Effects (Optional)</h3>
                 <div className="grid rounded-lg border border-white/80 bg-blue-50/80 p-2 shadow-inner md:grid-cols-2">
                   {[
@@ -1206,6 +1377,11 @@ export function ToneMatcher() {
 
           <WorkflowCard step="2" title="Song & Part">
             <div className="grid gap-8">
+              {firstAdaptationOnboarding ? (
+                <div className="rounded-lg border border-white/80 bg-neutral-50 px-4 py-4 text-sm text-slate-700">
+                  Start with the song title. If you pick a suggestion, we&apos;ll fill in the artist and part for you. You can edit the part below anytime.
+                </div>
+              ) : null}
               <div>
                 <label className="label flex items-center gap-2 uppercase tracking-[0.16em]" htmlFor="song-search">
                   <Music2 className="h-5 w-5 text-ocean" />
@@ -1613,6 +1789,31 @@ function normalizeToneType(value: string): ToneType {
 
 function resolveCatalogSelection(value: string, catalog: CatalogEntry[], fallback: string) {
   return catalog.find((item) => item.name === value || item.id === value)?.name || fallback;
+}
+
+function readLocalGearPresets() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SAVED_GEAR_KEY) || "[]");
+    return Array.isArray(parsed) ? (parsed as MatcherGearPreset[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function readMatcherPresetEffects(preset: MatcherGearPreset | null): MatcherPresetEffects {
+  if (!preset) {
+    return {};
+  }
+
+  if (Array.isArray(preset.effects)) {
+    return preset.effects[0] || {};
+  }
+
+  return preset.effects && typeof preset.effects === "object" ? preset.effects : {};
+}
+
+function selectCompatibleGearPreset(presets: MatcherGearPreset[], mode: "guitar" | "bass") {
+  return presets.find((preset) => preset.instrument_type === mode) || presets.find((preset) => !preset.instrument_type) || presets[0] || null;
 }
 
 async function fetchCatalog(url: string): Promise<CatalogEntry[]> {
