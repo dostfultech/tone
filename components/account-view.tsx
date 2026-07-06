@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { Activity, Check, CreditCard, Guitar, Loader2, Music2, ShieldCheck, Trash2, UserCircle } from "lucide-react";
 import { brand } from "@/lib/brand";
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
+import { getAdaptationSummaryProps } from "@/lib/subscription-display";
+import { addSubscriptionRefreshListener } from "@/lib/subscription-events";
 import {
   formatSubscriptionDate,
   formatSubscriptionStatus,
@@ -69,7 +71,14 @@ export function AccountView() {
       loadAccount().catch(() => undefined);
     });
 
-    return () => subscription.unsubscribe();
+    const removeRefreshListener = addSubscriptionRefreshListener(() => {
+      loadAccount().catch(() => undefined);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      removeRefreshListener();
+    };
   }, []);
 
   async function saveProfile() {
@@ -136,21 +145,7 @@ export function AccountView() {
 
         {message ? <div className="mt-6 rounded-lg bg-blue-50/80 px-4 py-3 text-sm font-bold text-ink">{message}</div> : null}
 
-        {snapshot?.user ? (
-          <div className="mt-6">
-            <FreeAdaptationSummary
-              remaining={snapshot.hasAccess && !snapshot.adaptationAccess.isUnlimited ? snapshot.usage.adaptationsRemaining ?? 0 : snapshot.usage.freeAdaptationsRemaining}
-              limit={
-                snapshot.hasAccess && !snapshot.adaptationAccess.isUnlimited
-                  ? snapshot.usage.adaptationsUsed + (snapshot.usage.adaptationsRemaining ?? 0)
-                  : snapshot.usage.freeAdaptationLimit
-              }
-              unlimited={snapshot.adaptationAccess.isUnlimited}
-              label={snapshot.hasAccess ? "Adaptations Remaining" : undefined}
-              helpText={snapshot.hasAccess ? "Your paid usage refreshes each billing cycle." : undefined}
-            />
-          </div>
-        ) : null}
+        {snapshot?.user ? <div className="mt-6"><FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} /></div> : null}
 
         <div className="mt-8 inline-flex rounded-lg border border-white/80 bg-white/80 p-1 shadow-sm">
           {[

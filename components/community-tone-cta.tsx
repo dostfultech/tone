@@ -5,11 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { ExpertUpgradeModal } from "@/components/expert-upgrade-modal";
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
 import { brand } from "@/lib/brand";
+import { getAdaptationSummaryProps, shouldShowFreeOnboardingJourney } from "@/lib/subscription-display";
+import { addSubscriptionRefreshListener } from "@/lib/subscription-events";
 import { loadClientSubscriptionSnapshot, type ClientSubscriptionSnapshot } from "@/lib/subscription-client";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 const AUTO_ADAPT_KEY = `${brand.storagePrefix}_auto_adapt_from_community`;
 const AUTO_ADAPT_PAYLOAD_KEY = `${brand.storagePrefix}_auto_adapt_payload`;
+const AUTO_ADAPT_PERSISTED_KEY = `${brand.storagePrefix}_auto_adapt_payload_persisted`;
 const SAVED_GEAR_KEY = `${brand.storagePrefix}_saved_gear_presets`;
 
 type PresetEffects = {
@@ -103,14 +106,19 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
 
     void loadPresets();
 
+    const removeRefreshListener = addSubscriptionRefreshListener(() => {
+      loadPresets().catch(() => undefined);
+    });
+
     return () => {
       mounted = false;
+      removeRefreshListener();
     };
   }, []);
 
   const preset = useMemo(() => selectCompatiblePreset(presets, mode), [mode, presets]);
   const readyForGearAdaptation = Boolean(preset && getPresetGuitar(preset) && getPresetAmp(preset));
-  const onboardingActive = Boolean(snapshot?.user && !snapshot.onboarding.firstAdaptationCompleted);
+  const onboardingActive = shouldShowFreeOnboardingJourney(snapshot, true);
 
   function adaptTone() {
     if (loading) {
@@ -151,28 +159,29 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
         customPickups: presetEffects.customPickups || null
       }
     });
-    sessionStorage.setItem(
-      AUTO_ADAPT_PAYLOAD_KEY,
-      JSON.stringify({
-        mode,
-        song,
-        artist,
-        part,
-        partType,
-        toneType: toneType || "auto",
-        guitar: getPresetGuitar(preset) || guitar,
-        amp: getPresetAmp(preset) || amp,
-        pickup: getPresetPickup(preset) || pickup || undefined,
-        cabinet: presetEffects.cabinetName || preset.cabinet || cabinet || undefined,
-        effectsMode: presetEffects.effectsMode || preset.effectsMode || "manual",
-        goingDirect: (presetEffects.effectsMode || preset.effectsMode) === "multi_fx",
-        multiFx: presetEffects.multiFx || preset.multiFx,
-        selectedFx: presetEffects.selectedFx || preset.selectedFx,
-        customPickups: presetEffects.customPickups
-      })
-    );
+    const handoffPayload = {
+      mode,
+      song,
+      artist,
+      part,
+      partType,
+      toneType: toneType || "auto",
+      guitar: getPresetGuitar(preset) || guitar,
+      amp: getPresetAmp(preset) || amp,
+      pickup: getPresetPickup(preset) || pickup || undefined,
+      cabinet: presetEffects.cabinetName || preset.cabinet || cabinet || undefined,
+      effectsMode: presetEffects.effectsMode || preset.effectsMode || "manual",
+      goingDirect: (presetEffects.effectsMode || preset.effectsMode) === "multi_fx",
+      multiFx: presetEffects.multiFx || preset.multiFx,
+      selectedFx: presetEffects.selectedFx || preset.selectedFx,
+      customPickups: presetEffects.customPickups,
+      createdAt: new Date().toISOString()
+    };
+    sessionStorage.setItem(AUTO_ADAPT_PAYLOAD_KEY, JSON.stringify(handoffPayload));
+    localStorage.setItem(AUTO_ADAPT_PERSISTED_KEY, JSON.stringify(handoffPayload));
     sessionStorage.setItem(AUTO_ADAPT_KEY, "1");
-    router.push(onboardingActive ? "/app?onboarding=1" : "/app");
+    localStorage.setItem(AUTO_ADAPT_KEY, "1");
+    router.push(onboardingActive ? "/app?onboarding=1&autoadapt=1" : "/app?autoadapt=1");
   }
 
   return (
@@ -181,19 +190,7 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
         <button type="button" className="button-primary w-full justify-center" onClick={adaptTone} disabled={loading}>
           {loading ? "Checking My Gear..." : readyForGearAdaptation ? "Adapt to My Gear" : "Adapt This Tone"}
         </button>
-        {snapshot?.user ? (
-          <FreeAdaptationSummary
-            remaining={snapshot.hasAccess && !snapshot.adaptationAccess.isUnlimited ? snapshot.usage.adaptationsRemaining ?? 0 : snapshot.usage.freeAdaptationsRemaining}
-            limit={
-              snapshot.hasAccess && !snapshot.adaptationAccess.isUnlimited
-                ? snapshot.usage.adaptationsUsed + (snapshot.usage.adaptationsRemaining ?? 0)
-                : snapshot.usage.freeAdaptationLimit
-            }
-            unlimited={snapshot.adaptationAccess.isUnlimited}
-            label={snapshot.hasAccess ? "Adaptations Remaining" : undefined}
-            helpText={snapshot.hasAccess ? "Your paid usage refreshes each billing cycle." : undefined}
-          />
-        ) : null}
+        {snapshot?.user ? <FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} /> : null}
         {readyForGearAdaptation ? (
           <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800">
             Using {preset?.name || "your saved rig"}: {getPresetGuitar(preset)} into {getPresetAmp(preset)}.

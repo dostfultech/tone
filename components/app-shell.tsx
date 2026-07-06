@@ -20,6 +20,8 @@ import {
   loadClientSubscriptionSnapshot,
   type ClientSubscriptionSnapshot
 } from "@/lib/subscription-client";
+import { getAdaptationSummaryProps } from "@/lib/subscription-display";
+import { addSubscriptionRefreshListener } from "@/lib/subscription-events";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
 
@@ -87,7 +89,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       refreshShell().catch(() => undefined);
     });
 
-    return () => subscription.unsubscribe();
+    const removeRefreshListener = addSubscriptionRefreshListener(() => {
+      refreshShell().catch(() => undefined);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      removeRefreshListener();
+    };
   }, []);
 
   async function logout() {
@@ -155,20 +164,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {snapshot?.user ? (
-            <FreeAdaptationSummary
-              remaining={snapshot.hasAccess && !snapshot.adaptationAccess.isUnlimited ? snapshot.usage.adaptationsRemaining ?? 0 : snapshot.usage.freeAdaptationsRemaining}
-              limit={
-                snapshot.hasAccess && !snapshot.adaptationAccess.isUnlimited
-                  ? snapshot.usage.adaptationsUsed + (snapshot.usage.adaptationsRemaining ?? 0)
-                  : snapshot.usage.freeAdaptationLimit
-              }
-              unlimited={snapshot.adaptationAccess.isUnlimited}
-              label={snapshot.hasAccess ? "Adaptations Remaining" : undefined}
-              helpText={snapshot.hasAccess ? "Your paid usage refreshes each billing cycle." : undefined}
-              className="mb-8"
-            />
-          ) : null}
+          {snapshot?.user ? <FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} className="mb-8" /> : null}
 
           <NavSection title="My Collection" items={collectionNav} pathname={pathname} onNavigate={navigate} />
           <NavSection title="Discover" items={discoveryNav} pathname={pathname} onNavigate={navigate} />

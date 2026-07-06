@@ -41,6 +41,8 @@ import {
 import { ExpertUpgradeModal } from "@/components/expert-upgrade-modal";
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
 import { OnboardingProgress } from "@/components/onboarding-progress";
+import { getAdaptationSummaryProps, getFreeAdaptationBannerCopy, shouldShowFreeOnboardingJourney } from "@/lib/subscription-display";
+import { addSubscriptionRefreshListener, dispatchSubscriptionRefresh } from "@/lib/subscription-events";
 
 type ToneResult = {
   id: string;
@@ -189,6 +191,7 @@ const trendingTones = [
 
 const AUTO_ADAPT_KEY = `${brand.storagePrefix}_auto_adapt_from_community`;
 const AUTO_ADAPT_PAYLOAD_KEY = `${brand.storagePrefix}_auto_adapt_payload`;
+const AUTO_ADAPT_PERSISTED_KEY = `${brand.storagePrefix}_auto_adapt_payload_persisted`;
 const SAVED_GEAR_KEY = `${brand.storagePrefix}_saved_gear_presets`;
 const LEGACY_DEFAULT_SONG = "Comfortably Numb";
 const LEGACY_DEFAULT_ARTIST = "Pink Floyd";
@@ -244,7 +247,8 @@ export function ToneMatcher() {
   const [pickupCatalog, setPickupCatalog] = useState<CatalogEntry[]>([]);
   const [pedalCatalog, setPedalCatalog] = useState<CatalogEntry[]>([]);
   const [multiFxCatalog, setMultiFxCatalog] = useState<CatalogEntry[]>([]);
-  const firstAdaptationOnboarding = Boolean(onboardingMode && subscriptionSnapshot?.user && !subscriptionSnapshot.onboarding.firstAdaptationCompleted);
+  const firstAdaptationOnboarding = shouldShowFreeOnboardingJourney(subscriptionSnapshot, onboardingMode);
+  const freeBannerCopy = getFreeAdaptationBannerCopy(subscriptionSnapshot);
 
   const refreshSubscriptionSnapshot = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
@@ -272,8 +276,9 @@ export function ToneMatcher() {
       const data = await response.json();
       const nextSnapshot = await refreshSubscriptionSnapshot();
       const beforeFirstAdaptation = !subscriptionSnapshot?.onboarding.firstAdaptationCompleted;
+      dispatchSubscriptionRefresh();
 
-      if (beforeFirstAdaptation && data.firstAdaptationCompleted) {
+      if (beforeFirstAdaptation && !subscriptionSnapshot?.hasAccess && data.firstAdaptationCompleted) {
         const remaining = typeof data.freeAdaptationsRemaining === "number" ? data.freeAdaptationsRemaining : nextSnapshot?.usage.freeAdaptationsRemaining ?? 0;
         setCelebrationMessage(`Congratulations! Your first tone has been adapted to your gear. You have ${remaining} free adaptations remaining.`);
       }
@@ -283,7 +288,7 @@ export function ToneMatcher() {
         firstAdaptationCompleted: boolean;
       };
     },
-    [refreshSubscriptionSnapshot, subscriptionSnapshot?.onboarding.firstAdaptationCompleted]
+    [refreshSubscriptionSnapshot, subscriptionSnapshot?.hasAccess, subscriptionSnapshot?.onboarding.firstAdaptationCompleted]
   );
 
   const runAdaptation = useCallback(
@@ -452,12 +457,22 @@ export function ToneMatcher() {
       localStorage.removeItem("toneMatch_part");
     }
 
-    const shouldAutoAdapt = sessionStorage.getItem(AUTO_ADAPT_KEY) === "1";
+    const shouldAutoAdapt =
+      searchParams.get("autoadapt") === "1" ||
+      sessionStorage.getItem(AUTO_ADAPT_KEY) === "1" ||
+      localStorage.getItem(AUTO_ADAPT_KEY) === "1";
     setGoingDirect(localStorage.getItem("toneMatch_goingDirect") === "true" || localStorage.getItem("toneMatch_effectsMode") === "multi_fx");
     if (shouldAutoAdapt && !autoAdaptTriggeredRef.current) {
       autoAdaptTriggeredRef.current = true;
-      sessionStorage.removeItem(AUTO_ADAPT_KEY);
       const payloadFromSession = readAutoAdaptPayload();
+      clearAutoAdaptState();
+      window.history.replaceState({}, "", onboardingMode ? "/app?onboarding=1" : "/app");
+
+      if (!payloadFromSession?.song || !payloadFromSession?.artist) {
+        setMessage("We couldn’t finish opening the selected tone automatically. Please choose the song again from the Tone Database.");
+        hasLoadedPreferencesRef.current = true;
+        return;
+      }
 
       const storedPart = payloadFromSession?.part || localStorage.getItem("toneMatch_part") || "main part";
       const storedPartType = payloadFromSession?.partType || localStorage.getItem("toneMatch_partType") || "main";
@@ -511,7 +526,7 @@ export function ToneMatcher() {
     }
 
     hasLoadedPreferencesRef.current = true;
-  }, []);
+  }, [onboardingMode, searchParams]);
 
   useEffect(() => {
     if (!hasLoadedPreferencesRef.current) {
@@ -595,7 +610,14 @@ export function ToneMatcher() {
       refreshSubscriptionSnapshot().catch(() => undefined);
     });
 
-    return () => subscription.unsubscribe();
+    const removeRefreshListener = addSubscriptionRefreshListener(() => {
+      refreshSubscriptionSnapshot().catch(() => undefined);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      removeRefreshListener();
+    };
   }, [refreshSubscriptionSnapshot]);
 
   useEffect(() => {
@@ -1080,8 +1102,8 @@ export function ToneMatcher() {
           </section>
         ) : (
           <div className="mt-10 rounded-lg border border-moss/50 bg-moss/10 px-5 py-4 text-sm text-ink">
-            <div className="font-bold">Use one of your 3 free adaptations here.</div>
-            <div className="mt-1 text-slate-700">Only a successful adapted tone uses a credit. Searching, browsing, and changing your gear do not.</div>
+            <div className="font-bold">{freeBannerCopy?.title || "You can adapt this tone with your saved gear."}</div>
+            <div className="mt-1 text-slate-700">{freeBannerCopy?.body || "Only a successful adapted tone uses a credit. Searching, browsing, and changing your gear do not."}</div>
           </div>
         )}
 
@@ -1091,25 +1113,7 @@ export function ToneMatcher() {
           </div>
         ) : null}
 
-        {subscriptionSnapshot?.user ? (
-          <div className="mt-10">
-            <FreeAdaptationSummary
-              remaining={
-                subscriptionSnapshot.hasAccess && !subscriptionSnapshot.adaptationAccess.isUnlimited
-                  ? subscriptionSnapshot.usage.adaptationsRemaining ?? 0
-                  : subscriptionSnapshot.usage.freeAdaptationsRemaining
-              }
-              limit={
-                subscriptionSnapshot.hasAccess && !subscriptionSnapshot.adaptationAccess.isUnlimited
-                  ? subscriptionSnapshot.usage.adaptationsUsed + (subscriptionSnapshot.usage.adaptationsRemaining ?? 0)
-                  : subscriptionSnapshot.usage.freeAdaptationLimit
-              }
-              unlimited={subscriptionSnapshot.adaptationAccess.isUnlimited}
-              label={subscriptionSnapshot.hasAccess ? "Adaptations Remaining" : undefined}
-              helpText={subscriptionSnapshot.hasAccess ? "Your paid usage refreshes each billing cycle." : undefined}
-            />
-          </div>
-        ) : null}
+        {subscriptionSnapshot?.user ? <div className="mt-10"><FreeAdaptationSummary {...getAdaptationSummaryProps(subscriptionSnapshot)} /></div> : null}
 
         {celebrationMessage ? (
           <div className="mt-8 rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-900">
@@ -1578,12 +1582,13 @@ function inferStoredMode(partType: string | null, toneType: string | null): "gui
 function readAutoAdaptPayload() {
   try {
     const raw = sessionStorage.getItem(AUTO_ADAPT_PAYLOAD_KEY);
-    if (!raw) {
+    const persisted = localStorage.getItem(AUTO_ADAPT_PERSISTED_KEY);
+    const value = raw || persisted;
+    if (!value) {
       return null;
     }
 
-    sessionStorage.removeItem(AUTO_ADAPT_PAYLOAD_KEY);
-    return JSON.parse(raw) as Partial<ToneRequest> & {
+    return JSON.parse(value) as Partial<ToneRequest> & {
       song?: string;
       artist?: string;
       part?: string;
@@ -1598,11 +1603,23 @@ function readAutoAdaptPayload() {
       selectedFx?: string;
       goingDirect?: boolean;
       customPickups?: ToneRequest["customPickups"];
+      createdAt?: string;
     };
   } catch {
-    sessionStorage.removeItem(AUTO_ADAPT_PAYLOAD_KEY);
+    clearAutoAdaptState();
     return null;
   }
+}
+
+function clearAutoAdaptState() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.removeItem(AUTO_ADAPT_KEY);
+  window.sessionStorage.removeItem(AUTO_ADAPT_PAYLOAD_KEY);
+  window.localStorage.removeItem(AUTO_ADAPT_KEY);
+  window.localStorage.removeItem(AUTO_ADAPT_PERSISTED_KEY);
 }
 
 function readStoredEffectList() {

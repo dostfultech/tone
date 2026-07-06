@@ -7,6 +7,8 @@ import { Database, Guitar, Loader2, Search, Sparkles, ThumbsUp, Volume2 } from "
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
 import { OnboardingProgress } from "@/components/onboarding-progress";
 import type { TonePartType } from "@/lib/mock-data";
+import { getAdaptationSummaryProps, shouldShowFreeOnboardingJourney } from "@/lib/subscription-display";
+import { addSubscriptionRefreshListener } from "@/lib/subscription-events";
 import { loadClientSubscriptionSnapshot, type ClientSubscriptionSnapshot } from "@/lib/subscription-client";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
@@ -47,6 +49,7 @@ export function CommunityView() {
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
+  const showFreeOnboardingJourney = shouldShowFreeOnboardingJourney(snapshot, onboardingMode);
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -59,7 +62,7 @@ export function CommunityView() {
       const nextSnapshot = await loadClientSubscriptionSnapshot(client);
       setSnapshot(nextSnapshot);
 
-      if (nextSnapshot.user && onboardingMode && !nextSnapshot.onboarding.toneDatabaseVisited) {
+      if (nextSnapshot.user && !nextSnapshot.hasAccess && onboardingMode && !nextSnapshot.onboarding.toneDatabaseVisited) {
         await client
           .from("profiles")
           .update({ tone_database_seen_at: new Date().toISOString() })
@@ -71,6 +74,14 @@ export function CommunityView() {
     }
 
     void loadSnapshot();
+
+    const removeRefreshListener = addSubscriptionRefreshListener(() => {
+      loadSnapshot().catch(() => undefined);
+    });
+
+    return () => {
+      removeRefreshListener();
+    };
   }, [onboardingMode]);
 
   useEffect(() => {
@@ -132,12 +143,12 @@ export function CommunityView() {
   const exampleSongs = ["Enter Sandman", "Master of Puppets", "Sweet Child O Mine", "Levitating", "Nothing Else Matters"];
   const popularArtists = Array.from(new Set(tones.map((item) => item.artist))).slice(0, 6);
   const recentlyAdded = tones.slice(0, 4);
-  const detailHrefSuffix = onboardingMode && snapshot?.user && !snapshot.onboarding.firstAdaptationCompleted ? "?onboarding=1" : "";
+  const detailHrefSuffix = showFreeOnboardingJourney ? "?onboarding=1" : "";
 
   return (
     <div className="px-4 pb-14 pt-24 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1440px]">
-        {onboardingMode && snapshot?.user && !snapshot.onboarding.firstAdaptationCompleted ? (
+        {showFreeOnboardingJourney ? (
           <div className="mb-8">
             <OnboardingProgress currentStep={2} />
           </div>
@@ -148,7 +159,7 @@ export function CommunityView() {
             Tone <span className="lime-highlight">Database</span>
           </h1>
           <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-neutral-600 sm:text-lg">
-            {onboardingMode && snapshot?.user && !snapshot.onboarding.firstAdaptationCompleted
+            {showFreeOnboardingJourney
               ? "Search for the first song you want adapted to your saved gear. You can browse as much as you like before using a free adaptation."
               : "Browse community tone research, compare gear assumptions, and preview source rigs before adapting them to your setup."}
           </p>
@@ -175,7 +186,7 @@ export function CommunityView() {
           </div>
         </section>
 
-        {onboardingMode && snapshot?.user && !snapshot.onboarding.firstAdaptationCompleted ? (
+        {showFreeOnboardingJourney ? (
           <div className="mt-8 rounded-lg border border-moss/50 bg-moss/10 px-5 py-4 text-sm text-ink">
             <div className="font-bold">Step 2: find a song you know.</div>
             <div className="mt-1 text-slate-700">
@@ -184,21 +195,7 @@ export function CommunityView() {
           </div>
         ) : null}
 
-        {snapshot?.user ? (
-          <div className="mt-8">
-            <FreeAdaptationSummary
-              remaining={snapshot.hasAccess && !snapshot.adaptationAccess.isUnlimited ? snapshot.usage.adaptationsRemaining ?? 0 : snapshot.usage.freeAdaptationsRemaining}
-              limit={
-                snapshot.hasAccess && !snapshot.adaptationAccess.isUnlimited
-                  ? snapshot.usage.adaptationsUsed + (snapshot.usage.adaptationsRemaining ?? 0)
-                  : snapshot.usage.freeAdaptationLimit
-              }
-              unlimited={snapshot.adaptationAccess.isUnlimited}
-              label={snapshot.hasAccess ? "Adaptations Remaining" : undefined}
-              helpText={snapshot.hasAccess ? "Your paid usage refreshes each billing cycle." : undefined}
-            />
-          </div>
-        ) : null}
+        {snapshot?.user ? <div className="mt-8"><FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} /></div> : null}
 
         {!query.trim() ? (
           <div className="mt-8 grid gap-6 xl:grid-cols-3">

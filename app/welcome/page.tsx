@@ -16,7 +16,7 @@ export default async function WelcomePage() {
   }
 
   const entitlement = await getEntitlement(supabase, user);
-  if (entitlement.planId === "expert" && entitlement.hasAccess) {
+  if (entitlement.hasAccess) {
     redirect("/app");
   }
 
