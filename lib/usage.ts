@@ -45,6 +45,7 @@ export async function assertCanCreateAdaptation(
     return { ok: false, error: "SUPABASE_SERVICE_ROLE_KEY is required for usage enforcement." };
   }
 
+  await ensureProfileUsageRow(admin, user);
   const profileQuota = await loadProfileUsage(admin, user.id);
 
   if (entitlement.source === "test" || (entitlement.hasAccess && entitlement.planId === "expert")) {
@@ -136,7 +137,7 @@ export async function incrementAdaptationUsage(admin: SupabaseClient | null, use
 
 export async function confirmToneAdaptationUsage(
   admin: SupabaseClient | null,
-  userId: string,
+  user: User,
   toneResultId: string,
   entitlement: Entitlement
 ): Promise<AdaptationConfirmationResult> {
@@ -153,6 +154,9 @@ export async function confirmToneAdaptationUsage(
       error: "SUPABASE_SERVICE_ROLE_KEY is required for usage confirmation."
     };
   }
+
+  const userId = user.id;
+  await ensureProfileUsageRow(admin, user);
 
   const { data: toneResult, error: toneResultError } = await admin
     .from("tone_results")
@@ -265,24 +269,46 @@ export async function confirmToneAdaptationUsage(
   }
 
   const nextFreeUsed = Math.min(profileQuota.used + 1, profileQuota.limit);
-  await admin
+  const { error: freeUsageError } = await admin
     .from("profiles")
     .update({
       free_adaptations_used: nextFreeUsed
     })
     .eq("id", userId);
 
-  const refreshedQuota = await loadProfileUsage(admin, userId);
+  if (freeUsageError) {
+    return {
+      ok: false,
+      confirmed: false,
+      usageApplied: false,
+      freeAdaptationsRemaining: profileQuota.remaining,
+      freeAdaptationsUsed: profileQuota.used,
+      freeAdaptationLimit: profileQuota.limit,
+      monthlyAdaptationsRemaining: null,
+      firstAdaptationCompleted: Boolean(profileQuota.firstAdaptationCompletedAt),
+      error: freeUsageError.message
+    };
+  }
 
   if (nextFreeUsed > profileQuota.used) {
-    await admin.from("usage_events").insert({
+    const { error: eventError } = await admin.from("usage_events").insert({
       user_id: userId,
       event_type: "tone_adaptation",
       tone_job_id: toneResult.job_id,
       quantity: 1,
       metadata: { source: "tone_result_confirmation", tone_result_id: toneResultId, plan: "free" }
     });
+
+    if (eventError) {
+      console.error("[tonefex:usage] Failed to record free adaptation usage event.", {
+        userId,
+        toneResultId,
+        message: eventError.message
+      });
+    }
   }
+
+  const refreshedQuota = await loadProfileUsage(admin, userId);
 
   return {
     ok: true,
@@ -297,19 +323,92 @@ export async function confirmToneAdaptationUsage(
 }
 
 async function loadProfileUsage(admin: SupabaseClient, userId: string) {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("profiles")
     .select("free_adaptation_limit, free_adaptations_used, first_adaptation_completed_at")
     .eq("id", userId)
     .maybeSingle();
 
+  if (error) {
+    console.error("[tonefex:usage] Failed to load free adaptation profile.", {
+      userId,
+      message: error.message
+    });
+  }
+
   const row = (data as ProfileUsageRow | null) || null;
-  const quota = createFreeAdaptationQuota(row?.free_adaptation_limit, row?.free_adaptations_used);
+  const eventUsage = await countConfirmedFreeAdaptations(admin, userId);
+  const rawQuota = createFreeAdaptationQuota(row?.free_adaptation_limit, row?.free_adaptations_used);
+  const reconciledUsed = Math.min(Math.max(rawQuota.used, eventUsage), rawQuota.limit);
+  const quota = createFreeAdaptationQuota(rawQuota.limit, reconciledUsed);
+
+  if (row && reconciledUsed > rawQuota.used) {
+    const { error: reconcileError } = await admin
+      .from("profiles")
+      .update({ free_adaptations_used: reconciledUsed })
+      .eq("id", userId);
+
+    if (reconcileError) {
+      console.error("[tonefex:usage] Failed to reconcile free adaptation counter.", {
+        userId,
+        message: reconcileError.message
+      });
+    }
+  }
 
   return {
     ...quota,
     firstAdaptationCompletedAt: row?.first_adaptation_completed_at || null
   };
+}
+
+async function ensureProfileUsageRow(admin: SupabaseClient, user: User) {
+  const { data: existingProfile, error: readError } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (existingProfile?.id) {
+    return;
+  }
+
+  if (readError) {
+    console.error("[tonefex:usage] Failed to check profile row for adaptation usage.", {
+      userId: user.id,
+      message: readError.message
+    });
+  }
+
+  const { error } = await admin.from("profiles").insert({
+    id: user.id,
+    email: user.email || `${user.id}@tonefex.local`
+  });
+
+  if (error && error.code !== "23505") {
+    console.error("[tonefex:usage] Failed to ensure profile row for adaptation usage.", {
+      userId: user.id,
+      message: error.message
+    });
+  }
+}
+
+async function countConfirmedFreeAdaptations(admin: SupabaseClient, userId: string) {
+  const { count, error } = await admin
+    .from("usage_events")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("event_type", "tone_adaptation")
+    .contains("metadata", { plan: "free" });
+
+  if (error) {
+    console.error("[tonefex:usage] Failed to count confirmed free adaptations.", {
+      userId,
+      message: error.message
+    });
+  }
+
+  return count || 0;
 }
 
 async function readMonthlyAdaptationsRemaining(admin: SupabaseClient, userId: string, entitlement: Entitlement) {
@@ -328,9 +427,16 @@ async function readMonthlyAdaptationsRemaining(admin: SupabaseClient, userId: st
 }
 
 async function markFirstAdaptationCompleted(admin: SupabaseClient, userId: string, confirmedAt: string) {
-  await admin
+  const { error } = await admin
     .from("profiles")
     .update({ first_adaptation_completed_at: confirmedAt })
     .eq("id", userId)
     .is("first_adaptation_completed_at", null);
+
+  if (error) {
+    console.error("[tonefex:usage] Failed to mark first adaptation completed.", {
+      userId,
+      message: error.message
+    });
+  }
 }

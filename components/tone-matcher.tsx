@@ -120,7 +120,7 @@ type ToneBackendApiResponse = {
 };
 
 type SongSuggestion = SongItem;
-type SaveToneOutcome = "synced" | "local" | "redirected";
+type SaveToneOutcome = "synced" | "local";
 
 type SavedToneRecord = {
   id: string;
@@ -273,9 +273,43 @@ export function ToneMatcher() {
         return null;
       }
 
-      const data = await response.json();
-      const nextSnapshot = await refreshSubscriptionSnapshot();
+      const data = (await response.json()) as {
+        freeAdaptationsRemaining?: number;
+        freeAdaptationsUsed?: number;
+        freeAdaptationLimit?: number;
+        firstAdaptationCompleted?: boolean;
+      };
       const beforeFirstAdaptation = !subscriptionSnapshot?.onboarding.firstAdaptationCompleted;
+      const applyConfirmedUsage = (current: ClientSubscriptionSnapshot | null) => {
+        if (!current || current.hasAccess || typeof data.freeAdaptationsRemaining !== "number") {
+          return current;
+        }
+
+        const freeAdaptationLimit = typeof data.freeAdaptationLimit === "number" ? data.freeAdaptationLimit : current.usage.freeAdaptationLimit;
+        const freeAdaptationsUsed = typeof data.freeAdaptationsUsed === "number" ? data.freeAdaptationsUsed : Math.max(freeAdaptationLimit - data.freeAdaptationsRemaining, 0);
+
+        return {
+          ...current,
+          onboarding: {
+            ...current.onboarding,
+            firstAdaptationCompleted: Boolean(data.firstAdaptationCompleted || current.onboarding.firstAdaptationCompleted)
+          },
+          usage: {
+            ...current.usage,
+            adaptationsUsed: freeAdaptationsUsed,
+            adaptationsRemaining: data.freeAdaptationsRemaining,
+            freeAdaptationLimit,
+            freeAdaptationsUsed,
+            freeAdaptationsRemaining: data.freeAdaptationsRemaining
+          }
+        };
+      };
+
+      setSubscriptionSnapshot(applyConfirmedUsage);
+      const nextSnapshot = await refreshSubscriptionSnapshot();
+      if (nextSnapshot && !nextSnapshot.hasAccess && typeof data.freeAdaptationsRemaining === "number" && nextSnapshot.usage.freeAdaptationsRemaining !== data.freeAdaptationsRemaining) {
+        setSubscriptionSnapshot(applyConfirmedUsage);
+      }
       dispatchSubscriptionRefresh();
 
       if (beforeFirstAdaptation && !subscriptionSnapshot?.hasAccess && data.firstAdaptationCompleted) {
@@ -955,8 +989,8 @@ export function ToneMatcher() {
       body: JSON.stringify(result)
     }).catch(() => null);
     if (response?.status === 402) {
-      router.push(`/plans?required=subscription&redirect=${encodeURIComponent("/app")}`);
-      return "redirected";
+      setMessage("Tone saved on this device. Upgrade when you want to sync saved tones to your library.");
+      return "local";
     }
     if (response && !response.ok) {
       const data = await response.json().catch(() => ({}));
@@ -2080,10 +2114,6 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => Pro
 
     setSaveState("saving");
     const outcome = await onSave();
-    if (outcome === "redirected") {
-      return;
-    }
-
     setSaveState(outcome === "local" ? "local" : "saved");
     setSaveBurstKey((key) => key + 1);
     window.setTimeout(() => {

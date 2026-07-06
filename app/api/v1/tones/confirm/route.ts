@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
   }
 
   const entitlement = await getEntitlement(supabase, user);
-  const confirmation = await confirmToneAdaptationUsage(admin, user.id, toneResultId, entitlement);
+  const confirmation = await confirmToneAdaptationUsage(admin, user, toneResultId, entitlement);
 
   if (!confirmation.ok) {
     return NextResponse.json(
