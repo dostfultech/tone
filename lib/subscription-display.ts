@@ -7,7 +7,8 @@ export function getAdaptationSummaryProps(snapshot: ClientSubscriptionSnapshot) 
       limit: 0,
       unlimited: true,
       label: "Adaptations Remaining",
-      helpText: "Unlimited adaptations are available with your current plan."
+      helpText: "Unlimited adaptations are available with your current plan.",
+      valueText: "Unlimited adaptations available."
     };
   }
 
@@ -18,7 +19,8 @@ export function getAdaptationSummaryProps(snapshot: ClientSubscriptionSnapshot) 
       limit: snapshot.usage.adaptationsUsed + remaining,
       unlimited: false,
       label: "Adaptations Remaining",
-      helpText: "Your paid usage refreshes each billing cycle."
+      helpText: "Your paid usage refreshes each billing cycle.",
+      valueText: `${remaining} plan adaptations remaining`
     };
   }
 
@@ -26,8 +28,9 @@ export function getAdaptationSummaryProps(snapshot: ClientSubscriptionSnapshot) 
     remaining: snapshot.usage.freeAdaptationsRemaining,
     limit: snapshot.usage.freeAdaptationLimit,
     unlimited: false,
-    label: "Free Adaptations Remaining",
-    helpText: "Only successful adaptations use a credit."
+    label: `${snapshot.usage.freeAdaptationsRemaining} Free Adaptation${snapshot.usage.freeAdaptationsRemaining === 1 ? "" : "s"} Remaining`,
+    helpText: "Only successful Generate My Tone clicks use one.",
+    valueText: "Generate My Tone only"
   };
 }
 

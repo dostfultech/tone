@@ -1,6 +1,7 @@
 import type { FinalToneOutput, ToneType } from "../../rule-engine";
 
 export type ToneAdaptationMode = "guitar" | "bass";
+export type ToneAdaptationRequestSource = "manual_generate" | "tone_database_adapt_to_my_gear" | "saved_tone_readapt";
 
 export interface NamedSelectionDto {
   id?: string;
@@ -29,6 +30,7 @@ export interface ToneAdaptationGearDto {
 
 export interface ToneAdaptationRequestDto extends ToneAdaptationGearDto {
   requestId?: string;
+  requestSource?: ToneAdaptationRequestSource;
   song?: string;
   artist?: string;
   part?: string;
@@ -48,6 +50,7 @@ export interface NormalizedSelection {
 
 export interface NormalizedToneAdaptationRequest {
   requestId: string;
+  requestSource: ToneAdaptationRequestSource;
   song?: string;
   artist?: string;
   part?: string;

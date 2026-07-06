@@ -21,6 +21,8 @@ export type AdaptationEligibility = {
   monthlyAdaptationsRemaining?: number | null;
 };
 
+export type AdaptationRequestSource = "manual_generate" | "tone_database_adapt_to_my_gear" | "saved_tone_readapt";
+
 export type AdaptationConfirmationResult = {
   ok: boolean;
   confirmed: boolean;
@@ -33,7 +35,12 @@ export type AdaptationConfirmationResult = {
   error?: string;
 };
 
-export async function assertCanCreateAdaptation(admin: SupabaseClient | null, user: User, entitlement: Entitlement): Promise<AdaptationEligibility> {
+export async function assertCanCreateAdaptation(
+  admin: SupabaseClient | null,
+  user: User,
+  entitlement: Entitlement,
+  requestSource: AdaptationRequestSource = "manual_generate"
+): Promise<AdaptationEligibility> {
   if (!admin) {
     return { ok: false, error: "SUPABASE_SERVICE_ROLE_KEY is required for usage enforcement." };
   }
@@ -73,6 +80,16 @@ export async function assertCanCreateAdaptation(admin: SupabaseClient | null, us
       path: "beginner",
       freeAdaptationsRemaining: profileQuota.remaining,
       monthlyAdaptationsRemaining: Math.max(entitlement.monthlyAdaptations - used, 0)
+    };
+  }
+
+  if (requestSource !== "manual_generate") {
+    return {
+      ok: false,
+      error: "This adaptation workflow requires a paid subscription. Use Generate My Tone for your 3 free adaptations, or upgrade for unlimited gear adaptation.",
+      path: "free",
+      freeAdaptationsRemaining: profileQuota.remaining,
+      monthlyAdaptationsRemaining: null
     };
   }
 

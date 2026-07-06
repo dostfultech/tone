@@ -336,6 +336,7 @@ export function ToneMatcher() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
             buildToneAdaptationApiPayload(payload, {
+              requestSource: trigger,
               goingDirect: payload.goingDirect ?? goingDirect,
               multiFx: payload.multiFx || options?.multiFx || multiFx,
               selectedFx: payload.selectedFx || options?.selectedFx || selectedFx,
@@ -893,6 +894,11 @@ export function ToneMatcher() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (subscriptionSnapshot?.user && !subscriptionSnapshot.hasAccess && subscriptionSnapshot.usage.freeAdaptationsRemaining <= 0) {
+      setUpgradeModalOpen(true);
+      return;
+    }
+
     const normalizedSong = songDraft.trim() || song.trim() || "Unknown Song";
     setSong(normalizedSong);
     const customPickups = {
@@ -1857,6 +1863,7 @@ async function fetchCatalog(url: string): Promise<CatalogEntry[]> {
 function buildToneAdaptationApiPayload(
   payload: ToneRequest,
   options: {
+    requestSource: "manual_generate" | "tone_database_adapt_to_my_gear" | "saved_tone_readapt";
     goingDirect: boolean;
     multiFx: string;
     selectedFx: string;
@@ -1884,6 +1891,7 @@ function buildToneAdaptationApiPayload(
   ).slice(0, 8);
 
   return {
+    requestSource: options.requestSource,
     song: payload.song,
     artist: payload.artist,
     part: payload.part,

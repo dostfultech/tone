@@ -195,7 +195,7 @@ export function CommunityView() {
           </div>
         ) : null}
 
-        {snapshot?.user ? <div className="mt-8"><FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} /></div> : null}
+        {snapshot?.user && snapshot.hasAccess ? <div className="mt-8"><FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} /></div> : null}
 
         {!query.trim() ? (
           <div className="mt-8 grid gap-6 xl:grid-cols-3">

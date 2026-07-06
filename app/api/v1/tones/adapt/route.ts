@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     const rawPayload = await request.json();
     const dto = validateToneAdaptationRequest(rawPayload);
     const entitlement = await getEntitlement(supabase, user);
-    const eligibility = await assertCanCreateAdaptation(admin, user, entitlement);
+    const eligibility = await assertCanCreateAdaptation(admin, user, entitlement, dto.requestSource);
 
     if (!eligibility.ok) {
       return NextResponse.json(
@@ -122,6 +122,7 @@ async function createToneJob(
       artist: request.artist || "Unknown Artist",
       part: request.part || "main part",
       input_gear: {
+        requestSource: request.requestSource,
         guitar: request.guitar?.name || null,
         pickups: request.pickups.map((pickup) => pickup.name).filter(Boolean),
         amp: request.amp?.name || null,

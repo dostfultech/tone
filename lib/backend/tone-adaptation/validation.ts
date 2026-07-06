@@ -3,6 +3,7 @@ import type {
   NamedSelectionDto,
   NormalizedSelection,
   NormalizedToneAdaptationRequest,
+  ToneAdaptationRequestSource,
   ToneAdaptationGearDto,
   ToneAdaptationMode,
   ToneAdaptationRequestDto
@@ -48,6 +49,7 @@ export function validateToneAdaptationRequest(payload: unknown): NormalizedToneA
 
   return {
     requestId,
+    requestSource: normalizeRequestSource(dto.requestSource),
     song,
     artist,
     part: cleanString(dto.part),
@@ -65,6 +67,10 @@ export function validateToneAdaptationRequest(payload: unknown): NormalizedToneA
     effectsMode: cleanString(dto.effectsMode ?? gear.effectsMode),
     selectedFx: cleanString(dto.selectedFx ?? gear.selectedFx)
   };
+}
+
+function normalizeRequestSource(value: unknown): ToneAdaptationRequestSource {
+  return value === "tone_database_adapt_to_my_gear" || value === "saved_tone_readapt" ? value : "manual_generate";
 }
 
 export function slugify(value: string) {

@@ -8,6 +8,7 @@ export function FreeAdaptationSummary({
   unlimited = false,
   label,
   helpText,
+  valueText,
   className = ""
 }: {
   remaining: number;
@@ -15,6 +16,7 @@ export function FreeAdaptationSummary({
   unlimited?: boolean;
   label?: string;
   helpText?: string;
+  valueText?: string;
   className?: string;
 }) {
   return (
@@ -29,7 +31,7 @@ export function FreeAdaptationSummary({
               {unlimited ? "Expert Access" : label || "Free Adaptations Remaining"}
             </div>
             <div className="mt-1 text-sm font-semibold text-ink">
-              {unlimited ? "Unlimited adaptations available." : `${remaining} / ${limit}`}
+              {unlimited ? "Unlimited adaptations available." : valueText || `${remaining} / ${limit}`}
             </div>
           </div>
         </div>

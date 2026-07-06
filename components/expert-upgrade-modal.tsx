@@ -6,11 +6,15 @@ import { Lock, Sparkles, X } from "lucide-react";
 export function ExpertUpgradeModal({
   open,
   onClose,
-  redirect = "/app"
+  redirect = "/app",
+  title = "You've used your 3 free adaptations.",
+  body = "Upgrade to keep adapting every song to your rig."
 }: {
   open: boolean;
   onClose: () => void;
   redirect?: string;
+  title?: string;
+  body?: string;
 }) {
   if (!open) {
     return null;
@@ -25,8 +29,8 @@ export function ExpertUpgradeModal({
               <Lock className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-xl font-bold">You&apos;ve used your 3 free adaptations.</h2>
-              <p className="text-sm text-slate-500">Upgrade to keep adapting every song to your rig.</p>
+              <h2 className="text-xl font-bold">{title}</h2>
+              <p className="text-sm text-slate-500">{body}</p>
             </div>
           </div>
           <button type="button" className="button-quiet px-2" onClick={onClose} aria-label="Close upgrade modal">

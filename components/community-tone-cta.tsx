@@ -136,7 +136,7 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
       return;
     }
 
-    if (snapshot?.user && !snapshot.adaptationAccess.canAdapt && !snapshot.adaptationAccess.isUnlimited) {
+    if (snapshot?.user && !snapshot.hasAccess) {
       setUpgradeModalOpen(true);
       return;
     }
@@ -190,7 +190,12 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
         <button type="button" className="button-primary w-full justify-center" onClick={adaptTone} disabled={loading}>
           {loading ? "Checking My Gear..." : readyForGearAdaptation ? "Adapt to My Gear" : "Adapt This Tone"}
         </button>
-        {snapshot?.user ? <FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} /> : null}
+        {snapshot?.user && snapshot.hasAccess ? <FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} /> : null}
+        {snapshot?.user && !snapshot.hasAccess ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-900">
+            Tone Database browsing is free. Adapt to My Gear requires a paid plan.
+          </p>
+        ) : null}
         {readyForGearAdaptation ? (
           <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800">
             Using {preset?.name || "your saved rig"}: {getPresetGuitar(preset)} into {getPresetAmp(preset)}.
@@ -205,7 +210,13 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
         ) : null}
       </div>
 
-      <ExpertUpgradeModal open={upgradeModalOpen} onClose={() => setUpgradeModalOpen(false)} redirect={pathname || "/community"} />
+      <ExpertUpgradeModal
+        open={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        redirect={pathname || "/community"}
+        title="Adapt to My Gear is a premium feature."
+        body="Tone Database browsing is free. Upgrade to adapt database tones to your saved rig."
+      />
     </>
   );
 }
