@@ -11,6 +11,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "update" }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const defaultRedirect = mode === "signup" ? "/welcome" : "/app";
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -44,7 +45,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
       return;
     }
 
-    const redirectTo = searchParams.get("redirect") || "/app";
+    const redirectTo = searchParams.get("redirect") || defaultRedirect;
 
     supabase.auth.getSession().then(({ data }) => {
       if (data.session?.user) {
@@ -61,7 +62,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
     });
 
     return () => subscription.unsubscribe();
-  }, [mode, searchParams]);
+  }, [defaultRedirect, mode, searchParams]);
 
   useEffect(() => {
     if (mode !== "update") {
@@ -105,7 +106,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
     }
 
     const origin = getAuthOrigin();
-    const redirectTo = searchParams.get("redirect") || "/app";
+    const redirectTo = searchParams.get("redirect") || defaultRedirect;
 
     if (mode === "reset") {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(submittedEmail, {
@@ -149,14 +150,14 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
         email: submittedEmail,
         password: submittedPassword,
         options: {
-          emailRedirectTo: `${origin}/auth/callback?next=/plans`
+          emailRedirectTo: `${origin}/auth/callback?next=/welcome`
         }
       });
       setLoading(false);
       if (signUpError) {
         setError(signUpError.message);
       } else {
-        setMessage("Account created. Check your email if confirmation is enabled, then choose a plan.");
+        setMessage("Account created. Check your email if confirmation is enabled, then we will take you into your Tonefex setup.");
         router.refresh();
       }
       return;
@@ -194,7 +195,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
       return;
     }
 
-    const next = searchParams.get("redirect") || "/app";
+    const next = searchParams.get("redirect") || defaultRedirect;
     const origin = getAuthOrigin();
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -210,7 +211,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
   const title = mode === "signup" ? "Create your account" : mode === "reset" ? "Reset your password" : mode === "update" ? "Choose a new password" : "Sign in";
   const description =
     mode === "signup"
-      ? `Create your ${brand.appName} account to save tones, manage gear, and unlock paid access.`
+      ? `Create your ${brand.appName} account to save your gear, search songs, and unlock paid access when you are ready.`
       : mode === "reset"
       ? `Enter the email you use for ${brand.appName} and we will send a secure reset link.`
       : mode === "update"

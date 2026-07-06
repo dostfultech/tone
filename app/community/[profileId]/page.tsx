@@ -39,7 +39,7 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
   const likes = Math.max(10, Math.round(profile.confidence / 1.35));
   const hasPremiumAccess = entitlement.hasAccess;
   const userLoggedIn = Boolean(user);
-  const canAdapt = userLoggedIn && hasPremiumAccess;
+  const canAdapt = userLoggedIn;
   const redirectTarget = `/community/${profile.id}`;
   const visibleSettings = hasPremiumAccess ? settings : settings.slice(0, 2);
   const lockedSettings = hasPremiumAccess ? [] : settings.slice(2);
@@ -263,9 +263,7 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
                 <p className="mt-3 text-sm leading-6 text-slate-600">
                   {canAdapt
                     ? "Adapt this reference profile with your saved My Gear preset and generate settings for your own rig."
-                    : userLoggedIn
-                      ? "This feature requires a Beginner or Expert plan."
-                      : "Sign in to adapt this reference profile with your saved My Gear preset."}
+                    : "Sign in to adapt this reference profile with your saved My Gear preset."}
                 </p>
                 {canAdapt ? (
                   <>
@@ -288,22 +286,8 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
                       Open Matcher
                     </Link>
                   </>
-                ) : userLoggedIn ? (
-                  <div className="mt-5 grid gap-3">
-                    <Link href={`/plans?required=subscription&redirect=${encodeURIComponent(redirectTarget)}`} className="button-primary w-full justify-center">
-                      <Sparkles className="h-4 w-4" />
-                      View Plans
-                    </Link>
-                    <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
-                      This feature requires a Beginner or Expert plan.
-                    </p>
-                  </div>
                 ) : (
                   <div className="mt-5 grid gap-3">
-                    <Link href={`/plans?required=subscription&redirect=${encodeURIComponent(redirectTarget)}`} className="button-primary w-full justify-center">
-                      <Sparkles className="h-4 w-4" />
-                      Unlock Full Tone
-                    </Link>
                     <Link href={`/login?redirect=${encodeURIComponent(redirectTarget)}`} className="button-secondary w-full justify-center">
                       <ShieldCheck className="h-4 w-4" />
                       Sign In To Continue

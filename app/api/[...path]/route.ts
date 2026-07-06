@@ -152,7 +152,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 
   if (route === "promo-credit/usage") {
-    return json({ credits: 5, used: 0, source: "signup" });
+    return json({ credits: 3, used: 0, source: "signup" });
   }
 
   if (route === "gear-onboarding/status") {
@@ -314,7 +314,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 
   if (route === "grant-signup-credit") {
-    return json({ granted: true, credits: 5 });
+    return json({ granted: true, credits: 3 });
   }
 
   if (route === "account/delete") {

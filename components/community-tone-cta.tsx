@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { ExpertUpgradeModal } from "@/components/expert-upgrade-modal";
+import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
 import { brand } from "@/lib/brand";
+import { loadClientSubscriptionSnapshot, type ClientSubscriptionSnapshot } from "@/lib/subscription-client";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 const AUTO_ADAPT_KEY = `${brand.storagePrefix}_auto_adapt_from_community`;
@@ -53,9 +56,12 @@ type CommunityToneCtaProps = {
 
 export function CommunityToneCta({ mode, song, artist, part, partType, toneType, guitar, amp, pickup, cabinet }: CommunityToneCtaProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [presets, setPresets] = useState<GearPreset[]>([]);
+  const [snapshot, setSnapshot] = useState<ClientSubscriptionSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -63,6 +69,7 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
     async function loadPresets() {
       const supabase = createSupabaseBrowserClient();
       let nextPresets: GearPreset[] = [];
+      let nextSnapshot: ClientSubscriptionSnapshot | null = null;
 
       if (supabase) {
         const {
@@ -70,6 +77,7 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
         } = await supabase.auth.getUser();
 
         if (user) {
+          nextSnapshot = await loadClientSubscriptionSnapshot(supabase);
           const { data, error } = await supabase
             .from("gear_presets")
             .select("id, name, instrument_type, guitar_name, amp_name, pickup_name, effects, created_at")
@@ -88,6 +96,7 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
 
       if (mounted) {
         setPresets(nextPresets);
+        setSnapshot(nextSnapshot);
         setLoading(false);
       }
     }
@@ -101,6 +110,7 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
 
   const preset = useMemo(() => selectCompatiblePreset(presets, mode), [mode, presets]);
   const readyForGearAdaptation = Boolean(preset && getPresetGuitar(preset) && getPresetAmp(preset));
+  const onboardingActive = Boolean(snapshot?.user && !snapshot.onboarding.firstAdaptationCompleted);
 
   function adaptTone() {
     if (loading) {
@@ -115,6 +125,11 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
         artist
       });
       setMessage("Complete My Gear first, then this tone can be adapted directly to your saved rig.");
+      return;
+    }
+
+    if (snapshot?.user && !snapshot.adaptationAccess.canAdapt && !snapshot.adaptationAccess.isUnlimited) {
+      setUpgradeModalOpen(true);
       return;
     }
 
@@ -157,27 +172,44 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
       })
     );
     sessionStorage.setItem(AUTO_ADAPT_KEY, "1");
-    router.push("/app");
+    router.push(onboardingActive ? "/app?onboarding=1" : "/app");
   }
 
   return (
-    <div className="grid gap-3">
-      <button type="button" className="button-primary w-full justify-center" onClick={adaptTone} disabled={loading}>
-        {loading ? "Checking My Gear..." : readyForGearAdaptation ? "Adapt to My Gear" : "Adapt This Tone"}
-      </button>
-      {readyForGearAdaptation ? (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800">
-          Using {preset?.name || "your saved rig"}: {getPresetGuitar(preset)} into {getPresetAmp(preset)}.
-        </p>
-      ) : message ? (
-        <div className="grid gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-          <p className="text-sm font-semibold text-amber-900">{message}</p>
-          <button type="button" className="button-secondary min-h-10 justify-center rounded-lg text-sm" onClick={() => router.push("/gear")}>
-            Open My Gear
-          </button>
-        </div>
-      ) : null}
-    </div>
+    <>
+      <div className="grid gap-3">
+        <button type="button" className="button-primary w-full justify-center" onClick={adaptTone} disabled={loading}>
+          {loading ? "Checking My Gear..." : readyForGearAdaptation ? "Adapt to My Gear" : "Adapt This Tone"}
+        </button>
+        {snapshot?.user ? (
+          <FreeAdaptationSummary
+            remaining={snapshot.hasAccess && !snapshot.adaptationAccess.isUnlimited ? snapshot.usage.adaptationsRemaining ?? 0 : snapshot.usage.freeAdaptationsRemaining}
+            limit={
+              snapshot.hasAccess && !snapshot.adaptationAccess.isUnlimited
+                ? snapshot.usage.adaptationsUsed + (snapshot.usage.adaptationsRemaining ?? 0)
+                : snapshot.usage.freeAdaptationLimit
+            }
+            unlimited={snapshot.adaptationAccess.isUnlimited}
+            label={snapshot.hasAccess ? "Adaptations Remaining" : undefined}
+            helpText={snapshot.hasAccess ? "Your paid usage refreshes each billing cycle." : undefined}
+          />
+        ) : null}
+        {readyForGearAdaptation ? (
+          <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800">
+            Using {preset?.name || "your saved rig"}: {getPresetGuitar(preset)} into {getPresetAmp(preset)}.
+          </p>
+        ) : message ? (
+          <div className="grid gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-sm font-semibold text-amber-900">{message}</p>
+            <button type="button" className="button-secondary min-h-10 justify-center rounded-lg text-sm" onClick={() => router.push("/gear?onboarding=1")}>
+              Open My Gear
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      <ExpertUpgradeModal open={upgradeModalOpen} onClose={() => setUpgradeModalOpen(false)} redirect={pathname || "/community"} />
+    </>
   );
 }
 

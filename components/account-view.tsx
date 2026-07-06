@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Activity, Check, CreditCard, Guitar, Loader2, Music2, ShieldCheck, Trash2, UserCircle } from "lucide-react";
 import { brand } from "@/lib/brand";
+import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
 import {
   formatSubscriptionDate,
   formatSubscriptionStatus,
@@ -106,8 +107,8 @@ export function AccountView() {
     setMessage(data.message || data.error || "Account deletion request processed.");
   }
 
-  const planLabel = snapshot?.hasAccess ? snapshot.planName || "Active plan" : "No active plan";
-  const statusLabel = snapshot?.hasAccess ? formatSubscriptionStatus(snapshot.status) : "Inactive";
+  const planLabel = snapshot?.hasAccess ? snapshot.planName || "Active plan" : snapshot?.user ? "Free" : "No active plan";
+  const statusLabel = snapshot?.hasAccess ? formatSubscriptionStatus(snapshot.status) : snapshot?.user ? "Free access" : "Inactive";
 
   return (
     <div className="px-4 pb-14 pt-24 sm:px-6 lg:px-8">
@@ -134,6 +135,22 @@ export function AccountView() {
         </section>
 
         {message ? <div className="mt-6 rounded-lg bg-blue-50/80 px-4 py-3 text-sm font-bold text-ink">{message}</div> : null}
+
+        {snapshot?.user ? (
+          <div className="mt-6">
+            <FreeAdaptationSummary
+              remaining={snapshot.hasAccess && !snapshot.adaptationAccess.isUnlimited ? snapshot.usage.adaptationsRemaining ?? 0 : snapshot.usage.freeAdaptationsRemaining}
+              limit={
+                snapshot.hasAccess && !snapshot.adaptationAccess.isUnlimited
+                  ? snapshot.usage.adaptationsUsed + (snapshot.usage.adaptationsRemaining ?? 0)
+                  : snapshot.usage.freeAdaptationLimit
+              }
+              unlimited={snapshot.adaptationAccess.isUnlimited}
+              label={snapshot.hasAccess ? "Adaptations Remaining" : undefined}
+              helpText={snapshot.hasAccess ? "Your paid usage refreshes each billing cycle." : undefined}
+            />
+          </div>
+        ) : null}
 
         <div className="mt-8 inline-flex rounded-lg border border-white/80 bg-white/80 p-1 shadow-sm">
           {[
@@ -190,7 +207,10 @@ export function AccountView() {
                   <MetricCard label="Billing" value={snapshot?.billingInterval === "annual" ? "Annual" : snapshot?.billingInterval === "monthly" ? "Monthly" : "None"} />
                   <MetricCard label="Adaptations" value={snapshot ? formatRemaining(snapshot.usage.adaptationsUsed, snapshot.usage.adaptationsRemaining) : "0 used"} />
                   <MetricCard label="Saved tones" value={snapshot ? formatRemaining(snapshot.usage.savedTonesUsed, snapshot.usage.savedTonesRemaining) : "0 used"} />
-                  <MetricCard label="Starter adaptations left" value={snapshot?.usage.starterAdaptationsRemaining === null ? "Unlimited" : String(snapshot?.usage.starterAdaptationsRemaining ?? 0)} />
+                  <MetricCard
+                    label="Free adaptations"
+                    value={snapshot?.adaptationAccess.isUnlimited ? "Unlimited" : `${snapshot?.usage.freeAdaptationsRemaining ?? 0} / ${snapshot?.usage.freeAdaptationLimit ?? 3}`}
+                  />
                   <MetricCard label="Gear presets" value={snapshot ? formatRemaining(snapshot.usage.gearPresetsUsed, snapshot.usage.gearPresetsRemaining) : "0 used"} />
                 </div>
 

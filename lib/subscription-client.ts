@@ -1,4 +1,9 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import {
+  createFreeAdaptationQuota,
+  createOnboardingProgressState,
+  resolveAdaptationAccessState
+} from "@/lib/adaptation-access";
 import { planLimits } from "@/lib/entitlements";
 import { plans } from "@/lib/mock-data";
 
@@ -12,6 +17,15 @@ type RawSubscription = {
   current_period_end: string | null;
 };
 
+type RawProfile = {
+  free_adaptation_limit: number | null;
+  free_adaptations_used: number | null;
+  welcome_completed_at: string | null;
+  gear_onboarding_completed_at: string | null;
+  tone_database_seen_at: string | null;
+  first_adaptation_completed_at: string | null;
+};
+
 type UsageSnapshot = {
   adaptationsUsed: number;
   adaptationsRemaining: number | null;
@@ -19,7 +33,9 @@ type UsageSnapshot = {
   savedTonesRemaining: number | null;
   gearPresetsUsed: number;
   gearPresetsRemaining: number | null;
-  starterAdaptationsRemaining: number | null;
+  freeAdaptationLimit: number;
+  freeAdaptationsUsed: number;
+  freeAdaptationsRemaining: number;
 };
 
 export type ClientSubscriptionSnapshot = {
@@ -31,16 +47,13 @@ export type ClientSubscriptionSnapshot = {
   renewalDate: string | null;
   hasAccess: boolean;
   features: string[];
+  adaptationAccess: ReturnType<typeof resolveAdaptationAccessState>;
+  onboarding: ReturnType<typeof createOnboardingProgressState>;
   usage: UsageSnapshot;
   totals: {
     savedTones: number;
     gearPresets: number;
   };
-};
-
-const starterAdaptationLimits: Record<PlanId, number | null> = {
-  beginner: 5,
-  expert: null
 };
 
 export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Promise<ClientSubscriptionSnapshot> {
@@ -57,7 +70,7 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
     return emptySnapshot();
   }
 
-  const [activeResult, latestResult] = await Promise.all([
+  const [activeResult, latestResult, profileResult] = await Promise.all([
     client
       .from("subscriptions")
       .select("plan_id, status, billing_interval, current_period_end")
@@ -73,6 +86,11 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
       .eq("user_id", user.id)
       .order("updated_at", { ascending: false })
       .limit(1)
+      .maybeSingle(),
+    client
+      .from("profiles")
+      .select("free_adaptation_limit, free_adaptations_used, welcome_completed_at, gear_onboarding_completed_at, tone_database_seen_at, first_adaptation_completed_at")
+      .eq("id", user.id)
       .maybeSingle()
   ]);
 
@@ -109,28 +127,50 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
   const planId = subscription?.planId || null;
   const plan = planId ? plans.find((item) => item.id === planId) || null : null;
   const limits = planId ? planLimits[planId] : null;
+  const profile = (profileResult.data as RawProfile | null) || null;
+  const freeQuota = createFreeAdaptationQuota(profile?.free_adaptation_limit, profile?.free_adaptations_used);
+  const onboarding = createOnboardingProgressState(profile);
   const adaptationsUsed = monthlyUsageResult.data?.adaptations_used || 0;
   const savedTonesUsed = savedThisMonthResult.count || 0;
   const gearPresetsUsed = presetsThisMonthResult.count || 0;
-  const starterLimit = planId ? starterAdaptationLimits[planId] : null;
+  const hasPaidAccess = Boolean(subscription?.isActive && planId);
+  const adaptationAccess = resolveAdaptationAccessState({
+    entitlement: {
+      hasAccess: hasPaidAccess,
+      source: hasPaidAccess ? "subscription" : "none",
+      planId,
+      status: subscription?.status || null,
+      monthlyAdaptations: limits?.monthlyAdaptations ?? null,
+      savedTonesLimit: limits?.savedTonesLimit ?? null
+    },
+    isAuthenticated: true,
+    freeQuota,
+    onboarding
+  });
+  const visibleAdaptationsUsed = hasPaidAccess ? adaptationsUsed : freeQuota.used;
+  const visibleAdaptationsRemaining = hasPaidAccess ? limits?.monthlyAdaptations == null ? null : Math.max(limits.monthlyAdaptations - adaptationsUsed, 0) : freeQuota.remaining;
 
   return {
     user,
     planId,
-    planName: plan?.name || null,
+    planName: plan?.name || (user ? "Free" : null),
     status: subscription?.status || null,
     billingInterval: subscription?.billingInterval || null,
     renewalDate: subscription?.renewalDate || null,
-    hasAccess: Boolean(subscription?.isActive && planId),
+    hasAccess: hasPaidAccess,
     features: plan?.perks || [],
+    adaptationAccess,
+    onboarding,
     usage: {
-      adaptationsUsed,
-      adaptationsRemaining: limits?.monthlyAdaptations == null ? null : Math.max(limits.monthlyAdaptations - adaptationsUsed, 0),
+      adaptationsUsed: visibleAdaptationsUsed,
+      adaptationsRemaining: visibleAdaptationsRemaining,
       savedTonesUsed,
       savedTonesRemaining: limits?.savedTonesLimit == null ? null : Math.max(limits.savedTonesLimit - savedTonesUsed, 0),
       gearPresetsUsed,
       gearPresetsRemaining: limits?.gearPresetsLimit == null ? null : Math.max(limits.gearPresetsLimit - gearPresetsUsed, 0),
-      starterAdaptationsRemaining: starterLimit == null ? null : Math.max(starterLimit - adaptationsUsed, 0)
+      freeAdaptationLimit: freeQuota.limit,
+      freeAdaptationsUsed: freeQuota.used,
+      freeAdaptationsRemaining: freeQuota.remaining
     },
     totals: {
       savedTones: savedTotalResult.count || 0,
@@ -188,6 +228,20 @@ function emptySnapshot(): ClientSubscriptionSnapshot {
     renewalDate: null,
     hasAccess: false,
     features: [],
+    adaptationAccess: resolveAdaptationAccessState({
+      entitlement: {
+        hasAccess: false,
+        source: "none",
+        planId: null,
+        status: null,
+        monthlyAdaptations: null,
+        savedTonesLimit: null
+      },
+      isAuthenticated: false,
+      freeQuota: createFreeAdaptationQuota(),
+      onboarding: createOnboardingProgressState(null)
+    }),
+    onboarding: createOnboardingProgressState(null),
     usage: {
       adaptationsUsed: 0,
       adaptationsRemaining: null,
@@ -195,7 +249,9 @@ function emptySnapshot(): ClientSubscriptionSnapshot {
       savedTonesRemaining: null,
       gearPresetsUsed: 0,
       gearPresetsRemaining: null,
-      starterAdaptationsRemaining: null
+      freeAdaptationLimit: createFreeAdaptationQuota().limit,
+      freeAdaptationsUsed: 0,
+      freeAdaptationsRemaining: createFreeAdaptationQuota().remaining
     },
     totals: {
       savedTones: 0,

@@ -2,8 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Database, Guitar, Loader2, Search, Sparkles, ThumbsUp, Volume2 } from "lucide-react";
+import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
+import { OnboardingProgress } from "@/components/onboarding-progress";
 import type { TonePartType } from "@/lib/mock-data";
+import { loadClientSubscriptionSnapshot, type ClientSubscriptionSnapshot } from "@/lib/subscription-client";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type CommunityTone = {
   id: string;
@@ -28,8 +33,11 @@ const toneFilters = ["all", "clean", "distorted"] as const;
 const sortFilters = ["top", "popular", "recent"] as const;
 
 export function CommunityView() {
+  const searchParams = useSearchParams();
+  const onboardingMode = searchParams.get("onboarding") === "1";
   const [query, setQuery] = useState("");
   const [tones, setTones] = useState<CommunityTone[]>([]);
+  const [snapshot, setSnapshot] = useState<ClientSubscriptionSnapshot | null>(null);
   const [instrument, setInstrument] = useState<(typeof instrumentFilters)[number]>("all");
   const [part, setPart] = useState<(typeof partFilters)[number]>("all");
   const [tone, setTone] = useState<(typeof toneFilters)[number]>("all");
@@ -39,6 +47,31 @@ export function CommunityView() {
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+    const client = supabase;
+
+    async function loadSnapshot() {
+      const nextSnapshot = await loadClientSubscriptionSnapshot(client);
+      setSnapshot(nextSnapshot);
+
+      if (nextSnapshot.user && onboardingMode && !nextSnapshot.onboarding.toneDatabaseVisited) {
+        await client
+          .from("profiles")
+          .update({ tone_database_seen_at: new Date().toISOString() })
+          .eq("id", nextSnapshot.user.id)
+          .is("tone_database_seen_at", null);
+
+        setSnapshot(await loadClientSubscriptionSnapshot(client));
+      }
+    }
+
+    void loadSnapshot();
+  }, [onboardingMode]);
 
   useEffect(() => {
     setPage(1);
@@ -96,10 +129,20 @@ export function CommunityView() {
     if (!total) return "No tones yet";
     return `${total.toLocaleString()} tones`;
   }, [total]);
+  const exampleSongs = ["Enter Sandman", "Master of Puppets", "Sweet Child O Mine", "Levitating", "Nothing Else Matters"];
+  const popularArtists = Array.from(new Set(tones.map((item) => item.artist))).slice(0, 6);
+  const recentlyAdded = tones.slice(0, 4);
+  const detailHrefSuffix = onboardingMode && snapshot?.user && !snapshot.onboarding.firstAdaptationCompleted ? "?onboarding=1" : "";
 
   return (
     <div className="px-4 pb-14 pt-24 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1440px]">
+        {onboardingMode && snapshot?.user && !snapshot.onboarding.firstAdaptationCompleted ? (
+          <div className="mb-8">
+            <OnboardingProgress currentStep={2} />
+          </div>
+        ) : null}
+
         <section className="theme-panel theme-blue-panel px-6 py-12 text-center lg:px-8 lg:py-14">
           <h1 className="text-4xl font-bold tracking-normal sm:text-5xl">
             Tone <span className="lime-highlight">Database</span>
@@ -111,10 +154,54 @@ export function CommunityView() {
               className="field h-14 rounded-lg border-white/80 pl-12 text-base shadow-lg"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search songs, artists, or gear..."
+              placeholder="Search songs..."
             />
           </div>
+          <div className="mx-auto mt-6 flex max-w-4xl flex-wrap justify-center gap-2">
+            {exampleSongs.map((songName) => (
+              <button
+                key={songName}
+                type="button"
+                className="rounded-md border border-white/80 bg-white/80 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-ocean/40 hover:text-ink"
+                onClick={() => setQuery(songName)}
+              >
+                {songName}
+              </button>
+            ))}
+          </div>
         </section>
+
+        {snapshot?.user ? (
+          <div className="mt-8">
+            <FreeAdaptationSummary
+              remaining={snapshot.hasAccess && !snapshot.adaptationAccess.isUnlimited ? snapshot.usage.adaptationsRemaining ?? 0 : snapshot.usage.freeAdaptationsRemaining}
+              limit={
+                snapshot.hasAccess && !snapshot.adaptationAccess.isUnlimited
+                  ? snapshot.usage.adaptationsUsed + (snapshot.usage.adaptationsRemaining ?? 0)
+                  : snapshot.usage.freeAdaptationLimit
+              }
+              unlimited={snapshot.adaptationAccess.isUnlimited}
+              label={snapshot.hasAccess ? "Adaptations Remaining" : undefined}
+              helpText={snapshot.hasAccess ? "Your paid usage refreshes each billing cycle." : undefined}
+            />
+          </div>
+        ) : null}
+
+        {!query.trim() ? (
+          <div className="mt-8 grid gap-6 xl:grid-cols-3">
+            <DiscoveryCard
+              title="Trending Songs"
+              items={recentlyAdded.map((item) => `${item.song} - ${item.artist}`)}
+              onSelect={(value) => setQuery(value.split(" - ")[0] || value)}
+            />
+            <DiscoveryCard title="Popular Artists" items={popularArtists} onSelect={setQuery} />
+            <DiscoveryCard
+              title="Recently Added"
+              items={recentlyAdded.map((item) => item.song)}
+              onSelect={setQuery}
+            />
+          </div>
+        ) : null}
 
         <div className="mt-8 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-wrap gap-3">
@@ -171,7 +258,7 @@ export function CommunityView() {
                   <ThumbsUp className="h-5 w-5" />
                   {Math.max(10, Math.round(item.score / 1.4))}
                 </button>
-                <Link href={`/community/${item.id}`} className="button-primary min-h-10 rounded-lg text-sm">
+                <Link href={`/community/${item.id}${detailHrefSuffix}`} className="button-primary min-h-10 rounded-lg text-sm">
                   <Database className="h-5 w-5" />
                   View Tone
                 </Link>
@@ -198,6 +285,30 @@ export function CommunityView() {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function DiscoveryCard({ title, items, onSelect }: { title: string; items: string[]; onSelect: (value: string) => void }) {
+  if (!items.length) {
+    return null;
+  }
+
+  return (
+    <div className="compact-card p-5">
+      <h2 className="text-lg font-bold">{title}</h2>
+      <div className="mt-4 grid gap-2">
+        {items.map((item) => (
+          <button
+            key={`${title}-${item}`}
+            type="button"
+            className="rounded-lg border border-white/80 bg-white/80 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:border-ocean/40 hover:text-ink"
+            onClick={() => onSelect(item)}
+          >
+            {item}
+          </button>
+        ))}
       </div>
     </div>
   );

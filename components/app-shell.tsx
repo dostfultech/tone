@@ -15,6 +15,7 @@ import {
   X
 } from "lucide-react";
 import { brand } from "@/lib/brand";
+import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
 import {
   loadClientSubscriptionSnapshot,
   type ClientSubscriptionSnapshot
@@ -153,6 +154,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <div className="truncate text-sm text-neutral-500">{email || "Sign in to sync your tones"}</div>
             </div>
           </div>
+
+          {snapshot?.user ? (
+            <FreeAdaptationSummary
+              remaining={snapshot.hasAccess && !snapshot.adaptationAccess.isUnlimited ? snapshot.usage.adaptationsRemaining ?? 0 : snapshot.usage.freeAdaptationsRemaining}
+              limit={
+                snapshot.hasAccess && !snapshot.adaptationAccess.isUnlimited
+                  ? snapshot.usage.adaptationsUsed + (snapshot.usage.adaptationsRemaining ?? 0)
+                  : snapshot.usage.freeAdaptationLimit
+              }
+              unlimited={snapshot.adaptationAccess.isUnlimited}
+              label={snapshot.hasAccess ? "Adaptations Remaining" : undefined}
+              helpText={snapshot.hasAccess ? "Your paid usage refreshes each billing cycle." : undefined}
+              className="mb-8"
+            />
+          ) : null}
 
           <NavSection title="My Collection" items={collectionNav} pathname={pathname} onNavigate={navigate} />
           <NavSection title="Discover" items={discoveryNav} pathname={pathname} onNavigate={navigate} />

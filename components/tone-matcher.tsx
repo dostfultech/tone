@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { type CSSProperties, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -38,9 +38,13 @@ import {
   formatToneControlName,
   useAnimatedToneControls
 } from "@/components/tone-control-animation";
+import { ExpertUpgradeModal } from "@/components/expert-upgrade-modal";
+import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
+import { OnboardingProgress } from "@/components/onboarding-progress";
 
 type ToneResult = {
   id: string;
+  toneResultId?: string | null;
   request: ToneRequest;
   accuracy: number;
   originalRig: string;
@@ -104,6 +108,13 @@ type ToneBackendApiResponse = {
     goingDirect: boolean;
     multiFx?: string;
   };
+  tracking?: {
+    toneResultId: string | null;
+    usageConfirmationRequired: boolean;
+    freeAdaptationsRemaining: number | null;
+    monthlyAdaptationsRemaining: number | null;
+    accessPath: string;
+  };
 };
 
 type SongSuggestion = SongItem;
@@ -155,6 +166,9 @@ const LEGACY_DEFAULT_PART = "second solo";
 
 export function ToneMatcher() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const onboardingMode = searchParams.get("onboarding") === "1";
+  const matcherRedirectTarget = onboardingMode ? "/app?onboarding=1" : "/app";
   const autoAdaptTriggeredRef = useRef(false);
   const hasLoadedPreferencesRef = useRef(false);
   const resultRef = useRef<HTMLDivElement | null>(null);
@@ -181,12 +195,14 @@ export function ToneMatcher() {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("");
+  const [celebrationMessage, setCelebrationMessage] = useState("");
   const [songSuggestions, setSongSuggestions] = useState<SongSuggestion[]>([]);
   const [songSearchOpen, setSongSearchOpen] = useState(false);
   const [songSearchLoading, setSongSearchLoading] = useState(false);
   const [highlightedSongIndex, setHighlightedSongIndex] = useState(0);
   const [songSearchTouched, setSongSearchTouched] = useState(false);
   const [subscriptionSnapshot, setSubscriptionSnapshot] = useState<ClientSubscriptionSnapshot | null>(null);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [guitarCatalog, setGuitarCatalog] = useState<CatalogEntry[]>([]);
   const [bassGuitarCatalog, setBassGuitarCatalog] = useState<CatalogEntry[]>([]);
   const [ampCatalog, setAmpCatalog] = useState<CatalogEntry[]>([]);
@@ -195,6 +211,46 @@ export function ToneMatcher() {
   const [pickupCatalog, setPickupCatalog] = useState<CatalogEntry[]>([]);
   const [pedalCatalog, setPedalCatalog] = useState<CatalogEntry[]>([]);
   const [multiFxCatalog, setMultiFxCatalog] = useState<CatalogEntry[]>([]);
+
+  const refreshSubscriptionSnapshot = useCallback(async () => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) {
+      return null;
+    }
+
+    const nextSnapshot = await loadClientSubscriptionSnapshot(supabase);
+    setSubscriptionSnapshot(nextSnapshot);
+    return nextSnapshot;
+  }, []);
+
+  const confirmSuccessfulAdaptation = useCallback(
+    async (toneResultId: string) => {
+      const response = await fetch("/api/v1/tones/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toneResultId })
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = await response.json();
+      const nextSnapshot = await refreshSubscriptionSnapshot();
+      const beforeFirstAdaptation = !subscriptionSnapshot?.onboarding.firstAdaptationCompleted;
+
+      if (beforeFirstAdaptation && data.firstAdaptationCompleted) {
+        const remaining = typeof data.freeAdaptationsRemaining === "number" ? data.freeAdaptationsRemaining : nextSnapshot?.usage.freeAdaptationsRemaining ?? 0;
+        setCelebrationMessage(`Congratulations! Your first tone has been adapted to your gear. You have ${remaining} free adaptations remaining.`);
+      }
+
+      return data as {
+        freeAdaptationsRemaining: number;
+        firstAdaptationCompleted: boolean;
+      };
+    },
+    [refreshSubscriptionSnapshot, subscriptionSnapshot?.onboarding.firstAdaptationCompleted]
+  );
 
   const runAdaptation = useCallback(
     async (
@@ -250,16 +306,12 @@ export function ToneMatcher() {
         });
         const data = await response.json();
         if (response.status === 401) {
-          router.push(`/login?redirect=${encodeURIComponent("/app")}`);
+          router.push(`/login?redirect=${encodeURIComponent(matcherRedirectTarget)}`);
           return;
         }
         if (response.status === 402) {
-          const params = new URLSearchParams({
-            required: "subscription",
-            redirect: "/app",
-            source: "generate-tone"
-          });
-          router.push(`/plans?${params.toString()}`);
+          setMessage(data.error?.message || "Upgrade to Expert to continue adapting tones.");
+          setUpgradeModalOpen(true);
           return;
         }
         if (!response.ok) {
@@ -289,6 +341,9 @@ export function ToneMatcher() {
           masterTone: (data as ToneBackendApiResponse).masterTone || null
         });
         setResult(adapted);
+        if ((data as ToneBackendApiResponse).tracking?.toneResultId) {
+          await confirmSuccessfulAdaptation((data as ToneBackendApiResponse).tracking?.toneResultId as string);
+        }
         trackUsage(adapted);
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "The adaptation endpoint did not respond.");
@@ -298,7 +353,7 @@ export function ToneMatcher() {
         window.setTimeout(() => setLoading(false), 350);
       }
     },
-    [goingDirect, multiFx, router, selectedEffects, selectedFx]
+    [confirmSuccessfulAdaptation, goingDirect, matcherRedirectTarget, multiFx, router, selectedEffects, selectedFx]
   );
 
   const runAdaptationRef = useRef(runAdaptation);
@@ -498,20 +553,16 @@ export function ToneMatcher() {
     }
     const client = supabase;
 
-    async function refreshSubscription() {
-      setSubscriptionSnapshot(await loadClientSubscriptionSnapshot(client));
-    }
-
-    void refreshSubscription();
+    void refreshSubscriptionSnapshot();
 
     const {
       data: { subscription }
     } = client.auth.onAuthStateChange(() => {
-      refreshSubscription().catch(() => undefined);
+      refreshSubscriptionSnapshot().catch(() => undefined);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [refreshSubscriptionSnapshot]);
 
   useEffect(() => {
     let cancelled = false;
@@ -704,10 +755,6 @@ export function ToneMatcher() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (subscriptionSnapshot?.user && !subscriptionSnapshot.hasAccess) {
-      router.push(`/plans?required=subscription&redirect=${encodeURIComponent("/app")}`);
-      return;
-    }
     const normalizedSong = songDraft.trim() || song.trim() || "Unknown Song";
     setSong(normalizedSong);
     const customPickups = {
@@ -901,6 +948,38 @@ export function ToneMatcher() {
             ))}
           </div>
         </section>
+
+        {onboardingMode && subscriptionSnapshot?.user && !subscriptionSnapshot.onboarding.firstAdaptationCompleted ? (
+          <div className="mt-10">
+            <OnboardingProgress currentStep={3} />
+          </div>
+        ) : null}
+
+        {subscriptionSnapshot?.user ? (
+          <div className="mt-10">
+            <FreeAdaptationSummary
+              remaining={
+                subscriptionSnapshot.hasAccess && !subscriptionSnapshot.adaptationAccess.isUnlimited
+                  ? subscriptionSnapshot.usage.adaptationsRemaining ?? 0
+                  : subscriptionSnapshot.usage.freeAdaptationsRemaining
+              }
+              limit={
+                subscriptionSnapshot.hasAccess && !subscriptionSnapshot.adaptationAccess.isUnlimited
+                  ? subscriptionSnapshot.usage.adaptationsUsed + (subscriptionSnapshot.usage.adaptationsRemaining ?? 0)
+                  : subscriptionSnapshot.usage.freeAdaptationLimit
+              }
+              unlimited={subscriptionSnapshot.adaptationAccess.isUnlimited}
+              label={subscriptionSnapshot.hasAccess ? "Adaptations Remaining" : undefined}
+              helpText={subscriptionSnapshot.hasAccess ? "Your paid usage refreshes each billing cycle." : undefined}
+            />
+          </div>
+        ) : null}
+
+        {celebrationMessage ? (
+          <div className="mt-8 rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-900">
+            {celebrationMessage}
+          </div>
+        ) : null}
 
         <StepProgress />
 
@@ -1265,20 +1344,6 @@ export function ToneMatcher() {
                 </div>
               </div>
 
-              {!subscriptionSnapshot?.hasAccess ? (
-                <div className="theme-blue-panel rounded-lg border border-white/80 p-8 text-center shadow-xl">
-                  <p className="text-lg text-slate-700">Need access?</p>
-                  <h3 className="mt-2 text-3xl font-bold">Unlock full Tonefex access</h3>
-                  <p className="mt-2 text-lg font-semibold text-emerald-700">Choose a plan to unlock full adaptations, tone saving, and presets.</p>
-                  <div className="mt-6 flex flex-col items-center justify-center gap-4 sm:flex-row">
-                    <Link className="button-primary min-h-14 rounded-lg px-8 text-lg" href="/plans">
-                      View Plans
-                    </Link>
-                    <span className="text-sm font-medium text-slate-600">Manage billing anytime from the customer portal.</span>
-                  </div>
-                </div>
-              ) : null}
-
               <div className="grid justify-items-center gap-5 text-center">
                 <button type="submit" className="button-primary min-h-16 w-full max-w-xl rounded-lg px-8 text-lg shadow-xl" disabled={loading}>
                   {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
@@ -1299,6 +1364,8 @@ export function ToneMatcher() {
           </div>
         </form>
       </div>
+
+      <ExpertUpgradeModal open={upgradeModalOpen} onClose={() => setUpgradeModalOpen(false)} redirect={matcherRedirectTarget} />
 
       <AnimatePresence>
         {loading ? (
@@ -1632,6 +1699,7 @@ function mapToneAdaptationApiResponse(payload: ToneRequest, response: ToneBacken
 
   return {
     id: response.requestId,
+    toneResultId: response.tracking?.toneResultId || null,
     request: payload,
     accuracy: response.masterTone.confidence,
     originalRig: `${response.masterTone.song} by ${response.masterTone.artist}`,

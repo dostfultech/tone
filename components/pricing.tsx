@@ -152,8 +152,8 @@ export function Pricing() {
               <UsageRow label="Saved tones in library" value={String(snapshot.totals.savedTones)} />
               <UsageRow label="Gear presets" value={formatUsage(snapshot.usage.gearPresetsUsed, snapshot.usage.gearPresetsRemaining)} />
               <UsageRow
-                label="Starter adaptations remaining"
-                value={snapshot.usage.starterAdaptationsRemaining === null ? "Unlimited" : String(snapshot.usage.starterAdaptationsRemaining)}
+                label="Free adaptations"
+                value={snapshot.adaptationAccess.isUnlimited ? "Unlimited" : `${snapshot.usage.freeAdaptationsRemaining} / ${snapshot.usage.freeAdaptationLimit}`}
               />
               <UsageRow label="Billing" value={snapshot.billingInterval === "annual" ? "Annual" : "Monthly"} />
               <UsageRow label="Plan status" value={formatSubscriptionStatus(snapshot.status)} />

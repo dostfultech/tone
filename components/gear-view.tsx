@@ -1,7 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Cpu, Guitar, Loader2, Plus, SlidersHorizontal, Trash2, Volume2, Waves } from "lucide-react";
+import { OnboardingProgress } from "@/components/onboarding-progress";
 import { brand } from "@/lib/brand";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
@@ -43,6 +45,9 @@ type CatalogEntry = {
 };
 
 export function GearView() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const onboardingMode = searchParams.get("onboarding") === "1";
   const [presets, setPresets] = useState<Preset[]>([]);
   const [name, setName] = useState("Main rig");
   const [presetInstrument, setPresetInstrument] = useState<"guitar" | "bass">("guitar");
@@ -189,6 +194,19 @@ export function GearView() {
       }
 
       setPresets([data, ...presets]);
+      if (onboardingMode) {
+        await supabase
+          .from("profiles")
+          .update({
+            welcome_completed_at: new Date().toISOString(),
+            gear_onboarding_completed_at: new Date().toISOString()
+          })
+          .eq("id", user.id);
+        setMessage("Gear saved. Opening the tone database...");
+        router.push("/community?onboarding=1");
+        return;
+      }
+
       setMessage("Preset saved.");
       return;
     }
@@ -196,6 +214,12 @@ export function GearView() {
     const next = [{ id: crypto.randomUUID(), name, instrument_type: presetInstrument, guitar, amp, pickup, cabinet, effects: presetEffects }, ...presets];
     setPresets(next);
     localStorage.setItem(`${brand.storagePrefix}_saved_gear_presets`, JSON.stringify(next));
+    if (onboardingMode) {
+      setMessage("Gear saved locally. Opening the tone database...");
+      router.push("/community?onboarding=1");
+      return;
+    }
+
     setMessage("Preset saved locally.");
   }
 
@@ -212,40 +236,52 @@ export function GearView() {
   return (
     <div className="px-4 pb-14 pt-24 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1440px]">
+        {onboardingMode ? (
+          <div className="mb-8">
+            <OnboardingProgress currentStep={1} />
+          </div>
+        ) : null}
+
         <div className="mb-10">
-          <h1 className="text-4xl font-bold tracking-normal sm:text-5xl">My Gear</h1>
-          <p className="mt-4 text-lg text-neutral-600 sm:text-xl">Manage presets and browse the full equipment catalog</p>
+          <h1 className="text-4xl font-bold tracking-normal sm:text-5xl">{onboardingMode ? "Let's build your guitar rig." : "My Gear"}</h1>
+          <p className="mt-4 text-lg text-neutral-600 sm:text-xl">
+            {onboardingMode
+              ? "We'll save your gear so every supported song can be adapted automatically to your equipment."
+              : "Manage presets and browse the full equipment catalog"}
+          </p>
         </div>
 
         {message ? <div className="mb-6 rounded-lg bg-ink px-5 py-4 text-sm font-bold text-white">{message}</div> : null}
 
-        <div className="mb-10 grid gap-4 lg:grid-cols-4">
-          {[
-            ["presets", "Presets", SlidersHorizontal, presets.length],
-            ["pedals", "Pedals", Guitar, pedals.length],
-            ["multi_fx", "Multi FX", Cpu, multiFxUnits.length],
-            ["catalog", "Catalog", Waves, groupedCatalog.reduce((total, group) => total + group.items.length, 0)]
-          ].map(([value, label, Icon, count]) => {
-            const ActiveIcon = Icon as typeof Guitar;
-            const active = activeTab === value;
-            return (
-              <button
-                key={value as string}
-                type="button"
-                className={`flex min-h-16 items-center justify-center gap-4 rounded-lg border text-base font-bold shadow-sm transition ${
-                  active ? "border-ink bg-ink text-white shadow-xl" : "border-white/80 bg-white/80 text-slate-700 hover:border-ocean/50"
-                }`}
-                onClick={() => setActiveTab(value as "presets" | "pedals" | "multi_fx" | "catalog")}
-              >
-                <ActiveIcon className="h-5 w-5" />
-                {label as string}
-                <span className={`rounded-full px-3 py-1 text-sm ${active ? "bg-white/20 text-white" : "bg-neutral-100 text-neutral-500"}`}>{count as number}</span>
-              </button>
-            );
-          })}
-        </div>
+        {!onboardingMode ? (
+          <div className="mb-10 grid gap-4 lg:grid-cols-4">
+            {[
+              ["presets", "Presets", SlidersHorizontal, presets.length],
+              ["pedals", "Pedals", Guitar, pedals.length],
+              ["multi_fx", "Multi FX", Cpu, multiFxUnits.length],
+              ["catalog", "Catalog", Waves, groupedCatalog.reduce((total, group) => total + group.items.length, 0)]
+            ].map(([value, label, Icon, count]) => {
+              const ActiveIcon = Icon as typeof Guitar;
+              const active = activeTab === value;
+              return (
+                <button
+                  key={value as string}
+                  type="button"
+                  className={`flex min-h-16 items-center justify-center gap-4 rounded-lg border text-base font-bold shadow-sm transition ${
+                    active ? "border-ink bg-ink text-white shadow-xl" : "border-white/80 bg-white/80 text-slate-700 hover:border-ocean/50"
+                  }`}
+                  onClick={() => setActiveTab(value as "presets" | "pedals" | "multi_fx" | "catalog")}
+                >
+                  <ActiveIcon className="h-5 w-5" />
+                  {label as string}
+                  <span className={`rounded-full px-3 py-1 text-sm ${active ? "bg-white/20 text-white" : "bg-neutral-100 text-neutral-500"}`}>{count as number}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
 
-        {activeTab === "presets" ? (
+        {activeTab === "presets" || onboardingMode ? (
           <div className="grid gap-10">
             <form onSubmit={submit} className="compact-card p-6 sm:p-8">
               <div className="mb-7 flex items-center gap-5">
@@ -253,8 +289,10 @@ export function GearView() {
                   <Plus className="h-8 w-8" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold">Create New Preset</h2>
-                  <p className="mt-1 text-base text-neutral-600 sm:text-lg">Save a rig using the shared equipment catalog</p>
+                  <h2 className="text-2xl font-bold">{onboardingMode ? "Save My Gear" : "Create New Preset"}</h2>
+                  <p className="mt-1 text-base text-neutral-600 sm:text-lg">
+                    {onboardingMode ? "Required: guitar and amplifier. Optional: cabinet, pedals, Multi FX, custom pickups, and going direct." : "Save a rig using the shared equipment catalog"}
+                  </p>
                 </div>
               </div>
 
@@ -278,8 +316,8 @@ export function GearView() {
                   </label>
                   <input id="preset-name" className="field mt-2 h-12" value={name} onChange={(event) => setName(event.target.value)} required />
                 </div>
-                <Select label={presetInstrument === "bass" ? "Bass" : "Guitar"} value={guitar} setValue={setGuitar} options={currentGuitars.map((item) => item.name)} />
-                <Select label="Amplifier" value={amp} setValue={setAmp} options={currentAmps.map((item) => item.name)} />
+                <Select label={`${presetInstrument === "bass" ? "Bass" : "Guitar"}${onboardingMode ? " *" : ""}`} value={guitar} setValue={setGuitar} options={currentGuitars.map((item) => item.name)} />
+                <Select label={`Amplifier${onboardingMode ? " *" : ""}`} value={amp} setValue={setAmp} options={currentAmps.map((item) => item.name)} />
                 <Select label="Pickup" value={pickup} setValue={setPickup} options={pickups.map((item) => item.name)} />
                 {presetInstrument === "guitar" ? (
                   <>
@@ -295,11 +333,12 @@ export function GearView() {
               </div>
               <button className="button-primary mt-6 min-h-12 rounded-lg">
                 <Plus className="h-4 w-4" />
-                Save preset
+                {onboardingMode ? "Save My Gear" : "Save preset"}
               </button>
             </form>
 
-            <div>
+            {!onboardingMode ? (
+              <div>
               <div className="mb-6 flex items-center justify-between">
                 <h2 className="text-2xl font-bold sm:text-3xl">Your Presets</h2>
                 <span className="text-base text-neutral-500">{presets.length} saved</span>
@@ -343,7 +382,8 @@ export function GearView() {
               ) : (
                 <EmptyState icon={<SlidersHorizontal className="h-12 w-12" />} title="No presets yet" body="Create your first gear preset above to get started." />
               )}
-            </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
