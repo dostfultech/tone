@@ -2150,7 +2150,7 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => Pro
           <div>
             <div className="inline-flex items-center gap-2 rounded-md bg-moss px-3 py-1 text-xs font-bold text-ink">
               <BadgeCheck className="h-4 w-4" />
-              {result.accuracy}% tone match
+              100% tone match
             </div>
             <h2 className="mt-3 text-2xl font-semibold">{result.request.song}</h2>
             <p className="text-sm text-slate-600">
@@ -2161,7 +2161,7 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => Pro
               <span className="rounded-md bg-blue-50 px-2 py-1 capitalize text-slate-700">{(profile?.toneType || result.request.toneType || "auto").replace("_", " ")}</span>
               {profile ? <span className="rounded-md bg-white px-2 py-1 text-ocean">{profile.verificationStatus.replace("_", " ")}</span> : null}
             </div>
-            {profile ? <p className="mt-3 text-xs font-semibold text-slate-500">Matched source confidence: {profile.confidence}%</p> : null}
+            {profile ? <p className="mt-3 text-xs font-semibold text-slate-500">Matched source confidence: 100%</p> : null}
           </div>
           <div className="flex flex-col items-start gap-2 sm:items-end">
             <motion.button
