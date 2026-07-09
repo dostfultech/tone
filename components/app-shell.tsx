@@ -5,13 +5,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
+  CreditCard,
   Database,
   Library,
   LogIn,
   LogOut,
   Menu,
+  MessageSquare,
   Music2,
+  Settings,
   SlidersHorizontal,
+  Wrench,
   X
 } from "lucide-react";
 import { brand } from "@/lib/brand";
@@ -33,6 +37,16 @@ const collectionNav = [
 const discoveryNav = [
   { href: "/app", label: "Match Tones", icon: Music2 },
   { href: "/community", label: "Tone Database", icon: Database }
+];
+
+const accountNav = [
+  { href: "/account", label: "Settings", icon: Settings },
+  { href: "/plans", label: "Plans", icon: CreditCard }
+];
+
+const feedbackNav = [
+  { href: "/feedback", label: "Send Feedback", icon: MessageSquare },
+  { href: "/contact?kind=gear", label: "Request Gear", icon: Wrench }
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -168,6 +182,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <NavSection title="My Collection" items={collectionNav} pathname={pathname} onNavigate={navigate} />
           <NavSection title="Discover" items={discoveryNav} pathname={pathname} onNavigate={navigate} />
+          <NavSection title="Account" items={accountNav} pathname={pathname} onNavigate={navigate} />
+          <NavSection title="Feedback" items={feedbackNav} pathname={pathname} onNavigate={navigate} />
         </div>
 
         <div className="relative z-10 border-t border-white/70 p-7">

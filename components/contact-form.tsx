@@ -12,25 +12,42 @@ const feedbackKinds = [
   { value: "Other", label: "Other", caption: "Anything else", icon: MessageSquare }
 ];
 
-export function ContactForm() {
+type ContactFormMode = "combined" | "feedback" | "gear";
+
+export function ContactForm({ mode = "combined" }: { mode?: ContactFormMode }) {
   const [topic, setTopic] = useState("Feature request");
   const [requestType, setRequestType] = useState("Guitar Amp");
   const [requestName, setRequestName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState("");
+  const [viewMode, setViewMode] = useState<ContactFormMode>(mode);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const kind = params.get("kind");
-    if (kind === "gear") {
+
+    let nextMode: ContactFormMode = mode;
+    if (mode === "combined") {
+      if (kind === "gear") {
+        nextMode = "gear";
+      } else if (kind === "feedback") {
+        nextMode = "feedback";
+      }
+    }
+
+    setViewMode(nextMode);
+
+    if (nextMode === "gear") {
       setTopic("Request guitar or amp");
       setRequestType("Guitar Amp");
+      return;
     }
-    if (kind === "feedback") {
-      setTopic("Feature request");
+
+    if (nextMode === "feedback") {
+      setTopic((current) => (current === "Request guitar or amp" ? "Feature request" : current));
     }
-  }, []);
+  }, [mode]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,47 +73,62 @@ export function ContactForm() {
     }
   }
 
+  const isGearForm = viewMode === "gear" || (viewMode === "combined" && topic === "Request guitar or amp");
+  const showFeedbackKinds = viewMode !== "gear";
+  const showRequestTypePicker = viewMode === "combined";
+
   return (
     <form className="mx-auto grid w-full max-w-3xl gap-6" onSubmit={submit}>
       <section className="compact-card p-7">
-        <h2 className="mb-5 text-lg font-bold">What kind of feedback?</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {feedbackKinds.map((kind) => {
-            const Icon = kind.icon;
-            const active = topic === kind.value || (topic === "Request guitar or amp" && kind.value === "Feature request");
-            return (
-              <button
-                key={kind.value}
-                type="button"
-                className={`min-h-24 rounded-lg border p-4 text-center transition ${
-                  active ? "border-ink bg-ink text-white shadow-lg" : "border-white/80 bg-white/80 text-slate-700 hover:border-ocean/50"
-                }`}
-                onClick={() => setTopic(kind.value)}
-              >
-                <Icon className="mx-auto h-5 w-5" />
-                <span className="mt-2 block text-sm font-bold">{kind.label}</span>
-                <span className="mt-1 block text-xs text-neutral-500">{kind.caption}</span>
-              </button>
-            );
-          })}
-        </div>
+        {showFeedbackKinds ? (
+          <>
+            <h2 className="mb-5 text-lg font-bold">What kind of feedback?</h2>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {feedbackKinds.map((kind) => {
+                const Icon = kind.icon;
+                const active = topic === kind.value || (topic === "Request guitar or amp" && kind.value === "Feature request");
+                return (
+                  <button
+                    key={kind.value}
+                    type="button"
+                    className={`min-h-24 rounded-lg border p-4 text-center transition ${
+                      active ? "border-ink bg-ink text-white shadow-lg" : "border-white/80 bg-white/80 text-slate-700 hover:border-ocean/50"
+                    }`}
+                    onClick={() => setTopic(kind.value)}
+                  >
+                    <Icon className="mx-auto h-5 w-5" />
+                    <span className="mt-2 block text-sm font-bold">{kind.label}</span>
+                    <span className="mt-1 block text-xs text-neutral-500">{kind.caption}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <>
+            <h2 className="mb-3 text-lg font-bold">Feature Request Form</h2>
+            <p className="text-sm text-neutral-600">Tell us what gear you want to see in Tonefex. We review all requests and prioritize based on demand.</p>
+          </>
+        )}
       </section>
 
       <section className="compact-card grid gap-5 p-7">
-        <div>
-          <label className="label" htmlFor="topic">
-            Request type
-          </label>
-          <select className="field mt-2 h-12" id="topic" value={topic} onChange={(event) => setTopic(event.target.value)}>
-            <option>Feature request</option>
-            <option>Request guitar or amp</option>
-            <option>General feedback</option>
-            <option>Billing question</option>
-            <option>Bug report</option>
-          </select>
-        </div>
+        {showRequestTypePicker ? (
+          <div>
+            <label className="label" htmlFor="topic">
+              Request type
+            </label>
+            <select className="field mt-2 h-12" id="topic" value={topic} onChange={(event) => setTopic(event.target.value)}>
+              <option>Feature request</option>
+              <option>Request guitar or amp</option>
+              <option>General feedback</option>
+              <option>Billing question</option>
+              <option>Bug report</option>
+            </select>
+          </div>
+        ) : null}
 
-        {topic === "Request guitar or amp" ? (
+        {isGearForm ? (
           <>
             <div className="theme-blue-panel rounded-lg border border-white/80 px-4 py-3 text-sm text-slate-700">We review requested gear regularly and prioritize repeated requests.</div>
             <div>
@@ -127,12 +159,12 @@ export function ContactForm() {
 
         <div>
           <label className="label" htmlFor="message">
-            Your feedback
+            {isGearForm ? "Additional information" : "Your feedback"}
           </label>
           <textarea
             className="field mt-2 min-h-44 rounded-lg"
             id="message"
-            placeholder="Tell us what's on your mind..."
+            placeholder={isGearForm ? "Any details, links, or context that can help us understand your request..." : "Tell us what's on your mind..."}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             required
@@ -154,8 +186,8 @@ export function ContactForm() {
 
         {status ? <div className="rounded-lg bg-blue-50/80 px-4 py-3 text-sm font-bold text-ink">{status}</div> : null}
         <button className="button-primary min-h-14 rounded-lg text-base">
-          <Wrench className="h-5 w-5" />
-          Submit Request
+          {isGearForm ? <Wrench className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />}
+          {isGearForm ? "Submit Feature Request" : "Submit Feedback"}
         </button>
       </section>
 
