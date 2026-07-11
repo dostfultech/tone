@@ -15,6 +15,8 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
 
   const nav = [
     { href: "/", label: "Home" },
+    { href: "/songs", label: "Songs" },
+    { href: "/artists", label: "Artists" },
     { href: "/app", label: isAuthenticated ? "Workspace" : "App" },
     { href: "/plans", label: "Plans" },
     ...(isAuthenticated ? [{ href: "/account", label: "Account" }] : [{ href: "/login", label: "Login" }])
@@ -150,6 +152,8 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             <h3 className="mb-3 text-sm font-semibold">Quick Links</h3>
             <div className="grid gap-2 text-sm text-neutral-600">
               <Link href="/app">App</Link>
+              <Link href="/songs">Songs</Link>
+              <Link href="/artists">Artists</Link>
               <Link href="/plans">Plans</Link>
               {isAuthenticated ? <Link href="/account">Account</Link> : <Link href="/login">Login</Link>}
             </div>

@@ -2,11 +2,15 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { WelcomeView } from "@/components/welcome-view";
+import { buildPageMetadata } from "@/lib/seo";
 import { getEntitlement, getCurrentSession } from "@/lib/server-access";
 
-export const metadata: Metadata = {
-  title: "Welcome"
-};
+export const metadata: Metadata = buildPageMetadata({
+  title: "Welcome",
+  description: "Finish setup and start adapting tones with your saved gear profile.",
+  path: "/welcome",
+  noIndex: true
+});
 
 export default async function WelcomePage() {
   const { supabase, user } = await getCurrentSession();

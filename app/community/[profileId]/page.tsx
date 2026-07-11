@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Database, Gauge, Guitar, Link2, Lock, Music2, ShieldCheck, SlidersHorizontal, Sparkles, Volume2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { CommunityToneCta } from "@/components/community-tone-cta";
+import { buildPageMetadata } from "@/lib/seo";
 import { getCurrentSession, getEntitlement } from "@/lib/server-access";
 import { getCommunityToneProfileById } from "@/lib/tone-profiles";
 
@@ -16,12 +17,19 @@ export async function generateMetadata({ params }: CommunityToneDetailPageProps)
   const profile = await getCommunityToneProfileById(profileId);
 
   if (!profile) {
-    return { title: "Tone Not Found" };
+    return buildPageMetadata({
+      title: "Tone Not Found",
+      description: "The requested tone profile could not be found.",
+      path: `/community/${profileId}`,
+      noIndex: true
+    });
   }
 
-  return {
-    title: `${profile.songTitle} Tone Database`
-  };
+  return buildPageMetadata({
+    title: `${profile.songTitle} by ${profile.artistName} Tone`,
+    description: `Community profile for ${profile.songTitle} by ${profile.artistName}, including source rig, settings, and adaptation workflow.`,
+    path: `/community/${profileId}`
+  });
 }
 
 export default async function CommunityToneDetailPage({ params }: CommunityToneDetailPageProps) {

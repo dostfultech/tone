@@ -40,6 +40,7 @@ import {
 } from "@/components/tone-control-animation";
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
 import { OnboardingProgress } from "@/components/onboarding-progress";
+import { trackEvent, trackToneGenerated, trackToneSaved } from "@/lib/analytics";
 import { getAdaptationSummaryProps, getFreeAdaptationBannerCopy, shouldShowFreeOnboardingJourney } from "@/lib/subscription-display";
 import { addSubscriptionRefreshListener, dispatchSubscriptionRefresh } from "@/lib/subscription-events";
 
@@ -400,6 +401,10 @@ export function ToneMatcher() {
         }
         if (response.status === 402) {
           setMessage(data.error?.message || "Upgrade to Expert to continue adapting tones.");
+          trackEvent("paywall_shown", {
+            source: "tone_adaptation_api",
+            reason: "subscription_required"
+          });
           router.push(`/plans?required=subscription&redirect=${encodeURIComponent(matcherRedirectTarget)}&source=free-adaptation-limit`);
           return;
         }
@@ -443,6 +448,10 @@ export function ToneMatcher() {
         if (tracking?.usageConfirmationRequired !== false && tracking?.toneResultId) {
           await confirmSuccessfulAdaptation(tracking.toneResultId);
         }
+        trackToneGenerated({
+          mode: payload.mode,
+          source: source.finalSource
+        });
         trackUsage(adapted);
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "The adaptation endpoint did not respond.");
@@ -954,6 +963,10 @@ export function ToneMatcher() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (subscriptionSnapshot?.user && !subscriptionSnapshot.hasAccess && subscriptionSnapshot.usage.freeAdaptationsRemaining <= 0) {
+      trackEvent("paywall_shown", {
+        source: "tone_matcher_submit",
+        reason: "free_adaptation_limit"
+      });
       router.push(`/plans?required=subscription&redirect=${encodeURIComponent(matcherRedirectTarget)}&source=free-adaptation-limit`);
       return;
     }
@@ -1015,14 +1028,17 @@ export function ToneMatcher() {
     }).catch(() => null);
     if (response?.status === 402) {
       setMessage("Tone saved on this device. Upgrade when you want to sync saved tones to your library.");
+      trackToneSaved("local");
       return "local";
     }
     if (response && !response.ok) {
       const data = await response.json().catch(() => ({}));
       setMessage(data.error || "Tone saved locally, but database save failed.");
+      trackToneSaved("local");
       return "local";
     }
     setMessage("Tone saved to your library.");
+    trackToneSaved("synced");
     return "synced";
   }
 

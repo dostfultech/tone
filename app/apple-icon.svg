@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="Tonefex apple icon">
+  <defs>
+    <linearGradient id="tonefexAppleGradient" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#14532d" />
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" rx="36" fill="url(#tonefexAppleGradient)" />
+  <path d="M38 58h104v15H98v69H82V73H38z" fill="#f8fafc" />
+  <circle cx="126" cy="123" r="13" fill="#a3e635" />
+</svg>

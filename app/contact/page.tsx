@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { AppShell } from "@/components/app-shell";
 import { ContactForm } from "@/components/contact-form";
+import { buildPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Request Gear"
-};
+export const metadata: Metadata = buildPageMetadata({
+  title: "Request Gear",
+  description: "Request new guitars, amps, pedals, or tone workflow features for the platform.",
+  path: "/contact"
+});
 
 export default function ContactPage() {
   return (

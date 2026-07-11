@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { Activity, CheckCircle2, Clock, Database, Server, Zap } from "lucide-react";
 import { SiteShell } from "@/components/site-shell";
+import { buildPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "System Status"
-};
+export const metadata: Metadata = buildPageMetadata({
+  title: "System Status",
+  description: "Check real-time service status for web app, tone generation, data, and billing systems.",
+  path: "/status"
+});
 
 const systems = [
   { name: "Web app", detail: "Next.js route handlers and UI", icon: Server },

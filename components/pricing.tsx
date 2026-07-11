@@ -10,6 +10,7 @@ import {
   type ClientSubscriptionSnapshot
 } from "@/lib/subscription-client";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { trackCheckoutStarted, trackEvent } from "@/lib/analytics";
 
 type Billing = "monthly" | "annual";
 
@@ -79,6 +80,9 @@ export function Pricing() {
   async function startCheckout(planId: string) {
     setLoadingPlan(planId);
     setMessage("");
+    const selectedPlan = plans.find((plan) => plan.id === planId);
+    const checkoutValue = selectedPlan ? (billing === "annual" ? selectedPlan.annual : selectedPlan.monthly) : undefined;
+
     try {
       const response = await fetch("/api/dodo/checkout", {
         method: "POST",
@@ -87,15 +91,26 @@ export function Pricing() {
       });
       const data = await response.json();
       if (!response.ok) {
+        trackEvent("checkout_start_failed", {
+          plan_id: planId,
+          billing_interval: billing,
+          reason: data.error || "request_failed"
+        });
         setMessage(data.error || "Checkout could not be started.");
         return;
       }
       if (data.checkoutUrl) {
+        trackCheckoutStarted(planId, billing, checkoutValue);
         window.location.href = data.checkoutUrl;
         return;
       }
       setMessage("Checkout session created, but no redirect URL was returned.");
     } catch {
+      trackEvent("checkout_start_failed", {
+        plan_id: planId,
+        billing_interval: billing,
+        reason: "network_or_runtime"
+      });
       setMessage("Checkout could not be started in this environment.");
     } finally {
       setLoadingPlan(null);
@@ -117,7 +132,10 @@ export function Pricing() {
             <button
               key={option}
               className={`rounded-md px-4 py-2 text-sm font-semibold transition ${billing === option ? "bg-ink text-white" : "text-neutral-700 hover:bg-neutral-100"}`}
-              onClick={() => setBilling(option)}
+              onClick={() => {
+                setBilling(option);
+                trackEvent("pricing_billing_toggled", { billing_interval: option });
+              }}
             >
               {option === "monthly" ? "Monthly" : "Annual"}
               {option === "annual" ? <span className="ml-2 rounded-md bg-moss px-2 py-0.5 text-xs text-ink">Best deal</span> : null}

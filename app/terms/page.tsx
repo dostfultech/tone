@@ -2,10 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { brand } from "@/lib/brand";
 import { SiteShell } from "@/components/site-shell";
+import { buildPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Terms of Use"
-};
+export const metadata: Metadata = buildPageMetadata({
+  title: "Terms of Use",
+  description: "Review usage terms, subscription policies, and account responsibilities for Tonefex.",
+  path: "/terms"
+});
 
 export default function TermsPage() {
   return (

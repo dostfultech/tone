@@ -1,7 +1,9 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, BrainCircuit, CheckCircle2, Gauge, Guitar, Music2, SlidersHorizontal, Sparkles, Zap } from "lucide-react";
 import { brand } from "@/lib/brand";
+import { buildPageMetadata, toAbsoluteUrl } from "@/lib/seo";
 import { SiteShell } from "@/components/site-shell";
 import { Reviews } from "@/components/reviews";
 
@@ -29,6 +31,19 @@ const flow = [
   { icon: Gauge, title: "Dial it in", body: "Save settings that are adapted for your rig." }
 ];
 
+export const metadata: Metadata = buildPageMetadata({
+  title: "Guitar Tone Matching",
+  description: "Match iconic guitar and bass tones to the gear you own with AI-assisted settings and adaptation guidance.",
+  path: "/",
+  keywords: [
+    "guitar tone matcher",
+    "bass tone matching",
+    "amp settings",
+    "guitar effects chain",
+    "tonefex"
+  ]
+});
+
 type HomePageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
@@ -38,6 +53,42 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const code = stringParam(params?.code);
   const error = stringParam(params?.error);
   const errorDescription = stringParam(params?.error_description);
+  const structuredData = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: brand.appName,
+      url: toAbsoluteUrl("/"),
+      logo: toAbsoluteUrl("/tonefex-logo.svg"),
+      sameAs: []
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: `${brand.appName} Guitar Tone Matching`,
+      url: toAbsoluteUrl("/"),
+      potentialAction: {
+        "@type": "SearchAction",
+        target: `${toAbsoluteUrl("/songs")}?q={search_term_string}`,
+        "query-input": "required name=search_term_string"
+      }
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: brand.appName,
+      applicationCategory: "MusicApplication",
+      operatingSystem: "Web",
+      offers: {
+        "@type": "Offer",
+        priceCurrency: "USD",
+        price: "0",
+        availability: "https://schema.org/InStock"
+      },
+      description: "AI-assisted tone matching and gear adaptation for guitar and bass players.",
+      url: toAbsoluteUrl("/")
+    }
+  ];
 
   if (code) {
     const callbackParams = new URLSearchParams({ code, next: "/app" });
@@ -54,6 +105,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
   return (
     <SiteShell>
+      {structuredData.map((item) => (
+        <script
+          key={item["@type"]}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(item) }}
+        />
+      ))}
       <section className="app-gradient border-b border-white/80">
         <div className="section py-20 text-center sm:py-24 lg:py-28">
           <div className="inline-flex items-center gap-2 rounded-md border border-white/80 bg-white/85 px-4 py-2 text-sm font-bold text-slate-700 shadow-sm">

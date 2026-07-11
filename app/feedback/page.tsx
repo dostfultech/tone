@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { AppShell } from "@/components/app-shell";
 import { ContactForm } from "@/components/contact-form";
+import { buildPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Feedback"
-};
+export const metadata: Metadata = buildPageMetadata({
+  title: "Feedback",
+  description: "Share product feedback and feature requests to improve tone matching quality.",
+  path: "/feedback"
+});
 
 export default function FeedbackPage() {
   return (

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="Tonefex Open Graph image">
+  <defs>
+    <linearGradient id="ogBg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+    <linearGradient id="ogAccent" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#a3e635" />
+      <stop offset="100%" stop-color="#84cc16" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#ogBg)" />
+  <circle cx="1020" cy="140" r="180" fill="#ffffff10" />
+  <circle cx="1090" cy="530" r="230" fill="#ffffff10" />
+  <rect x="82" y="88" width="96" height="96" rx="20" fill="url(#ogAccent)" />
+  <path d="M106 118h48v10h-19v41h-10v-41h-19z" fill="#0f172a" />
+  <text x="82" y="270" fill="#ffffff" font-size="78" font-family="Segoe UI, Arial, sans-serif" font-weight="700">
+    Tonefex
+  </text>
+  <text x="82" y="338" fill="#dbeafe" font-size="38" font-family="Segoe UI, Arial, sans-serif" font-weight="500">
+    AI-assisted guitar and bass tone matching
+  </text>
+  <text x="82" y="404" fill="#e2e8f0" font-size="30" font-family="Segoe UI, Arial, sans-serif">
+    Match songs to your real gear in minutes.
+  </text>
+</svg>

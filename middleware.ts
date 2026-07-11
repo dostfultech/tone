@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getSiteUrl, isSupabaseConfigured } from "@/lib/env";
 
-const appRoutes = ["/app", "/library", "/gear", "/account"];
+const appRoutes = ["/app", "/library", "/account"];
 const authOnlyRoutes = ["/checkout"];
 
 export async function middleware(request: NextRequest) {

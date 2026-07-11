@@ -2,10 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { brand } from "@/lib/brand";
 import { SiteShell } from "@/components/site-shell";
+import { buildPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Privacy Policy"
-};
+export const metadata: Metadata = buildPageMetadata({
+  title: "Privacy Policy",
+  description: "Read how Tonefex stores, processes, and protects account and tone adaptation data.",
+  path: "/privacy"
+});
 
 export default function PrivacyPage() {
   return (
