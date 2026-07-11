@@ -24,11 +24,16 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/favicon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/favicon-512.png", sizes: "512x512", type: "image/png" },
       { url: "/icon.svg", type: "image/svg+xml" },
       { url: "/tonefex-logo.svg", type: "image/svg+xml" }
     ],
+    other: [{ rel: "icon", url: "/favicon-48.png", type: "image/png", sizes: "48x48" }],
     apple: [{ url: "/apple-icon.svg", type: "image/svg+xml" }],
-    shortcut: ["/icon.svg"]
+    shortcut: ["/favicon.ico", "/icon.svg"]
   },
   openGraph: {
     title: `${brand.appName} - Guitar Tone Matching`,
