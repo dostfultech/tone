@@ -35,6 +35,7 @@ export type ToneType =
   | "metal"
   | "modern_metal"
   | "distorted"
+  | "fuzz"
   | "ambient"
   | "acoustic"
   | "bass_clean"

@@ -58,6 +58,7 @@ const normalizedMasterToneSchema = {
         "metal",
         "modern_metal",
         "distorted",
+        "fuzz",
         "ambient",
         "acoustic",
         "bass_clean",

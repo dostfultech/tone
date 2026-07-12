@@ -23,6 +23,7 @@ const SUPPORTED_TONE_TYPES = new Set<ToneType>([
   "metal",
   "modern_metal",
   "distorted",
+  "fuzz",
   "ambient",
   "acoustic",
   "bass_clean",

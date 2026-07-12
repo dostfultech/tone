@@ -435,6 +435,7 @@ function toneTypeDeltas(toneType: ToneType): ToneDeltas {
     case "modern_metal":
       return { gain: 1.5, bass: 0.5, noiseGate: 1, compression: 0.5 };
     case "distorted":
+    case "fuzz":
       return { gain: 1, compression: 0.5 };
     case "ambient":
       return { delay: 1, reverb: 1, presence: -0.5 };

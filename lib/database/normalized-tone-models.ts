@@ -41,6 +41,7 @@ export const supportedToneTypes = [
   "metal",
   "modern_metal",
   "distorted",
+  "fuzz",
   "ambient",
   "acoustic"
 ] as const;
