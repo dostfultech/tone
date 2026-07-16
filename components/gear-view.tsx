@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Cpu, Guitar, Loader2, Plus, SlidersHorizontal, Trash2, Volume2, Waves } from "lucide-react";
+import { MyGearSelectors } from "@/components/my-gear-selectors";
 import { OnboardingProgress } from "@/components/onboarding-progress";
 import { brand } from "@/lib/brand";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -284,6 +285,8 @@ export function GearView() {
 
         {activeTab === "presets" || onboardingMode ? (
           <div className="grid gap-10">
+            <MyGearSelectors />
+
             <form onSubmit={submit} className="compact-card p-6 sm:p-8">
               <div className="mb-7 flex items-center gap-5">
                 <div className="grid h-16 w-16 place-items-center rounded-lg bg-moss text-ink">

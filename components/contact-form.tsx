@@ -26,6 +26,9 @@ export function ContactForm({ mode = "combined" }: { mode?: ContactFormMode }) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const kind = params.get("kind");
+    const prefillRequestType = params.get("requestType") || params.get("type");
+    const prefillRequestName = params.get("requestName") || params.get("q");
+    const prefillMessage = params.get("message");
 
     let nextMode: ContactFormMode = mode;
     if (mode === "combined") {
@@ -41,6 +44,17 @@ export function ContactForm({ mode = "combined" }: { mode?: ContactFormMode }) {
     if (nextMode === "gear") {
       setTopic("Request guitar or amp");
       setRequestType("Guitar Amp");
+      if (prefillRequestType) {
+        setRequestType(prefillRequestType);
+      }
+      if (prefillRequestName) {
+        setRequestName(prefillRequestName);
+      }
+      if (prefillMessage) {
+        setMessage(prefillMessage);
+      } else if (prefillRequestName) {
+        setMessage((current) => current || `Please add ${prefillRequestName}.`);
+      }
       return;
     }
 
