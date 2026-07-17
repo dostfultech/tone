@@ -12,6 +12,7 @@ type SearchableGearDropdownProps = {
   onSelect: (item: GearSearchItem) => void;
   requestType: string;
   limit?: number;
+  hideLabel?: boolean;
 };
 
 export function SearchableGearDropdown({
@@ -21,7 +22,8 @@ export function SearchableGearDropdown({
   selectedItems,
   onSelect,
   requestType,
-  limit = 200
+  limit = 200,
+  hideLabel = false
 }: SearchableGearDropdownProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -74,7 +76,7 @@ export function SearchableGearDropdown({
     async function loadResults() {
       setLoading(true);
       try {
-        const response = await fetch(`${endpoint}?q=${encodeURIComponent(debouncedQuery)}&limit=${limit}`, {
+        const response = await fetch(buildEndpointUrl(endpoint, debouncedQuery, limit), {
           cache: "no-store",
           signal: controller.signal
         });
@@ -176,10 +178,10 @@ export function SearchableGearDropdown({
 
   return (
     <div ref={rootRef} className="relative w-full">
-      <label className="label">{label}</label>
+      {hideLabel ? null : <label className="label">{label}</label>}
       <button
         type="button"
-        className="mt-2 flex min-h-12 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 text-left text-sm font-semibold text-slate-700 shadow-sm transition hover:border-ocean/50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+        className={`${hideLabel ? "" : "mt-2 "}flex min-h-12 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 text-left text-sm font-semibold text-slate-700 shadow-sm transition hover:border-ocean/50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100`}
         onClick={() => (open ? setOpen(false) : openPanel())}
       >
         <span className={selectedItems.length ? "text-slate-900 dark:text-white" : "text-slate-500 dark:text-slate-400"}>{selectedSummary}</span>
@@ -257,4 +259,12 @@ export function SearchableGearDropdown({
       ) : null}
     </div>
   );
+}
+
+function buildEndpointUrl(endpoint: string, query: string, limit: number) {
+  const [path, existingQuery = ""] = endpoint.split("?");
+  const params = new URLSearchParams(existingQuery);
+  params.set("q", query);
+  params.set("limit", String(limit));
+  return `${path}?${params.toString()}`;
 }

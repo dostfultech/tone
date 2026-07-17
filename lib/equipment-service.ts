@@ -141,13 +141,15 @@ export async function searchEquipmentModels(
 
   const config = EQUIPMENT_TABLES[kind];
   const query = normalizeQuery(options.query);
+  const tokens = tokenizeQuery(query);
   const limit = normalizeLimit(options.limit);
+  const fetchLimit = normalizeLimit(tokens.length > 1 ? Math.min(limit * 4, MAX_LIMIT) : limit, limit);
   let builder: SupabaseQuery = supabase
     .from(config.table)
     .select(config.select)
     .eq("is_active", true)
     .order(config.nameColumns[0], { ascending: true })
-    .limit(limit);
+    .limit(fetchLimit);
 
   if (options.brandId) {
     builder = builder.eq(config.brandIdColumn, options.brandId);
@@ -158,8 +160,7 @@ export async function searchEquipmentModels(
   }
 
   if (query) {
-    const escaped = escapeLike(query);
-    const filters = Array.from(new Set(config.searchColumns)).map((column) => `${column}.ilike.%${escaped}%`);
+    const filters = buildSearchFilters(config.searchColumns, query, tokens);
     builder = builder.or(filters.join(","));
   }
 
@@ -170,9 +171,13 @@ export async function searchEquipmentModels(
 
   const rows = Array.isArray(data) ? (data as RowRecord[]) : [];
   const normalizedResults = rows.map((row) => toEquipmentModelItem(kind, row));
-  const legacyResults = await searchLegacyGearItems(supabase, kind, options);
+  const legacyResults = await searchLegacyGearItems(supabase, kind, {
+    ...options,
+    limit: fetchLimit
+  });
 
-  return mergeEquipmentResults(normalizedResults, legacyResults, limit);
+  const mergedResults = mergeEquipmentResults(normalizedResults, legacyResults, fetchLimit);
+  return rankAndLimitEquipmentResults(mergedResults, query, limit);
 }
 
 export async function listEquipmentBrands(
@@ -308,6 +313,24 @@ function normalizeLimit(value: number | undefined, fallback = DEFAULT_LIMIT) {
   return Math.min(Math.max(Math.trunc(numeric), 1), MAX_LIMIT);
 }
 
+function buildSearchFilters(columns: string[], rawQuery: string, tokens: string[]) {
+  const escapedRaw = escapeLike(rawQuery);
+  const filters = new Set<string>();
+
+  for (const column of Array.from(new Set(columns))) {
+    filters.add(`${column}.ilike.%${escapedRaw}%`);
+  }
+
+  for (const token of tokens) {
+    const escapedToken = escapeLike(token);
+    for (const column of Array.from(new Set(columns))) {
+      filters.add(`${column}.ilike.%${escapedToken}%`);
+    }
+  }
+
+  return Array.from(filters);
+}
+
 async function searchLegacyGearItems(
   supabase: SupabaseClient,
   kind: EquipmentTableKind,
@@ -319,6 +342,7 @@ async function searchLegacyGearItems(
   }
 
   const query = normalizeQuery(options.query);
+  const tokens = tokenizeQuery(query);
   const limit = normalizeLimit(options.limit);
   let builder: SupabaseQuery = supabase
     .from("gear_items")
@@ -330,8 +354,8 @@ async function searchLegacyGearItems(
     .limit(limit);
 
   if (query) {
-    const escaped = escapeLike(query);
-    builder = builder.or(`search_text.ilike.%${escaped}%,model.ilike.%${escaped}%,brand.ilike.%${escaped}%`);
+    const filters = buildSearchFilters(["search_text", "model", "brand"], query, tokens);
+    builder = builder.or(filters.join(","));
   }
 
   const { data, error } = await builder;
@@ -426,6 +450,75 @@ function mergeEquipmentResults(primary: EquipmentModelItem[], secondary: Equipme
   }
 
   return merged;
+}
+
+function rankAndLimitEquipmentResults(items: EquipmentModelItem[], query: string, limit: number) {
+  if (!query) {
+    return items.slice(0, limit);
+  }
+
+  const loweredQuery = query.toLowerCase();
+  const tokens = tokenizeQuery(query);
+
+  const scored = items
+    .map((item) => ({
+      item,
+      score: scoreEquipmentItem(item, loweredQuery, tokens)
+    }))
+    .filter((entry) => entry.score >= 0)
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+      return left.item.displayName.localeCompare(right.item.displayName);
+    });
+
+  return scored.slice(0, limit).map((entry) => entry.item);
+}
+
+function scoreEquipmentItem(item: EquipmentModelItem, loweredQuery: string, tokens: string[]) {
+  const displayName = item.displayName.toLowerCase();
+  const haystack = `${item.displayName} ${item.brandName} ${item.modelName} ${item.category} ${item.tags.join(" ")}`.toLowerCase();
+
+  let score = 0;
+  if (displayName === loweredQuery) {
+    score += 200;
+  }
+
+  if (displayName.startsWith(loweredQuery)) {
+    score += 140;
+  }
+
+  if (displayName.includes(loweredQuery)) {
+    score += 100;
+  }
+
+  if (!tokens.length) {
+    return score;
+  }
+
+  const tokenMatches = tokens.filter((token) => haystack.includes(token));
+  if (!tokenMatches.length) {
+    return -1;
+  }
+
+  score += tokenMatches.length * 24;
+  score += tokenMatches.some((token) => displayName.startsWith(token)) ? 10 : 0;
+  return score;
+}
+
+function tokenizeQuery(query: string) {
+  const STOP_WORDS = new Set(["the", "with", "and", "for", "a", "an", "to", "of", "my", "in", "on", "at"]);
+
+  const unique = new Set(
+    query
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 2 && !STOP_WORDS.has(token))
+  );
+
+  return Array.from(unique);
 }
 
 function escapeLike(value: string) {

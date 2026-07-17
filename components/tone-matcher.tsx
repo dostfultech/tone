@@ -43,6 +43,8 @@ import { OnboardingProgress } from "@/components/onboarding-progress";
 import { trackEvent, trackToneGenerated, trackToneSaved } from "@/lib/analytics";
 import { getAdaptationSummaryProps, getFreeAdaptationBannerCopy, shouldShowFreeOnboardingJourney } from "@/lib/subscription-display";
 import { addSubscriptionRefreshListener, dispatchSubscriptionRefresh } from "@/lib/subscription-events";
+import { SearchableGearDropdown } from "@/components/searchable-gear-dropdown";
+import type { GearSearchItem } from "@/lib/my-gear";
 
 type ToneResult = {
   id: string;
@@ -825,6 +827,8 @@ export function ToneMatcher() {
 
   const currentGuitars = mode === "bass" ? bassGuitarCatalog : guitarCatalog;
   const currentAmps = mode === "bass" ? bassAmpCatalog : ampCatalog;
+  const guitarSearchEndpoint = mode === "bass" ? "/api/search/guitars?instrumentType=bass" : "/api/search/guitars?instrumentType=guitar";
+  const ampSearchEndpoint = mode === "bass" ? "/api/search/amps?instrumentType=bass" : "/api/search/amps?instrumentType=guitar";
 
   const applyGearPreset = useCallback((preset: MatcherGearPreset) => {
     const presetEffects = readMatcherPresetEffects(preset);
@@ -1250,8 +1254,16 @@ export function ToneMatcher() {
 
               <div className="grid gap-8 lg:grid-cols-2">
                 <div>
-                  <SearchableOptionField
+                  <SearchableGearDropdown
                     label={mode === "bass" ? "Bass archetype" : "Guitar archetype"}
+                    placeholder={mode === "bass" ? "Search bass..." : "Search guitar..."}
+                    endpoint={guitarSearchEndpoint}
+                    selectedItems={toSelectedGearItems(guitar, mode === "bass" ? "bass" : "guitar")}
+                    onSelect={(item) => setGuitar(item.name)}
+                    requestType={mode === "bass" ? "Bass" : "Guitar"}
+                    limit={300}
+                  />
+                  <SearchableOptionFallback
                     value={guitar}
                     onChange={setGuitar}
                     options={currentGuitars.map((item) => item.name)}
@@ -1295,12 +1307,14 @@ export function ToneMatcher() {
                       )}
                     </select>
                   ) : (
-                    <SearchableOptionField
-                      label=""
-                      value={amp}
-                      onChange={setAmp}
-                      options={currentAmps.map((item) => item.name)}
+                    <SearchableGearDropdown
+                      label="Amplifier"
                       placeholder="Search amplifier..."
+                      endpoint={ampSearchEndpoint}
+                      selectedItems={toSelectedGearItems(amp, "amp")}
+                      onSelect={(item) => setAmp(item.name)}
+                      requestType={mode === "bass" ? "Bass Amp" : "Guitar Amp"}
+                      limit={300}
                       hideLabel
                     />
                   )}
@@ -1831,28 +1845,23 @@ function SelectField({ label, value, onChange, options }: { label: string; value
   );
 }
 
-function SearchableOptionField({
-  label,
+function SearchableOptionFallback({
   value,
   onChange,
   options,
-  placeholder,
-  hideLabel
+  placeholder
 }: {
-  label: string;
   value: string;
   onChange: (value: string) => void;
   options: string[];
   placeholder: string;
-  hideLabel?: boolean;
 }) {
-  const listId = `search-${(label || placeholder).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  const listId = `fallback-${placeholder.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 
   return (
-    <div>
-      {hideLabel ? null : <label className="label">{label}</label>}
+    <div className="sr-only">
       <input
-        className={`field ${hideLabel ? "h-12" : "mt-1"}`}
+        className="field"
         list={listId}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -1865,6 +1874,30 @@ function SearchableOptionField({
       </datalist>
     </div>
   );
+}
+
+function toSelectedGearItems(value: string, category: string): GearSearchItem[] {
+  const normalized = value.trim();
+  if (!normalized) {
+    return [];
+  }
+
+  const [brandName, ...rest] = normalized.split(/\s+/);
+  const modelName = rest.join(" ") || brandName;
+
+  return [
+    {
+      modelId: `selected:${category}:${normalized.toLowerCase()}`,
+      brandName,
+      modelName,
+      name: normalized,
+      category,
+      tags: [],
+      pickupConfiguration: null,
+      ampType: null,
+      pedalType: null
+    }
+  ];
 }
 
 function PickupOverrideSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: CatalogEntry[] }) {
