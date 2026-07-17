@@ -11,6 +11,7 @@ type SearchableGearDropdownProps = {
   selectedItems: GearSearchItem[];
   onSelect: (item: GearSearchItem) => void;
   requestType: string;
+  limit?: number;
 };
 
 export function SearchableGearDropdown({
@@ -19,7 +20,8 @@ export function SearchableGearDropdown({
   endpoint,
   selectedItems,
   onSelect,
-  requestType
+  requestType,
+  limit = 200
 }: SearchableGearDropdownProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -72,7 +74,7 @@ export function SearchableGearDropdown({
     async function loadResults() {
       setLoading(true);
       try {
-        const response = await fetch(`${endpoint}?q=${encodeURIComponent(debouncedQuery)}`, {
+        const response = await fetch(`${endpoint}?q=${encodeURIComponent(debouncedQuery)}&limit=${limit}`, {
           cache: "no-store",
           signal: controller.signal
         });
@@ -96,7 +98,7 @@ export function SearchableGearDropdown({
     return () => {
       controller.abort();
     };
-  }, [debouncedQuery, endpoint, open]);
+  }, [debouncedQuery, endpoint, limit, open]);
 
   useEffect(() => {
     function handleOutsideClick(event: MouseEvent) {

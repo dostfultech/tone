@@ -52,8 +52,20 @@ type EquipmentTableConfig = {
   brandTable?: string;
 };
 
-const MAX_LIMIT = 120;
+const MAX_LIMIT = 1000;
 const DEFAULT_LIMIT = 24;
+
+type LegacyGearItemType =
+  | "guitar"
+  | "acoustic_guitar"
+  | "bass_guitar"
+  | "amp"
+  | "bass_amp"
+  | "cabinet"
+  | "pedal"
+  | "pickup"
+  | "multi_fx"
+  | "effect";
 
 const EQUIPMENT_TABLES: Record<EquipmentTableKind, EquipmentTableConfig> = {
   guitar: {
@@ -157,7 +169,10 @@ export async function searchEquipmentModels(
   }
 
   const rows = Array.isArray(data) ? (data as RowRecord[]) : [];
-  return rows.map((row) => toEquipmentModelItem(kind, row));
+  const normalizedResults = rows.map((row) => toEquipmentModelItem(kind, row));
+  const legacyResults = await searchLegacyGearItems(supabase, kind, options);
+
+  return mergeEquipmentResults(normalizedResults, legacyResults, limit);
 }
 
 export async function listEquipmentBrands(
@@ -291,6 +306,126 @@ function normalizeLimit(value: number | undefined, fallback = DEFAULT_LIMIT) {
     return fallback;
   }
   return Math.min(Math.max(Math.trunc(numeric), 1), MAX_LIMIT);
+}
+
+async function searchLegacyGearItems(
+  supabase: SupabaseClient,
+  kind: EquipmentTableKind,
+  options: EquipmentSearchOptions
+): Promise<EquipmentModelItem[]> {
+  const itemTypes = legacyItemTypesForKind(kind, options.instrumentType);
+  if (!itemTypes.length) {
+    return [];
+  }
+
+  const query = normalizeQuery(options.query);
+  const limit = normalizeLimit(options.limit);
+  let builder: SupabaseQuery = supabase
+    .from("gear_items")
+    .select("id, brand, model, item_type, category, instrument_type, pickup_type, amp_type, voicing_tags")
+    .eq("is_active", true)
+    .in("item_type", itemTypes)
+    .order("brand", { ascending: true })
+    .order("model", { ascending: true })
+    .limit(limit);
+
+  if (query) {
+    const escaped = escapeLike(query);
+    builder = builder.or(`search_text.ilike.%${escaped}%,model.ilike.%${escaped}%,brand.ilike.%${escaped}%`);
+  }
+
+  const { data, error } = await builder;
+  if (error) {
+    return [];
+  }
+
+  const rows = Array.isArray(data) ? (data as RowRecord[]) : [];
+  return rows.map((row) => toLegacyEquipmentModelItem(kind, row));
+}
+
+function toLegacyEquipmentModelItem(kind: EquipmentTableKind, row: RowRecord): EquipmentModelItem {
+  const config = EQUIPMENT_TABLES[kind];
+  const brandName = nullableString(row.brand) || "Unknown";
+  const modelName = nullableString(row.model) || "Unknown";
+
+  return {
+    id: asString(row.id),
+    kind,
+    brandId: null,
+    brandName,
+    modelName,
+    displayName: `${brandName} ${modelName}`.trim(),
+    category: asString(row.category, config.defaultCategory),
+    tags: asStringArray(row.voicing_tags),
+    pickupConfiguration: nullableString(row.pickup_type),
+    ampType: nullableString(row.amp_type),
+    pedalType: nullableString(row.category) === "pedal" ? nullableString(row.category) : null,
+    instrumentType: nullableString(row.instrument_type)
+  };
+}
+
+function legacyItemTypesForKind(kind: EquipmentTableKind, instrumentType?: InstrumentFilter): LegacyGearItemType[] {
+  if (kind === "guitar") {
+    if (instrumentType === "bass") {
+      return ["bass_guitar"];
+    }
+    if (instrumentType === "acoustic") {
+      return ["acoustic_guitar"];
+    }
+    if (instrumentType === "both") {
+      return ["guitar", "acoustic_guitar", "bass_guitar"];
+    }
+    return ["guitar", "acoustic_guitar"];
+  }
+
+  if (kind === "amp") {
+    if (instrumentType === "bass") {
+      return ["bass_amp"];
+    }
+    if (instrumentType === "both") {
+      return ["amp", "bass_amp"];
+    }
+    return ["amp"];
+  }
+
+  if (kind === "pedal") {
+    return ["pedal", "effect"];
+  }
+
+  if (kind === "multifx") {
+    return ["multi_fx"];
+  }
+
+  if (kind === "pickup") {
+    return ["pickup"];
+  }
+
+  if (kind === "cabinet") {
+    return ["cabinet"];
+  }
+
+  return [];
+}
+
+function mergeEquipmentResults(primary: EquipmentModelItem[], secondary: EquipmentModelItem[], limit: number) {
+  const merged: EquipmentModelItem[] = [];
+  const seen = new Set<string>();
+
+  for (const item of [...primary, ...secondary]) {
+    const key = `${item.kind}:${item.displayName.trim().toLowerCase()}`;
+    if (!item.displayName.trim() || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    merged.push(item);
+
+    if (merged.length >= limit) {
+      break;
+    }
+  }
+
+  return merged;
 }
 
 function escapeLike(value: string) {

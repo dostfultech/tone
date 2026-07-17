@@ -203,6 +203,8 @@ export function ToneMatcher() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const onboardingMode = searchParams.get("onboarding") === "1";
+  const requestedGuitar = sanitizeGearParam(searchParams.get("guitar"));
+  const requestedAmp = sanitizeGearParam(searchParams.get("amp"));
   const matcherRedirectTarget = onboardingMode ? "/app?onboarding=1" : "/app";
   const autoAdaptTriggeredRef = useRef(false);
   const hasLoadedPreferencesRef = useRef(false);
@@ -749,8 +751,8 @@ export function ToneMatcher() {
         return;
       }
 
-      const storedGuitar = localStorage.getItem("toneMatch_guitar") || "Fender Stratocaster";
-      const storedAmp = localStorage.getItem("toneMatch_amp") || "Boss Katana Artist";
+      const storedGuitar = requestedGuitar || localStorage.getItem("toneMatch_guitar") || "Fender Stratocaster";
+      const storedAmp = requestedAmp || localStorage.getItem("toneMatch_amp") || "Boss Katana Artist";
       const storedCabinet = localStorage.getItem("toneMatch_cabinet") || "Mesa/Boogie Rectifier 4x12";
       const storedPickup = localStorage.getItem("toneMatch_pickup") || "Vintage Single Coil";
       const storedSelectedFx = localStorage.getItem("toneMatch_selectedEffects") || "Ambient Lead";
@@ -765,6 +767,8 @@ export function ToneMatcher() {
       setPickupCatalog(pickupsResponse);
       setPedalCatalog(pedalsResponse);
       setMultiFxCatalog(multiFxResponse);
+      setGuitar(storedGuitar);
+      setAmp(storedAmp);
 
       if (guitarsResponse.length && storedMode !== "bass" && !guitarsResponse.some((item) => item.name === storedGuitar)) {
         setGuitar(guitarsResponse[0].name);
@@ -807,7 +811,7 @@ export function ToneMatcher() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [requestedAmp, requestedGuitar]);
 
   useEffect(() => {
     if (!result) {
@@ -1246,7 +1250,13 @@ export function ToneMatcher() {
 
               <div className="grid gap-8 lg:grid-cols-2">
                 <div>
-                  <SelectField label={mode === "bass" ? "Bass archetype" : "Guitar archetype"} value={guitar} onChange={setGuitar} options={currentGuitars.map((item) => item.name)} />
+                  <SearchableOptionField
+                    label={mode === "bass" ? "Bass archetype" : "Guitar archetype"}
+                    value={guitar}
+                    onChange={setGuitar}
+                    options={currentGuitars.map((item) => item.name)}
+                    placeholder={mode === "bass" ? "Search bass..." : "Search guitar..."}
+                  />
                   <Link href="/contact?kind=gear" className="mt-2 inline-block text-xs font-semibold text-slate-500 hover:text-ink">
                     Can&apos;t find your {mode === "bass" ? "bass" : "guitar"}?
                   </Link>
@@ -1285,13 +1295,14 @@ export function ToneMatcher() {
                       )}
                     </select>
                   ) : (
-                    <select className="field h-12" value={amp} onChange={(event) => setAmp(event.target.value)}>
-                      {currentAmps.map((option) => (
-                        <option key={option.id} value={option.name}>
-                          {option.name}
-                        </option>
-                      ))}
-                    </select>
+                    <SearchableOptionField
+                      label=""
+                      value={amp}
+                      onChange={setAmp}
+                      options={currentAmps.map((item) => item.name)}
+                      placeholder="Search amplifier..."
+                      hideLabel
+                    />
                   )}
                   <Link href="/contact?kind=gear" className="mt-2 inline-block text-xs font-semibold text-slate-500 hover:text-ink">
                     Can&apos;t find your {goingDirect ? "unit" : "amp"}?
@@ -1657,6 +1668,14 @@ function inferStoredMode(partType: string | null, toneType: string | null): "gui
   return "guitar";
 }
 
+function sanitizeGearParam(value: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  return value.trim().slice(0, 120);
+}
+
 function readAutoAdaptPayload() {
   try {
     const raw = sessionStorage.getItem(AUTO_ADAPT_PAYLOAD_KEY);
@@ -1808,6 +1827,42 @@ function SelectField({ label, value, onChange, options }: { label: string; value
           <option value={value || ""}>{value || "Loading options..."}</option>
         )}
       </select>
+    </div>
+  );
+}
+
+function SearchableOptionField({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  hideLabel
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+  placeholder: string;
+  hideLabel?: boolean;
+}) {
+  const listId = `search-${(label || placeholder).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+
+  return (
+    <div>
+      {hideLabel ? null : <label className="label">{label}</label>}
+      <input
+        className={`field ${hideLabel ? "h-12" : "mt-1"}`}
+        list={listId}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+      />
+      <datalist id={listId}>
+        {options.map((option) => (
+          <option key={option} value={option} />
+        ))}
+      </datalist>
     </div>
   );
 }

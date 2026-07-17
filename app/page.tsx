@@ -6,6 +6,7 @@ import { brand } from "@/lib/brand";
 import { buildPageMetadata, toAbsoluteUrl } from "@/lib/seo";
 import { SiteShell } from "@/components/site-shell";
 import { Reviews } from "@/components/reviews";
+import { HomeGearQuickSearch } from "@/components/home-gear-quick-search";
 
 const features = [
   {
@@ -139,6 +140,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               View Plans
             </Link>
           </div>
+
+          <HomeGearQuickSearch />
 
           <div className="mx-auto mt-10 flex max-w-3xl flex-col items-center justify-center gap-4 text-sm font-semibold text-slate-700 sm:flex-row">
             <span className="inline-flex items-center gap-2 rounded-md border border-white/80 bg-white/80 px-4 py-2">
