@@ -36,6 +36,7 @@ with seed(equipment_type, brand, model, series, is_popular, description) as (
   ('electric_guitar', 'Yamaha', 'Revstar Standard RSS20', 'Revstar Standard', false, 'Production electric guitar model verified from trusted retailer listings.'),
   ('electric_guitar', 'Yamaha', 'Pacifica 012', 'Pacifica', false, 'Production electric guitar model verified from trusted retailer listings.'),
   ('electric_guitar', 'Harley Benton', 'SC-450 CS', 'SC', false, 'Production electric guitar model verified from trusted retailer listings.'),
+  ('electric_guitar', 'Harley Benton', 'WL-20BK Rock Series', 'Rock Series', false, 'Production electric guitar model verified from trusted retailer listings.'),
   ('electric_guitar', 'ESP LTD', 'MH-10', 'MH', false, 'Production electric guitar model verified from trusted retailer listings.'),
   ('electric_guitar', 'ESP LTD', 'EC-256', 'EC', false, 'Production electric guitar model verified from trusted retailer listings.'),
   ('electric_guitar', 'Schecter', 'Demon-6', 'Demon', false, 'Production electric guitar model verified from trusted retailer listings.'),
