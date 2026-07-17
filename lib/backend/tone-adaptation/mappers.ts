@@ -234,8 +234,8 @@ function numericBrightnessOrProfile(value: unknown) {
 }
 
 function displayName(row: Record<string, unknown>) {
-  const manufacturer = manufacturerName(row.equipment_manufacturers);
-  const modelName = stringValue(row.model_name, "Unknown Model");
+  const manufacturer = manufacturerName(row.equipment_manufacturers) || manufacturerName(row.brand) || manufacturerName(row.manufacturer);
+  const modelName = stringValue(row.model_name, stringValue(row.name, "Unknown Model"));
   return manufacturer ? `${manufacturer} ${modelName}` : modelName;
 }
 

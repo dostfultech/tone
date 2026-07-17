@@ -101,6 +101,11 @@ export class SupabaseGearRepository implements GearRepository {
   }
 
   async findMultiFx(selection: NormalizedSelection | undefined) {
+    const canonicalRow = await this.findCanonicalMultiFxRow(selection);
+    if (canonicalRow) {
+      return mapMultiFxRow(canonicalRow, [], [], []);
+    }
+
     const row = await this.findEquipmentRow("multifx_devices", selection, (query) =>
       query.select("*, equipment_manufacturers(name)").eq("is_active", true)
     );
@@ -116,6 +121,59 @@ export class SupabaseGearRepository implements GearRepository {
     ]);
 
     return mapMultiFxRow(row, ampModels, cabModels, effects);
+  }
+
+  private async findCanonicalMultiFxRow(selection: NormalizedSelection | undefined) {
+    if (!selection?.id && !selection?.name) {
+      return null;
+    }
+
+    if (selection.id) {
+      const { data, error } = await this.supabase
+        .from("multifx_models")
+        .select("id, name, category, tags, metadata, brand:multifx_brands!brand_id(name)")
+        .eq("id", selection.id)
+        .eq("is_active", true)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        throw repositoryError("Failed to query multifx_models.", { error: error.message });
+      }
+
+      if (data) {
+        return data as Record<string, unknown>;
+      }
+    }
+
+    const name = selection.name || "";
+    if (!name) {
+      return null;
+    }
+
+    const bySearchText = await this.queryCanonicalMultiFxByName(name, "search_text");
+    if (bySearchText) {
+      return bySearchText;
+    }
+
+    return this.queryCanonicalMultiFxByName(name, "name");
+  }
+
+  private async queryCanonicalMultiFxByName(name: string, columnName: "search_text" | "name") {
+    const { data, error } = await this.supabase
+      .from("multifx_models")
+      .select("id, name, category, tags, metadata, brand:multifx_brands!brand_id(name)")
+      .ilike(columnName, `%${name}%`)
+      .eq("is_active", true)
+      .order("name", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      throw repositoryError("Failed to query multifx_models.", { error: error.message, columnName });
+    }
+
+    return (data ?? null) as Record<string, unknown> | null;
   }
 
   private async findEquipmentRow(

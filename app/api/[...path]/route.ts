@@ -19,7 +19,8 @@ import {
   type ToneRequest
 } from "@/lib/mock-data";
 import { getEntitlement, getCurrentSession } from "@/lib/server-access";
-import { lookupGearFromSupabase } from "@/lib/gear-catalog";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { searchEquipmentModels, toCatalogItem } from "@/lib/equipment-service";
 import { resolveCoreTone, TONE_CORE_MODEL_NAME } from "@/lib/tone-core";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { assertCanCreateAdaptation, recordSuccessfulAdaptationUsage } from "@/lib/usage";
@@ -41,40 +42,41 @@ type RouteContext = {
 export async function GET(request: NextRequest, context: RouteContext) {
   const route = (await context.params).path.join("/");
   const query = request.nextUrl.searchParams.get("q") || request.nextUrl.searchParams.get("name") || "";
+  const supabaseClient = await createSupabaseServerClient();
 
   if (route === "amps/lookup") {
-    const dbResults = await lookupGearFromSupabase(["amp"], query, { limit: 60 });
-    return json({ results: mergeCatalogResults(dbResults, buildGearFallbackResults(lookupGear(amps, query), "amp")) });
+    const dbResults = await searchEquipmentModels(supabaseClient, "amp", { query, limit: 60 });
+    return json({ results: mergeCatalogResults((dbResults || []).map(toCatalogItem), buildGearFallbackResults(lookupGear(amps, query), "amp")) });
   }
 
   if (route === "guitars/lookup") {
-    const dbResults = await lookupGearFromSupabase(["guitar", "acoustic_guitar"], query, { limit: 80 });
+    const dbResults = await searchEquipmentModels(supabaseClient, "guitar", { query, limit: 80 });
     return json({
-      results: mergeCatalogResults(dbResults, buildGearFallbackResults(lookupGear(guitars, query), "guitar")),
+      results: mergeCatalogResults((dbResults || []).map(toCatalogItem), buildGearFallbackResults(lookupGear(guitars, query), "guitar")),
       pickups
     });
   }
 
   if (route === "bass-amps/lookup") {
-    const dbResults = await lookupGearFromSupabase(["bass_amp"], query, { limit: 40 });
-    return json({ results: mergeCatalogResults(dbResults, buildGearFallbackResults(lookupGear(bassAmps, query), "bass_amp")) });
+    const dbResults = await searchEquipmentModels(supabaseClient, "amp", { query, limit: 40, instrumentType: "bass" });
+    return json({ results: mergeCatalogResults((dbResults || []).map(toCatalogItem), buildGearFallbackResults(lookupGear(bassAmps, query), "bass_amp")) });
   }
 
   if (route === "bass-guitars/lookup") {
-    const dbResults = await lookupGearFromSupabase(["bass_guitar"], query, { limit: 40 });
-    return json({ results: mergeCatalogResults(dbResults, buildGearFallbackResults(lookupGear(bassGuitars, query), "bass_guitar")) });
+    const dbResults = await searchEquipmentModels(supabaseClient, "guitar", { query, limit: 40, instrumentType: "bass" });
+    return json({ results: mergeCatalogResults((dbResults || []).map(toCatalogItem), buildGearFallbackResults(lookupGear(bassGuitars, query), "bass_guitar")) });
   }
 
   if (route === "acoustic-guitars/lookup") {
-    const dbResults = await lookupGearFromSupabase(["acoustic_guitar"], query, { limit: 40 });
-    return json({ results: mergeCatalogResults(dbResults, buildGearFallbackResults(lookupGear(guitars, query), "acoustic_guitar")) });
+    const dbResults = await searchEquipmentModels(supabaseClient, "guitar", { query, limit: 40, instrumentType: "acoustic" });
+    return json({ results: mergeCatalogResults((dbResults || []).map(toCatalogItem), buildGearFallbackResults(lookupGear(guitars, query), "acoustic_guitar")) });
   }
 
   if (route === "pickups/catalog") {
-    const dbResults = await lookupGearFromSupabase(["pickup"], query, { limit: 40 });
+    const dbResults = await searchEquipmentModels(supabaseClient, "pickup", { query, limit: 40 });
     return json({
       results: mergeCatalogResults(
-        dbResults,
+        (dbResults || []).map(toCatalogItem),
         pickups.map((item) => ({
           id: item.id,
           name: item.name,
@@ -104,10 +106,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 
   if (route === "pedals/user" || route === "pedals/presets" || route === "pedals/catalog") {
-    const dbResults = await lookupGearFromSupabase(["pedal", "effect"], query, { limit: 80 });
+    const dbResults = await searchEquipmentModels(supabaseClient, "pedal", { query, limit: 80 });
     return json({
       results: mergeCatalogResults(
-        dbResults,
+        (dbResults || []).map(toCatalogItem),
         pedalPresets.map((preset) => ({
           id: preset.id,
           name: preset.name,
@@ -120,10 +122,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 
   if (route === "multi-fx/user" || route === "multi-fx/catalog") {
-    const dbResults = await lookupGearFromSupabase(["multi_fx"], query, { limit: 40 });
+    const dbResults = await searchEquipmentModels(supabaseClient, "multifx", { query, limit: 40 });
     return json({
       results: mergeCatalogResults(
-        dbResults,
+        (dbResults || []).map(toCatalogItem),
         multiFxUnits
           .filter((unit) => `${unit.brand} ${unit.name}`.toLowerCase().includes(query.toLowerCase()))
           .map((unit) => ({
@@ -138,13 +140,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 
   if (route === "cabinets/catalog") {
-    const dbResults = await lookupGearFromSupabase(["cabinet"], query, { limit: 60 });
-    return json({ results: mergeCatalogResults(dbResults, buildGearFallbackResults(lookupGear(cabinets, query), "cabinet")) });
+    const dbResults = await searchEquipmentModels(supabaseClient, "cabinet", { query, limit: 60 });
+    return json({ results: mergeCatalogResults((dbResults || []).map(toCatalogItem), buildGearFallbackResults(lookupGear(cabinets, query), "cabinet")) });
   }
 
   if (route === "effects/catalog") {
-    const dbResults = await lookupGearFromSupabase(["effect"], query, { limit: 60 });
-    return json({ results: mergeCatalogResults(dbResults, buildGearFallbackResults(lookupGear(effectsCatalog, query), "effect")) });
+    const dbResults = await searchEquipmentModels(supabaseClient, "pedal", { query, limit: 60 });
+    return json({ results: mergeCatalogResults((dbResults || []).map(toCatalogItem), buildGearFallbackResults(lookupGear(effectsCatalog, query), "effect")) });
   }
 
   if (route === "community-tones/lookup") {
