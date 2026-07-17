@@ -1,17 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { brand } from "@/lib/brand";
 import {
-  amps,
-  bassAmps,
-  bassGuitars,
-  cabinets,
-  effectsCatalog,
-  type GearItem,
-  guitars,
-  lookupGear,
-  multiFxUnits,
-  pedalPresets,
-  pickups,
   songs,
   type SongItem,
   type TonePartType,
@@ -20,7 +9,7 @@ import {
 } from "@/lib/mock-data";
 import { getEntitlement, getCurrentSession } from "@/lib/server-access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { searchEquipmentModels, toCatalogItem } from "@/lib/equipment-service";
+import { searchEquipmentModels, toCatalogItem } from "../../../lib/equipment-service";
 import { resolveCoreTone, TONE_CORE_MODEL_NAME } from "@/lib/tone-core";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { assertCanCreateAdaptation, recordSuccessfulAdaptationUsage } from "@/lib/usage";
@@ -46,46 +35,36 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   if (route === "amps/lookup") {
     const dbResults = await searchEquipmentModels(supabaseClient, "amp", { query, limit: 60 });
-    return json({ results: mergeCatalogResults((dbResults || []).map(toCatalogItem), buildGearFallbackResults(lookupGear(amps, query), "amp")) });
+    return json({ results: (dbResults || []).map(toCatalogItem) });
   }
 
   if (route === "guitars/lookup") {
     const dbResults = await searchEquipmentModels(supabaseClient, "guitar", { query, limit: 80 });
-    return json({
-      results: mergeCatalogResults((dbResults || []).map(toCatalogItem), buildGearFallbackResults(lookupGear(guitars, query), "guitar")),
-      pickups
-    });
+    return json({ results: (dbResults || []).map(toCatalogItem) });
   }
 
   if (route === "bass-amps/lookup") {
     const dbResults = await searchEquipmentModels(supabaseClient, "amp", { query, limit: 40, instrumentType: "bass" });
-    return json({ results: mergeCatalogResults((dbResults || []).map(toCatalogItem), buildGearFallbackResults(lookupGear(bassAmps, query), "bass_amp")) });
+    return json({ results: (dbResults || []).map(toCatalogItem) });
   }
 
   if (route === "bass-guitars/lookup") {
     const dbResults = await searchEquipmentModels(supabaseClient, "guitar", { query, limit: 40, instrumentType: "bass" });
-    return json({ results: mergeCatalogResults((dbResults || []).map(toCatalogItem), buildGearFallbackResults(lookupGear(bassGuitars, query), "bass_guitar")) });
+    return json({ results: (dbResults || []).map(toCatalogItem) });
   }
 
-  if (route === "acoustic-guitars/lookup") {
-    const dbResults = await searchEquipmentModels(supabaseClient, "guitar", { query, limit: 40, instrumentType: "acoustic" });
-    return json({ results: mergeCatalogResults((dbResults || []).map(toCatalogItem), buildGearFallbackResults(lookupGear(guitars, query), "acoustic_guitar")) });
-  }
-
-  if (route === "pickups/catalog") {
-    const dbResults = await searchEquipmentModels(supabaseClient, "pickup", { query, limit: 40 });
-    return json({
-      results: mergeCatalogResults(
-        (dbResults || []).map(toCatalogItem),
-        pickups.map((item) => ({
-          id: item.id,
-          name: item.name,
-          category: item.category,
-          description: item.category,
-          details: item.category ? [item.category] : []
-        }))
-      )
-    });
+  if (
+    route === "acoustic-guitars/lookup" ||
+    route === "pickups/catalog" ||
+    route === "pedals/user" ||
+    route === "pedals/presets" ||
+    route === "pedals/catalog" ||
+    route === "multi-fx/user" ||
+    route === "multi-fx/catalog" ||
+    route === "cabinets/catalog" ||
+    route === "effects/catalog"
+  ) {
+    return json({ results: [] });
   }
 
   if (route === "music/search") {
@@ -103,50 +82,6 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   if (route === "trending-tones") {
     return json({ results: songs });
-  }
-
-  if (route === "pedals/user" || route === "pedals/presets" || route === "pedals/catalog") {
-    const dbResults = await searchEquipmentModels(supabaseClient, "pedal", { query, limit: 80 });
-    return json({
-      results: mergeCatalogResults(
-        (dbResults || []).map(toCatalogItem),
-        pedalPresets.map((preset) => ({
-          id: preset.id,
-          name: preset.name,
-          category: preset.category,
-          description: preset.pedals.join(" | "),
-          details: preset.pedals
-        }))
-      )
-    });
-  }
-
-  if (route === "multi-fx/user" || route === "multi-fx/catalog") {
-    const dbResults = await searchEquipmentModels(supabaseClient, "multifx", { query, limit: 40 });
-    return json({
-      results: mergeCatalogResults(
-        (dbResults || []).map(toCatalogItem),
-        multiFxUnits
-          .filter((unit) => `${unit.brand} ${unit.name}`.toLowerCase().includes(query.toLowerCase()))
-          .map((unit) => ({
-            id: unit.id,
-            name: unit.name,
-            category: "multi_fx",
-            description: unit.brand,
-            details: [unit.brand]
-          }))
-      )
-    });
-  }
-
-  if (route === "cabinets/catalog") {
-    const dbResults = await searchEquipmentModels(supabaseClient, "cabinet", { query, limit: 60 });
-    return json({ results: mergeCatalogResults((dbResults || []).map(toCatalogItem), buildGearFallbackResults(lookupGear(cabinets, query), "cabinet")) });
-  }
-
-  if (route === "effects/catalog") {
-    const dbResults = await searchEquipmentModels(supabaseClient, "pedal", { query, limit: 60 });
-    return json({ results: mergeCatalogResults((dbResults || []).map(toCatalogItem), buildGearFallbackResults(lookupGear(effectsCatalog, query), "effect")) });
   }
 
   if (route === "community-tones/lookup") {
@@ -796,54 +731,4 @@ function colorFromText(value: string) {
   const palette = ["#42a5c8", "#b64a33", "#8a5a44", "#62656a", "#e75f70", "#536b3d", "#155e75", "#d7482f"];
   const score = value.split("").reduce((total, char) => total + char.charCodeAt(0), 0);
   return palette[score % palette.length];
-}
-
-function buildGearFallbackResults(items: GearItem[], itemType: string) {
-  return items.map((item) => ({
-    id: item.id,
-    name: item.name,
-    description: item.description,
-    category: item.category || itemType,
-    itemType,
-    details: item.description
-      .split(".")
-      .map((detail) => detail.trim())
-      .filter(Boolean)
-  }));
-}
-
-function mergeCatalogResults(
-  primary: Array<{
-    id: string;
-    name: string;
-    description?: string;
-    category?: string;
-    itemType?: string;
-    details?: string[];
-  }> | null,
-  fallback: Array<{
-    id: string;
-    name: string;
-    description?: string;
-    category?: string;
-    itemType?: string;
-    details?: string[];
-  }>
-) {
-  const merged: typeof fallback = [];
-  const seen = new Set<string>();
-
-  for (const item of [...(primary || []), ...fallback]) {
-    const normalizedName = item.name.trim().toLowerCase();
-    if (!normalizedName || seen.has(normalizedName)) {
-      continue;
-    }
-    seen.add(normalizedName);
-    merged.push({
-      ...item,
-      details: Array.isArray(item.details) ? item.details.filter(Boolean) : []
-    });
-  }
-
-  return merged;
 }

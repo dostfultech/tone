@@ -4,7 +4,7 @@ import { searchEquipmentModels } from "@/lib/equipment-service";
 
 export const dynamic = "force-dynamic";
 
-const ALLOWED_TYPES = new Set(["guitar", "amp", "pedal", "multifx", "pickup", "cabinet"]);
+const ALLOWED_TYPES = new Set(["guitar", "amp"]);
 
 export async function GET(request: NextRequest) {
   const equipmentType = (request.nextUrl.searchParams.get("type") || "").trim().toLowerCase();
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   const instrumentType = normalizeInstrumentType(request.nextUrl.searchParams.get("instrumentType"));
   const supabase = await createSupabaseServerClient();
 
-  const results = await searchEquipmentModels(supabase, equipmentType as "guitar" | "amp" | "pedal" | "multifx" | "pickup" | "cabinet", {
+  const results = await searchEquipmentModels(supabase, equipmentType as "guitar" | "amp", {
     query,
     brandId,
     limit,

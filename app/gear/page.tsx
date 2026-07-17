@@ -4,15 +4,16 @@ import { Suspense } from "react";
 import { AppShell } from "@/components/app-shell";
 import { GearView } from "@/components/gear-view";
 import { SiteShell } from "@/components/site-shell";
-import { amps, bassAmps, bassGuitars, cabinets, effectsCatalog, guitars } from "@/lib/mock-data";
+import { searchEquipmentModels } from "@/lib/equipment-service";
 import { buildPageMetadata } from "@/lib/seo";
 import { getCurrentSession } from "@/lib/server-access";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = buildPageMetadata({
   title: "Guitar and Bass Gear Library",
-  description: "Browse supported guitars, basses, amps, cabinets, and effect chains available for tone adaptation.",
+  description: "Browse supported electric guitars, bass guitars, guitar amps, and bass amps available for tone adaptation.",
   path: "/gear",
-  keywords: ["guitar gear", "bass gear", "amp list", "effects catalog", "tonefex gear"]
+  keywords: ["guitar gear", "bass gear", "amp list", "tonefex gear"]
 });
 
 export default async function GearPage() {
@@ -28,14 +29,20 @@ export default async function GearPage() {
     );
   }
 
+  const supabase = await createSupabaseServerClient();
+  const [electricGuitars, bassGuitars, guitarAmps, bassAmps] = await Promise.all([
+    searchEquipmentModels(supabase, "guitar", { limit: 12, instrumentType: "guitar" }),
+    searchEquipmentModels(supabase, "guitar", { limit: 10, instrumentType: "bass" }),
+    searchEquipmentModels(supabase, "amp", { limit: 12, instrumentType: "guitar" }),
+    searchEquipmentModels(supabase, "amp", { limit: 10, instrumentType: "bass" })
+  ]);
+
   const sections = [
-    { title: "Guitars", items: guitars.slice(0, 12).map((item) => item.name) },
-    { title: "Bass Guitars", items: bassGuitars.slice(0, 10).map((item) => item.name) },
-    { title: "Guitar Amps", items: amps.slice(0, 12).map((item) => item.name) },
-    { title: "Bass Amps", items: bassAmps.slice(0, 10).map((item) => item.name) },
-    { title: "Cabinets", items: cabinets.slice(0, 8).map((item) => item.name) },
-    { title: "Effects", items: effectsCatalog.slice(0, 12).map((item) => item.name) }
-  ];
+    { title: "Electric Guitars", items: (electricGuitars || []).map((item) => item.displayName) },
+    { title: "Bass Guitars", items: (bassGuitars || []).map((item) => item.displayName) },
+    { title: "Guitar Amps", items: (guitarAmps || []).map((item) => item.displayName) },
+    { title: "Bass Amps", items: (bassAmps || []).map((item) => item.displayName) }
+  ].filter((section) => section.items.length);
 
   return (
     <SiteShell>
@@ -65,6 +72,12 @@ export default async function GearPage() {
               </ul>
             </article>
           ))}
+          {!sections.length ? (
+            <article className="compact-card p-6 md:col-span-2">
+              <h2 className="text-2xl font-bold text-ink">Catalog Refresh In Progress</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-600">The equipment catalog is being rebuilt. Check back shortly for the updated guitar and amp library.</p>
+            </article>
+          ) : null}
         </div>
       </section>
     </SiteShell>
