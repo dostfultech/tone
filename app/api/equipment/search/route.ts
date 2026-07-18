@@ -19,7 +19,8 @@ export async function GET(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
 
   if (equipmentType === "pedal") {
-    const results = await searchPedalModels(supabase, { query, limit, brandId });
+    const category = request.nextUrl.searchParams.get("category") || undefined;
+    const results = await searchPedalModels(supabase, { query, limit, brandId, category });
     return NextResponse.json({ results: results || [] });
   }
 

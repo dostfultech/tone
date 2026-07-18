@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, X } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
+import { PedalSelectorModal } from "@/components/pedal-selector-modal";
 import { SearchableGearDropdown } from "@/components/searchable-gear-dropdown";
 import {
   cacheMyGearProfile,
@@ -21,6 +22,7 @@ export function MyGearSelectors() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
+  const [pedalModalOpen, setPedalModalOpen] = useState(false);
   const lastSavedRef = useRef<string>("");
 
   useEffect(() => {
@@ -205,15 +207,22 @@ export function MyGearSelectors() {
         </div>
 
         <div>
-          <SearchableGearDropdown
-            label="Pedals"
-            placeholder="Search pedals..."
-            endpoint="/api/equipment/search?type=pedal"
-            selectedItems={profile.pedals.map(toSearchItem)}
-            onSelect={addPedal}
-            requestType="Pedal"
-          />
+          <label className="label">Pedals</label>
+          <button
+            type="button"
+            onClick={() => setPedalModalOpen(true)}
+            className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-4 text-sm font-semibold text-ocean shadow-sm transition hover:border-ocean/50 hover:bg-ocean/5 dark:border-slate-600 dark:bg-slate-900 dark:text-ocean dark:hover:border-ocean/50"
+          >
+            <Plus className="h-4 w-4" />
+            Add Pedal
+          </button>
           <GearChips items={profile.pedals} onRemove={removePedal} emptyLabel="No pedals selected" />
+          <PedalSelectorModal
+            open={pedalModalOpen}
+            onClose={() => setPedalModalOpen(false)}
+            onSelect={addPedal}
+            selectedPedals={profile.pedals.map(toSearchItem)}
+          />
         </div>
 
         <div>
@@ -255,7 +264,11 @@ function toSearchItem(item: GearSelectionMetadata): GearSearchItem {
     tags: [],
     pickupConfiguration: item.pickup_configuration,
     ampType: item.amp_type,
-    pedalType: item.pedal_type
+    pedalType: item.pedal_type,
+    priceLow: null,
+    priceHigh: null,
+    usedByArtists: [],
+    description: ""
   };
 }
 

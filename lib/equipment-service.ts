@@ -31,6 +31,7 @@ type CatalogSearchOptions = {
   query?: string;
   limit?: number;
   brandId?: string;
+  category?: string;
 };
 
 export type EquipmentModelItem = {
@@ -47,6 +48,10 @@ export type EquipmentModelItem = {
   ampType: string | null;
   pedalType: string | null;
   instrumentType: string | null;
+  priceLow: number | null;
+  priceHigh: number | null;
+  usedByArtists: string[];
+  description: string;
 };
 
 export type CatalogSearchItem = {
@@ -63,6 +68,10 @@ export type CatalogSearchItem = {
   ampType: string | null;
   pedalType: string | null;
   instrumentType: string | null;
+  priceLow: number | null;
+  priceHigh: number | null;
+  usedByArtists: string[];
+  description: string;
 };
 
 const MAX_LIMIT = 1000;
@@ -126,15 +135,32 @@ export async function searchPedalModels(
   }
 
   const query = normalizeQuery(options.query);
-  const limit = normalizeLimit(options.limit, 200);
+  const limit = normalizeLimit(options.limit, 500);
+  const category = options.category?.trim().toLowerCase() || "";
 
   let builder: SupabaseQuery = supabase
     .from("pedal_models")
-    .select("id, name, model_name, category, tags, pedal_type, brand:pedal_brands!brand_id(name, slug)")
+    .select("id, name, model_name, category, tags, pedal_type, price_low, price_high, used_by_artists, description, brand:pedal_brands!brand_id(name, slug)")
     .eq("is_active", true)
-    .order("brand_id", { ascending: true })
+    .order("popularity", { ascending: false, nullsFirst: false })
     .order("name", { ascending: true })
     .limit(limit);
+
+  if (category) {
+    const MODULATION_TYPES = ["chorus", "flanger", "phaser", "modulation", "tremolo"];
+    const COMPRESSION_TYPES = ["compressor", "compression"];
+    const OTHER_TYPES = ["volume", "looper", "utility", "preamp", "amp_cab_sim", "acoustic", "pitch", "octaver"];
+
+    if (category === "modulation") {
+      builder = builder.in("category", MODULATION_TYPES);
+    } else if (category === "compression") {
+      builder = builder.in("category", COMPRESSION_TYPES);
+    } else if (category === "other") {
+      builder = builder.in("category", OTHER_TYPES);
+    } else {
+      builder = builder.eq("category", category);
+    }
+  }
 
   if (query) {
     const escaped = escapeLike(query);
@@ -255,7 +281,11 @@ export function toGearSearchCatalogItem(item: CatalogSearchItem): GearSearchItem
     tags: item.tags,
     pickupConfiguration: item.pickupConfiguration,
     ampType: item.ampType,
-    pedalType: item.pedalType
+    pedalType: item.pedalType,
+    priceLow: item.priceLow,
+    priceHigh: item.priceHigh,
+    usedByArtists: item.usedByArtists,
+    description: item.description
   };
 }
 
@@ -353,7 +383,11 @@ function toEquipmentModelItem(kind: EquipmentTableKind, row: RowRecord): Equipme
     pickupConfiguration: nullableString(row.pickup_configuration),
     ampType: nullableString(row.amp_type),
     pedalType: null,
-    instrumentType: instrumentLabelFromEquipmentType(equipmentType)
+    instrumentType: instrumentLabelFromEquipmentType(equipmentType),
+    priceLow: null,
+    priceHigh: null,
+    usedByArtists: [],
+    description: ""
   };
 }
 
@@ -375,7 +409,11 @@ function toCatalogSearchItem(kind: NormalizedCatalogKind, row: RowRecord): Catal
     pickupConfiguration: null,
     ampType: null,
     pedalType: nullableString(row.pedal_type),
-    instrumentType: null
+    instrumentType: null,
+    priceLow: typeof row.price_low === "number" ? row.price_low : null,
+    priceHigh: typeof row.price_high === "number" ? row.price_high : null,
+    usedByArtists: asStringArray(row.used_by_artists),
+    description: asString(row.description)
   };
 }
 

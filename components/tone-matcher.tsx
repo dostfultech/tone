@@ -2051,7 +2051,11 @@ function toSelectedGearItems(value: string, category: string): GearSearchItem[] 
       tags: [],
       pickupConfiguration: null,
       ampType: null,
-      pedalType: null
+      pedalType: null,
+      priceLow: null,
+      priceHigh: null,
+      usedByArtists: [],
+      description: ""
     }
   ];
 }

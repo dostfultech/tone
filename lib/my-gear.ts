@@ -32,6 +32,10 @@ export type GearSearchItem = {
   pickupConfiguration: string | null;
   ampType: string | null;
   pedalType: string | null;
+  priceLow: number | null;
+  priceHigh: number | null;
+  usedByArtists: string[];
+  description: string;
 };
 
 export type GearSearchResponse = {
