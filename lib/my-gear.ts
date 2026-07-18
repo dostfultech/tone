@@ -1,3 +1,5 @@
+import { brand } from "@/lib/brand";
+
 export type GearSelectionCategory = "guitar" | "amp" | "pedal" | "multifx";
 
 export type GearSelectionMetadata = {
@@ -36,6 +38,9 @@ export type GearSearchResponse = {
   results: GearSearchItem[];
 };
 
+export const MY_GEAR_PROFILE_STORAGE_KEY = `${brand.storagePrefix}_my_gear_profile`;
+export const MY_GEAR_PROFILE_UPDATED_EVENT = `${brand.storagePrefix}:my-gear-profile-updated`;
+
 const EMPTY_PROFILE: MyGearProfile = {
   schema_version: 1,
   guitar: null,
@@ -50,6 +55,38 @@ export function createEmptyMyGearProfile(): MyGearProfile {
     ...EMPTY_PROFILE,
     pedals: []
   };
+}
+
+export function readCachedMyGearProfile() {
+  if (typeof window === "undefined") {
+    return createEmptyMyGearProfile();
+  }
+
+  try {
+    return normalizeMyGearProfile(JSON.parse(window.localStorage.getItem(MY_GEAR_PROFILE_STORAGE_KEY) || "null"));
+  } catch {
+    return createEmptyMyGearProfile();
+  }
+}
+
+export function cacheMyGearProfile(profile: MyGearProfile) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const normalized = normalizeMyGearProfile(profile);
+  const serialized = JSON.stringify(normalized);
+  const previous = window.localStorage.getItem(MY_GEAR_PROFILE_STORAGE_KEY);
+
+  window.localStorage.setItem(MY_GEAR_PROFILE_STORAGE_KEY, serialized);
+
+  if (previous !== serialized) {
+    window.dispatchEvent(
+      new CustomEvent(MY_GEAR_PROFILE_UPDATED_EVENT, {
+        detail: normalized
+      })
+    );
+  }
 }
 
 export function normalizeMyGearProfile(value: unknown): MyGearProfile {

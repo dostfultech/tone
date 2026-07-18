@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { SearchableGearDropdown } from "@/components/searchable-gear-dropdown";
 import {
+  cacheMyGearProfile,
   createEmptyMyGearProfile,
   normalizeMyGearProfile,
   type GearSearchItem,
@@ -55,6 +56,7 @@ export function MyGearSelectors() {
 
       const normalized = normalizeMyGearProfile(data?.my_gear_profile);
       setProfile(normalized);
+      cacheMyGearProfile(normalized);
       lastSavedRef.current = JSON.stringify(normalized);
       setLoading(false);
     }
@@ -65,6 +67,14 @@ export function MyGearSelectors() {
       active = false;
     };
   }, [supabase]);
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    cacheMyGearProfile(profile);
+  }, [loading, profile]);
 
   useEffect(() => {
     if (!supabase || !userId || loading) {
@@ -174,7 +184,7 @@ export function MyGearSelectors() {
           <SearchableGearDropdown
             label="Guitar"
             placeholder="Search guitars..."
-            endpoint="/api/search/guitars"
+            endpoint="/api/equipment/search?type=guitar&instrumentType=guitar"
             selectedItems={profile.guitar ? [toSearchItem(profile.guitar)] : []}
             onSelect={(item) => setSingleSelection("guitar", "guitar", item)}
             requestType="Guitar"
@@ -186,7 +196,7 @@ export function MyGearSelectors() {
           <SearchableGearDropdown
             label="Amp"
             placeholder="Search amps..."
-            endpoint="/api/search/amps"
+            endpoint="/api/equipment/search?type=amp&instrumentType=guitar"
             selectedItems={profile.amp ? [toSearchItem(profile.amp)] : []}
             onSelect={(item) => setSingleSelection("amp", "amp", item)}
             requestType="Guitar Amp"
@@ -198,7 +208,7 @@ export function MyGearSelectors() {
           <SearchableGearDropdown
             label="Pedals"
             placeholder="Search pedals..."
-            endpoint="/api/search/pedals"
+            endpoint="/api/equipment/search?type=pedal"
             selectedItems={profile.pedals.map(toSearchItem)}
             onSelect={addPedal}
             requestType="Pedal"
@@ -210,7 +220,7 @@ export function MyGearSelectors() {
           <SearchableGearDropdown
             label="MultiFX"
             placeholder="Search multi-fx..."
-            endpoint="/api/search/multifx"
+            endpoint="/api/equipment/search?type=multifx"
             selectedItems={profile.multifx ? [toSearchItem(profile.multifx)] : []}
             onSelect={(item) => setSingleSelection("multifx", "multifx", item)}
             requestType="Multi FX Unit"

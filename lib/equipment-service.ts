@@ -5,6 +5,7 @@ type SupabaseQuery = any;
 type RowRecord = Record<string, unknown>;
 
 type EquipmentTableKind = "guitar" | "amp";
+type NormalizedCatalogKind = "pedal" | "multifx";
 type InstrumentFilter = "guitar" | "bass" | "acoustic" | "both";
 type MasterEquipmentType = "electric_guitar" | "bass_guitar" | "guitar_amp" | "bass_amp";
 
@@ -26,10 +27,32 @@ type EquipmentBrandOptions = {
   limit?: number;
 };
 
+type CatalogSearchOptions = {
+  query?: string;
+  limit?: number;
+  brandId?: string;
+};
+
 export type EquipmentModelItem = {
   id: string;
   kind: EquipmentTableKind;
   equipmentType: MasterEquipmentType;
+  brandId: string | null;
+  brandName: string;
+  modelName: string;
+  displayName: string;
+  category: string;
+  tags: string[];
+  pickupConfiguration: string | null;
+  ampType: string | null;
+  pedalType: string | null;
+  instrumentType: string | null;
+};
+
+export type CatalogSearchItem = {
+  id: string;
+  kind: EquipmentTableKind | NormalizedCatalogKind;
+  equipmentType?: MasterEquipmentType | null;
   brandId: string | null;
   brandName: string;
   modelName: string;
@@ -94,6 +117,72 @@ export async function searchEquipmentModels(
   return rankAndLimitEquipmentResults(mapped, query, limit);
 }
 
+export async function searchPedalModels(
+  supabase: SupabaseClient | null,
+  options: CatalogSearchOptions = {}
+): Promise<GearSearchItem[] | null> {
+  if (!supabase) {
+    return null;
+  }
+
+  const query = normalizeQuery(options.query);
+  const limit = normalizeLimit(options.limit, 200);
+
+  let builder: SupabaseQuery = supabase
+    .from("pedal_models")
+    .select("id, name, model_name, category, tags, pedal_type, brand:pedal_brands!brand_id(name, slug)")
+    .eq("is_active", true)
+    .order("brand_id", { ascending: true })
+    .order("name", { ascending: true })
+    .limit(limit);
+
+  if (query) {
+    const escaped = escapeLike(query);
+    builder = builder.or(`search_text.ilike.%${escaped}%,name.ilike.%${escaped}%,model_name.ilike.%${escaped}%,category.ilike.%${escaped}%`);
+  }
+
+  const { data, error } = await builder;
+  if (error) {
+    return [];
+  }
+
+  const rows = (Array.isArray(data) ? data : []).map((row) => toCatalogSearchItem("pedal", row as RowRecord));
+  return rankAndLimitCatalogResults(rows, query, limit).map(toGearSearchCatalogItem);
+}
+
+export async function searchMultiFxModels(
+  supabase: SupabaseClient | null,
+  options: CatalogSearchOptions = {}
+): Promise<GearSearchItem[] | null> {
+  if (!supabase) {
+    return null;
+  }
+
+  const query = normalizeQuery(options.query);
+  const limit = normalizeLimit(options.limit, 200);
+
+  let builder: SupabaseQuery = supabase
+    .from("multifx_models")
+    .select("id, name, category, tags, brand:multifx_brands!brand_id(name, slug)")
+    .eq("is_active", true)
+    .order("brand_id", { ascending: true })
+    .order("name", { ascending: true })
+    .limit(limit);
+
+  if (query) {
+    const escaped = escapeLike(query);
+    builder = builder.or(`search_text.ilike.%${escaped}%,name.ilike.%${escaped}%,category.ilike.%${escaped}%`);
+  }
+
+  const { data, error } = await builder;
+  if (error) {
+    return [];
+  }
+
+  const rows = (Array.isArray(data) ? data : []).map((row) => toCatalogSearchItem("multifx", row as RowRecord));
+  return rankAndLimitCatalogResults(rows, query, limit).map(toGearSearchCatalogItem);
+}
+
 export async function listEquipmentBrands(
   supabase: SupabaseClient | null,
   kind: EquipmentTableKind,
@@ -153,6 +242,10 @@ export async function listEquipmentBrands(
 }
 
 export function toGearSearchItem(item: EquipmentModelItem): GearSearchItem {
+  return toGearSearchCatalogItem(item);
+}
+
+export function toGearSearchCatalogItem(item: CatalogSearchItem): GearSearchItem {
   return {
     modelId: item.id,
     brandName: item.brandName,
@@ -167,6 +260,29 @@ export function toGearSearchItem(item: EquipmentModelItem): GearSearchItem {
 }
 
 export function toCatalogItem(item: EquipmentModelItem) {
+  return toCatalogSearchResultItem(item);
+}
+
+export function toCatalogResultFromGearSearchItem(item: GearSearchItem) {
+  const details = [
+    item.category,
+    item.pickupConfiguration,
+    item.ampType,
+    item.pedalType,
+    ...item.tags.slice(0, 4)
+  ].filter((value): value is string => Boolean(value));
+
+  return {
+    id: item.modelId,
+    name: item.name,
+    description: details.join(" | "),
+    category: item.category,
+    itemType: item.category,
+    details
+  };
+}
+
+export function toCatalogSearchResultItem(item: CatalogSearchItem) {
   const details = [
     item.category,
     item.instrumentType,
@@ -241,6 +357,28 @@ function toEquipmentModelItem(kind: EquipmentTableKind, row: RowRecord): Equipme
   };
 }
 
+function toCatalogSearchItem(kind: NormalizedCatalogKind, row: RowRecord): CatalogSearchItem {
+  const brand = nestedBrandRecord(row.brand);
+  const brandName = asString(brand?.name, "Unknown");
+  const modelName = asString(row.model_name, asString(row.name, "Unknown"));
+
+  return {
+    id: asString(row.id),
+    kind,
+    equipmentType: null,
+    brandId: asString(brand?.slug) || null,
+    brandName,
+    modelName,
+    displayName: `${brandName} ${modelName}`.trim(),
+    category: asString(row.category, kind === "pedal" ? "pedal" : "multi-fx"),
+    tags: asStringArray(row.tags),
+    pickupConfiguration: null,
+    ampType: null,
+    pedalType: nullableString(row.pedal_type),
+    instrumentType: null
+  };
+}
+
 function buildSearchFilters(columns: string[], rawQuery: string, tokens: string[]) {
   const escapedRaw = escapeLike(rawQuery);
   const filters = new Set<string>();
@@ -260,6 +398,10 @@ function buildSearchFilters(columns: string[], rawQuery: string, tokens: string[
 }
 
 function rankAndLimitEquipmentResults(items: EquipmentModelItem[], query: string, limit: number) {
+  return rankAndLimitCatalogResults(items, query, limit) as EquipmentModelItem[];
+}
+
+function rankAndLimitCatalogResults<T extends CatalogSearchItem>(items: T[], query: string, limit: number) {
   if (!query) {
     return items.slice(0, limit);
   }
@@ -280,9 +422,9 @@ function rankAndLimitEquipmentResults(items: EquipmentModelItem[], query: string
     .map((entry) => entry.item);
 }
 
-function scoreEquipmentItem(item: EquipmentModelItem, loweredQuery: string, tokens: string[]) {
+function scoreEquipmentItem(item: CatalogSearchItem, loweredQuery: string, tokens: string[]) {
   const displayName = item.displayName.toLowerCase();
-  const haystack = `${item.displayName} ${item.brandName} ${item.modelName} ${item.tags.join(" ")}`.toLowerCase();
+  const haystack = `${item.displayName} ${item.brandName} ${item.modelName} ${item.category} ${item.pedalType || ""} ${item.tags.join(" ")}`.toLowerCase();
 
   let score = 0;
   if (displayName === loweredQuery) {
@@ -391,4 +533,16 @@ function asStringArray(value: unknown) {
     .filter((item): item is string => typeof item === "string")
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
+}
+
+function nestedBrandRecord(value: unknown) {
+  if (Array.isArray(value)) {
+    return isRecord(value[0]) ? value[0] : null;
+  }
+
+  return isRecord(value) ? value : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

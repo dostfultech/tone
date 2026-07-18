@@ -9,11 +9,12 @@ import {
 } from "@/lib/mock-data";
 import { getEntitlement, getCurrentSession } from "@/lib/server-access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { searchEquipmentModels, toCatalogItem } from "../../../lib/equipment-service";
+import { searchEquipmentModels, searchMultiFxModels, searchPedalModels, toCatalogItem, toCatalogResultFromGearSearchItem } from "../../../lib/equipment-service";
 import { resolveCoreTone, TONE_CORE_MODEL_NAME } from "@/lib/tone-core";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { assertCanCreateAdaptation, recordSuccessfulAdaptationUsage } from "@/lib/usage";
 import { buildResearchPayload, createMissingSongRequest, findToneProfile, listCommunityToneProfiles, type CommunityToneQuery } from "@/lib/tone-profiles";
+import { normalizeMyGearProfile } from "@/lib/my-gear";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -53,14 +54,53 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return json({ results: (dbResults || []).map(toCatalogItem) });
   }
 
+  if (route === "pedals/catalog") {
+    const dbResults = await searchPedalModels(supabaseClient, { query, limit: 240 });
+    return json({ results: (dbResults || []).map(toCatalogResultFromGearSearchItem) });
+  }
+
+  if (route === "multi-fx/catalog") {
+    const dbResults = await searchMultiFxModels(supabaseClient, { query, limit: 120 });
+    return json({ results: (dbResults || []).map(toCatalogResultFromGearSearchItem) });
+  }
+
+  if (route === "pedals/user" || route === "pedals/presets" || route === "multi-fx/user") {
+    const { user } = await getCurrentSession();
+    if (!supabaseClient || !user) {
+      return json({ results: [] });
+    }
+
+    const { data } = await supabaseClient.from("profiles").select("my_gear_profile").eq("id", user.id).maybeSingle();
+    const profile = normalizeMyGearProfile(data?.my_gear_profile);
+    const results =
+      route === "multi-fx/user"
+        ? profile.multifx
+          ? [
+              {
+                id: profile.multifx.model_id,
+                name: `${profile.multifx.brand_name} ${profile.multifx.model_name}`.trim(),
+                description: [profile.multifx.model_category, profile.multifx.pedal_type, profile.multifx.amp_type].filter(Boolean).join(" | "),
+                category: profile.multifx.model_category,
+                itemType: profile.multifx.category,
+                details: [profile.multifx.model_category, profile.multifx.amp_type].filter(Boolean)
+              }
+            ]
+          : []
+        : profile.pedals.map((pedal) => ({
+            id: pedal.model_id,
+            name: `${pedal.brand_name} ${pedal.model_name}`.trim(),
+            description: [pedal.model_category, pedal.pedal_type].filter(Boolean).join(" | "),
+            category: pedal.model_category,
+            itemType: pedal.category,
+            details: [pedal.model_category, pedal.pedal_type].filter(Boolean)
+          }));
+
+    return json({ results });
+  }
+
   if (
     route === "acoustic-guitars/lookup" ||
     route === "pickups/catalog" ||
-    route === "pedals/user" ||
-    route === "pedals/presets" ||
-    route === "pedals/catalog" ||
-    route === "multi-fx/user" ||
-    route === "multi-fx/catalog" ||
     route === "cabinets/catalog" ||
     route === "effects/catalog"
   ) {

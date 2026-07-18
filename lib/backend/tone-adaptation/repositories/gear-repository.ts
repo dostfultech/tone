@@ -131,7 +131,7 @@ export class SupabaseGearRepository implements GearRepository {
     if (selection.id) {
       const { data, error } = await this.supabase
         .from("multifx_models")
-        .select("id, name, category, tags, metadata, brand:multifx_brands!brand_id(name)")
+        .select("id, name, category, tags, brand:multifx_brands!brand_id(name)")
         .eq("id", selection.id)
         .eq("is_active", true)
         .limit(1)
@@ -162,7 +162,7 @@ export class SupabaseGearRepository implements GearRepository {
   private async queryCanonicalMultiFxByName(name: string, columnName: "search_text" | "name") {
     const { data, error } = await this.supabase
       .from("multifx_models")
-      .select("id, name, category, tags, metadata, brand:multifx_brands!brand_id(name)")
+      .select("id, name, category, tags, brand:multifx_brands!brand_id(name)")
       .ilike(columnName, `%${name}%`)
       .eq("is_active", true)
       .order("name", { ascending: true })

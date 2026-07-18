@@ -29,7 +29,7 @@ import {
   type ToneRequest,
   type ToneType
 } from "@/lib/mock-data";
-import { getAmpMetadata, getEffectCategories, getInstrumentMetadata } from "@/lib/equipment-metadata";
+import { getAmpMetadata, getInstrumentMetadata } from "@/lib/equipment-metadata";
 import { brand } from "@/lib/brand";
 import { loadClientSubscriptionSnapshot, type ClientSubscriptionSnapshot } from "@/lib/subscription-client";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -44,7 +44,17 @@ import { trackEvent, trackToneGenerated, trackToneSaved } from "@/lib/analytics"
 import { getAdaptationSummaryProps, getFreeAdaptationBannerCopy, shouldShowFreeOnboardingJourney } from "@/lib/subscription-display";
 import { addSubscriptionRefreshListener, dispatchSubscriptionRefresh } from "@/lib/subscription-events";
 import { SearchableGearDropdown } from "@/components/searchable-gear-dropdown";
-import type { GearSearchItem } from "@/lib/my-gear";
+import {
+  cacheMyGearProfile,
+  createEmptyMyGearProfile,
+  MY_GEAR_PROFILE_STORAGE_KEY,
+  MY_GEAR_PROFILE_UPDATED_EVENT,
+  normalizeMyGearProfile,
+  readCachedMyGearProfile,
+  type GearSearchItem,
+  type GearSelectionMetadata,
+  type MyGearProfile
+} from "@/lib/my-gear";
 
 type ToneResult = {
   id: string;
@@ -210,6 +220,7 @@ export function ToneMatcher() {
   const matcherRedirectTarget = onboardingMode ? "/app?onboarding=1" : "/app";
   const autoAdaptTriggeredRef = useRef(false);
   const hasLoadedPreferencesRef = useRef(false);
+  const hasAppliedMyGearDefaultsRef = useRef(false);
   const resultRef = useRef<HTMLDivElement | null>(null);
   const [mode, setMode] = useState<"guitar" | "bass">("guitar");
   const [song, setSong] = useState("");
@@ -227,9 +238,11 @@ export function ToneMatcher() {
   const [bridgePickup, setBridgePickup] = useState("");
   const [effectsMode, setEffectsMode] = useState("manual");
   const [goingDirect, setGoingDirect] = useState(false);
-  const [selectedFx, setSelectedFx] = useState("Ambient Lead");
-  const [selectedEffects, setSelectedEffects] = useState<string[]>(["10-Band EQ", "TS9 Tube Screamer"]);
-  const [multiFx, setMultiFx] = useState("Line 6 Helix Floor");
+  const [selectedFx, setSelectedFx] = useState("");
+  const [selectedEffects, setSelectedEffects] = useState<string[]>([]);
+  const [multiFx, setMultiFx] = useState("");
+  const [effectsTab, setEffectsTab] = useState<"pedals" | "multifx">("pedals");
+  const [myGearProfile, setMyGearProfile] = useState<MyGearProfile>(createEmptyMyGearProfile());
   const [result, setResult] = useState<ToneResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -265,6 +278,54 @@ export function ToneMatcher() {
     setSubscriptionSnapshot(nextSnapshot);
     return nextSnapshot;
   }, []);
+
+  const applyLiveMyGearProfile = useCallback(
+    (value: unknown) => {
+      const normalized = normalizeMyGearProfile(value);
+      const pedalNames = normalized.pedals.map(formatGearSelectionName);
+      const nextMultiFx = normalized.multifx ? formatGearSelectionName(normalized.multifx) : "";
+
+      setMyGearProfile(normalized);
+      cacheMyGearProfile(normalized);
+      setSelectedEffects(pedalNames);
+      setSelectedFx(pedalNames[0] || "");
+      setMultiFx(nextMultiFx);
+
+      if (!hasAppliedMyGearDefaultsRef.current) {
+        if (normalized.guitar && !requestedGuitar) {
+          setMode(normalized.guitar.model_category === "bass_guitar" ? "bass" : "guitar");
+          setGuitar(formatGearSelectionName(normalized.guitar));
+        }
+
+        if (normalized.amp && !requestedAmp) {
+          setAmp(formatGearSelectionName(normalized.amp));
+        }
+
+        hasAppliedMyGearDefaultsRef.current = true;
+      }
+    },
+    [requestedAmp, requestedGuitar]
+  );
+
+  const loadLiveMyGearProfile = useCallback(async () => {
+    applyLiveMyGearProfile(readCachedMyGearProfile());
+
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return;
+    }
+
+    const { data } = await supabase.from("profiles").select("my_gear_profile").eq("id", user.id).maybeSingle();
+    applyLiveMyGearProfile(data?.my_gear_profile);
+  }, [applyLiveMyGearProfile]);
 
   const applyFreeUsageSnapshot = useCallback(
     (usage: {
@@ -475,9 +536,56 @@ export function ToneMatcher() {
   }, [runAdaptation]);
 
   useEffect(() => {
+    void loadLiveMyGearProfile();
+
+    function handleProfileEvent(event: Event) {
+      if (event instanceof CustomEvent) {
+        applyLiveMyGearProfile(event.detail);
+        return;
+      }
+
+      void loadLiveMyGearProfile();
+    }
+
+    function handleStorage(event: StorageEvent) {
+      if (event.key !== MY_GEAR_PROFILE_STORAGE_KEY) {
+        return;
+      }
+
+      try {
+        applyLiveMyGearProfile(event.newValue ? JSON.parse(event.newValue) : null);
+      } catch {
+        applyLiveMyGearProfile(null);
+      }
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        void loadLiveMyGearProfile();
+      }
+    }
+
+    window.addEventListener(MY_GEAR_PROFILE_UPDATED_EVENT, handleProfileEvent as EventListener);
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", handleProfileEvent);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener(MY_GEAR_PROFILE_UPDATED_EVENT, handleProfileEvent as EventListener);
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", handleProfileEvent);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [applyLiveMyGearProfile, loadLiveMyGearProfile]);
+
+  useEffect(() => {
     if (hasLoadedPreferencesRef.current) {
       return;
     }
+
+    const cachedProfile = readCachedMyGearProfile();
+    const hasSavedPedals = cachedProfile.pedals.length > 0;
+    const hasSavedMultiFx = Boolean(cachedProfile.multifx);
 
     const fields = [
       [
@@ -503,9 +611,17 @@ export function ToneMatcher() {
       ["toneMatch_neckPickup", (value: string) => setNeckPickup((current) => (current === value ? current : value))],
       ["toneMatch_middlePickup", (value: string) => setMiddlePickup((current) => (current === value ? current : value))],
       ["toneMatch_bridgePickup", (value: string) => setBridgePickup((current) => (current === value ? current : value))],
-      ["toneMatch_multiFx", (value: string) => setMultiFx((current) => (current === value ? current : value))],
+      ["toneMatch_multiFx", (value: string) => {
+        if (!hasSavedMultiFx) {
+          setMultiFx((current) => (current === value ? current : value));
+        }
+      }],
       ["toneMatch_effectsMode", (value: string) => setEffectsMode((current) => (current === value ? current : value))],
-      ["toneMatch_selectedEffects", (value: string) => setSelectedFx((current) => (current === value ? current : value))]
+      ["toneMatch_selectedEffects", (value: string) => {
+        if (!hasSavedPedals) {
+          setSelectedFx((current) => (current === value ? current : value));
+        }
+      }]
     ] as const;
 
     fields.forEach(([key, setter]) => {
@@ -514,7 +630,9 @@ export function ToneMatcher() {
         setter(value);
       }
     });
-    setSelectedEffects(readStoredEffectList());
+    if (!hasSavedPedals) {
+      setSelectedEffects(readStoredEffectList());
+    }
 
     const storedSong = localStorage.getItem("toneMatch_song") || "";
     const storedArtist = localStorage.getItem("toneMatch_artist") || "";
@@ -569,8 +687,8 @@ export function ToneMatcher() {
         goingDirect: Boolean(payloadFromSession?.goingDirect),
         customPickups: payloadFromSession?.customPickups
       };
-      const nextMultiFx = payloadFromSession?.multiFx || localStorage.getItem("toneMatch_multiFx") || "Line 6 Helix Floor";
-      const nextSelectedFx = payloadFromSession?.selectedFx || localStorage.getItem("toneMatch_selectedEffects") || "Ambient Lead";
+      const nextMultiFx = payloadFromSession?.multiFx || (hasSavedMultiFx ? formatGearSelectionName(cachedProfile.multifx!) : localStorage.getItem("toneMatch_multiFx")) || "";
+      const nextSelectedFx = payloadFromSession?.selectedFx || (hasSavedPedals ? formatGearSelectionName(cachedProfile.pedals[0]) : localStorage.getItem("toneMatch_selectedEffects")) || "";
 
       setMode(payload.mode);
       setSong(payload.song);
@@ -590,6 +708,9 @@ export function ToneMatcher() {
       setGoingDirect(Boolean(payload.goingDirect || payload.effectsMode === "multi_fx"));
       setMultiFx(nextMultiFx);
       setSelectedFx(nextSelectedFx);
+      if (!hasSavedPedals) {
+        setSelectedEffects(readStoredEffectList());
+      }
 
       void runAdaptationRef.current(payload, {
         multiFx: nextMultiFx,
@@ -757,8 +878,9 @@ export function ToneMatcher() {
       const storedAmp = requestedAmp || localStorage.getItem("toneMatch_amp") || "Boss Katana Artist";
       const storedCabinet = localStorage.getItem("toneMatch_cabinet") || "Mesa/Boogie Rectifier 4x12";
       const storedPickup = localStorage.getItem("toneMatch_pickup") || "Vintage Single Coil";
-      const storedSelectedFx = localStorage.getItem("toneMatch_selectedEffects") || "Ambient Lead";
-      const storedMultiFx = localStorage.getItem("toneMatch_multiFx") || "Line 6 Helix Floor";
+      const cachedProfile = readCachedMyGearProfile();
+      const storedSelectedFx = cachedProfile.pedals.length ? formatGearSelectionName(cachedProfile.pedals[0]) : localStorage.getItem("toneMatch_selectedEffects") || "";
+      const storedMultiFx = cachedProfile.multifx ? formatGearSelectionName(cachedProfile.multifx) : localStorage.getItem("toneMatch_multiFx") || "";
       const storedMode = inferStoredMode(localStorage.getItem("toneMatch_partType"), localStorage.getItem("toneMatch_toneType"));
 
       setGuitarCatalog(guitarsResponse);
@@ -803,7 +925,7 @@ export function ToneMatcher() {
         }
       }
 
-      if (multiFxResponse.length && !multiFxResponse.some((item) => item.name === storedMultiFx)) {
+      if (storedMultiFx && multiFxResponse.length && !multiFxResponse.some((item) => item.name === storedMultiFx)) {
         setMultiFx(multiFxResponse[0].name);
       }
     }
@@ -827,14 +949,16 @@ export function ToneMatcher() {
 
   const currentGuitars = mode === "bass" ? bassGuitarCatalog : guitarCatalog;
   const currentAmps = mode === "bass" ? bassAmpCatalog : ampCatalog;
-  const guitarSearchEndpoint = mode === "bass" ? "/api/search/guitars?instrumentType=bass" : "/api/search/guitars?instrumentType=guitar";
-  const ampSearchEndpoint = mode === "bass" ? "/api/search/amps?instrumentType=bass" : "/api/search/amps?instrumentType=guitar";
+  const guitarSearchEndpoint = mode === "bass" ? "/api/equipment/search?type=guitar&instrumentType=bass" : "/api/equipment/search?type=guitar&instrumentType=guitar";
+  const ampSearchEndpoint = mode === "bass" ? "/api/equipment/search?type=amp&instrumentType=bass" : "/api/equipment/search?type=amp&instrumentType=guitar";
 
   const applyGearPreset = useCallback((preset: MatcherGearPreset) => {
     const presetEffects = readMatcherPresetEffects(preset);
     const nextMode = preset.instrument_type === "bass" ? "bass" : "guitar";
     const nextGoingDirect = (presetEffects.effectsMode || preset.effectsMode) === "multi_fx";
-    const nextSelectedFx = presetEffects.selectedFx || preset.selectedFx || selectedFx;
+    const savedPedalNames = myGearProfile.pedals.map(formatGearSelectionName);
+    const nextSelectedFx = savedPedalNames[0] || presetEffects.selectedFx || preset.selectedFx || selectedFx;
+    const nextMultiFx = myGearProfile.multifx ? formatGearSelectionName(myGearProfile.multifx) : presetEffects.multiFx || preset.multiFx || multiFx;
 
     setSelectedPresetId(preset.id);
     setMode(nextMode);
@@ -850,13 +974,13 @@ export function ToneMatcher() {
     );
     setEffectsMode(presetEffects.effectsMode || preset.effectsMode || "manual");
     setGoingDirect(nextGoingDirect);
-    setMultiFx(presetEffects.multiFx || preset.multiFx || multiFx);
+    setMultiFx(nextMultiFx);
     setSelectedFx(nextSelectedFx);
-    setSelectedEffects(nextSelectedFx ? nextSelectedFx.split(",").map((value) => value.trim()).filter(Boolean).slice(0, 8) : []);
+    setSelectedEffects(savedPedalNames.length ? savedPedalNames : nextSelectedFx ? nextSelectedFx.split(",").map((value) => value.trim()).filter(Boolean).slice(0, 8) : []);
     setNeckPickup(presetEffects.customPickups?.neck || "");
     setMiddlePickup(presetEffects.customPickups?.middle || "");
     setBridgePickup(presetEffects.customPickups?.bridge || "");
-  }, [cabinetCatalog, multiFx, selectedFx]);
+  }, [cabinetCatalog, multiFx, myGearProfile.multifx, myGearProfile.pedals, selectedFx]);
 
   useEffect(() => {
     if (!gearPresets.length || selectedPresetId || autoAdaptTriggeredRef.current) {
@@ -888,12 +1012,12 @@ export function ToneMatcher() {
       setPickup(pickupCatalog[0].name);
     }
 
-    if (pedalCatalog.length && !pedalCatalog.some((item) => item.name === selectedFx)) {
+    if (selectedFx && pedalCatalog.length && !pedalCatalog.some((item) => item.name === selectedFx)) {
       const nextSelectedFx = resolveCatalogSelection(selectedFx, pedalCatalog, pedalCatalog[0].name);
       setSelectedFx((current) => (current === nextSelectedFx ? current : nextSelectedFx));
     }
 
-    if (multiFxCatalog.length && !multiFxCatalog.some((item) => item.name === multiFx)) {
+    if (multiFx && multiFxCatalog.length && !multiFxCatalog.some((item) => item.name === multiFx)) {
       setMultiFx(multiFxCatalog[0].name);
     }
   }, [amp, cabinet, cabinetCatalog, currentAmps, currentGuitars, guitar, multiFx, multiFxCatalog, pedalCatalog, pickup, pickupCatalog, selectedFx]);
@@ -979,6 +1103,11 @@ export function ToneMatcher() {
       return;
     }
 
+    if (goingDirect && !multiFx) {
+      setMessage("Going Direct requires a saved Multi-FX unit in My Gear.");
+      return;
+    }
+
     const normalizedSong = songDraft.trim() || song.trim() || "Unknown Song";
     setSong(normalizedSong);
     const customPickups = {
@@ -1050,12 +1179,15 @@ export function ToneMatcher() {
     return "synced";
   }
 
+  const savedPedalSelections = myGearProfile.pedals;
+  const savedPedalNames = savedPedalSelections.map(formatGearSelectionName);
+  const savedMultiFxSelection = myGearProfile.multifx;
+  const savedMultiFxName = savedMultiFxSelection ? formatGearSelectionName(savedMultiFxSelection) : "";
   const selectedGuitar = currentGuitars.find((item) => item.name === guitar);
   const selectedAmp = currentAmps.find((item) => item.name === amp);
+  const selectedMultiFx = multiFxCatalog.find((item) => item.name === savedMultiFxName || item.name === multiFx);
   const instrumentMeta = getInstrumentMetadata(guitar, mode, selectedGuitar);
-  const ampMeta = getAmpMetadata(goingDirect ? multiFx : amp, goingDirect ? multiFxCatalog.find((item) => item.name === multiFx) || selectedAmp : selectedAmp, goingDirect);
-  const effectCategories = getEffectCategories();
-  const builtInAmpEffects = ampMeta.features.filter((feature) => ["Reverb", "Delay", "Chorus", "Flanger", "Presets", "Noise Gate"].includes(feature));
+  const ampMeta = getAmpMetadata(goingDirect ? savedMultiFxName || multiFx || amp : amp, goingDirect ? selectedMultiFx || selectedAmp : selectedAmp, goingDirect);
   const partChoices = mode === "bass"
     ? partOptions.filter((option) => option.value === "bassline")
     : partOptions.filter((option) => option.value === "riff" || option.value === "solo");
@@ -1067,22 +1199,6 @@ export function ToneMatcher() {
     : toneTypeOptions.filter((option) => option.value === "auto" || option.value === "clean" || option.value === "distorted");
   const selectedSongLabel = songDraft.trim() || song.trim() || "selected song";
   const selectedArtistLabel = artist.trim();
-
-  function addSelectedEffect(effectName: string) {
-    if (pedalCatalog.some((item) => item.name === effectName)) {
-      setSelectedFx(effectName);
-    }
-    setSelectedEffects((current) => current.includes(effectName) ? current : [...current, effectName].slice(0, 8));
-  }
-
-  function removeSelectedEffect(effectName: string) {
-    setSelectedEffects((current) => current.filter((item) => item !== effectName));
-  }
-
-  function selectAllActiveEffects() {
-    const active = [...builtInAmpEffects, "10-Band EQ", "TS9 Tube Screamer"].filter(Boolean);
-    setSelectedEffects(Array.from(new Set(active)).slice(0, 8));
-  }
 
   return (
     <div className="px-4 pb-14 pt-24 sm:px-6 lg:px-8">
@@ -1275,7 +1391,7 @@ export function ToneMatcher() {
                 </div>
                 <div>
                   <div className="mb-2 flex items-center justify-between gap-4">
-                    <label className="label">{goingDirect ? "Direct unit" : "Amplifier"}</label>
+                    <label className="label">Amplifier</label>
                     <button
                       type="button"
                       aria-pressed={goingDirect}
@@ -1284,6 +1400,7 @@ export function ToneMatcher() {
                         setGoingDirect((value) => {
                           const next = !value;
                           setEffectsMode(next ? "multi_fx" : "manual");
+                          setEffectsTab(next ? "multifx" : "pedals");
                           return next;
                         });
                       }}
@@ -1295,17 +1412,20 @@ export function ToneMatcher() {
                     </button>
                   </div>
                   {goingDirect ? (
-                    <select className="field h-12" value={multiFx} onChange={(event) => setMultiFx(event.target.value)}>
-                      {multiFxCatalog.length ? (
-                        multiFxCatalog.map((option) => (
-                          <option key={option.id} value={option.name}>
-                            {option.name}
-                          </option>
-                        ))
-                      ) : (
-                        <option value={multiFx}>{multiFx || "Loading units..."}</option>
-                      )}
-                    </select>
+                    savedMultiFxName ? (
+                      <div className="rounded-xl border border-moss/40 bg-moss/10 p-4 text-sm text-ink shadow-sm">
+                        <p className="font-bold">Using {savedMultiFxName} as amp.</p>
+                        <p className="mt-2 text-slate-700">Your Multi-FX unit handles amp modeling — no physical amp needed.</p>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-sm">
+                        <p className="font-bold">Going Direct — Select your Multi-FX below.</p>
+                        <p className="mt-2">Want to use Multi-FX? Add your Multi-FX unit in My Gear.</p>
+                        <Link href="/gear" className="button-secondary mt-3 inline-flex min-h-10 rounded-lg px-4 text-sm">
+                          Open My Gear
+                        </Link>
+                      </div>
+                    )
                   ) : (
                     <SearchableGearDropdown
                       label="Amplifier"
@@ -1319,7 +1439,7 @@ export function ToneMatcher() {
                     />
                   )}
                   <Link href="/contact?kind=gear" className="mt-2 inline-block text-xs font-semibold text-slate-500 hover:text-ink">
-                    Can&apos;t find your {goingDirect ? "unit" : "amp"}?
+                    Can&apos;t find your {goingDirect ? "direct unit" : "amp"}?
                   </Link>
                 </div>
               </div>
@@ -1372,16 +1492,42 @@ export function ToneMatcher() {
                 </label>
                 <div className="mt-4 grid gap-5 lg:grid-cols-2">
                   <GearSummaryCard icon={<Guitar className="h-8 w-8" />} title={guitar} description={instrumentMeta.description} tags={instrumentMeta.tags} />
-                  <GearSummaryCard icon={<Volume2 className="h-8 w-8" />} title={goingDirect ? multiFx : amp} description={ampMeta.description} tags={ampMeta.tags} />
+                  <GearSummaryCard icon={<Volume2 className="h-8 w-8" />} title={goingDirect ? savedMultiFxName || "Multi-FX required" : amp} description={ampMeta.description} tags={ampMeta.tags} />
+                </div>
+                <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                  <GearMetadataPanel
+                    title={mode === "bass" ? "Bass metadata" : "Guitar metadata"}
+                    items={[
+                      { label: "Pickup configuration", value: instrumentMeta.pickupConfig || "Stock" },
+                      { label: "Output", value: instrumentMeta.outputLevel || "Medium output" },
+                      { label: "Tone", value: instrumentMeta.toneCharacteristics.join(", ") || "Balanced" }
+                    ]}
+                  />
+                  <GearMetadataPanel
+                    title={goingDirect ? "Direct workflow" : "Amp details"}
+                    items={
+                      goingDirect
+                        ? [
+                            { label: "Device", value: savedMultiFxName || "Add a Multi-FX in My Gear" },
+                            { label: "Mode", value: savedMultiFxName ? "Amp modeling active" : "Waiting for Multi-FX" },
+                            { label: "Note", value: savedMultiFxName ? "Physical amp hidden while going direct" : "Cannot continue until a Multi-FX is selected" }
+                          ]
+                        : [
+                            { label: "Built-in effects", value: ampMeta.features.join(", ") || "Reverb, EQ" },
+                            { label: "Tags", value: ampMeta.tags.join(", ") || "Stage ready" },
+                            { label: "Tone", value: ampMeta.toneCharacteristics.join(", ") || "Flexible" }
+                          ]
+                    }
+                  />
                 </div>
               </div>
 
               <div className={`border-t border-blue-100 pt-8 ${firstAdaptationOnboarding && !showAdvancedGear ? "hidden" : ""}`}>
-                <h3 className="mb-5 text-xl font-bold">Select Your Effects (Optional)</h3>
+                <h3 className="mb-5 text-xl font-bold">Effects Workflow</h3>
                 <div className="grid rounded-lg border border-white/80 bg-blue-50/80 p-2 shadow-inner md:grid-cols-2">
                   {[
-                    ["manual", "Pedals", SlidersHorizontal],
-                    ["multi_fx", "Multi FX", Sparkles]
+                    ["pedals", "Pedals", SlidersHorizontal],
+                    ["multifx", "Multi-FX", Sparkles]
                   ].map(([value, label, Icon]) => {
                     const ActiveIcon = Icon as typeof SlidersHorizontal;
                     return (
@@ -1389,17 +1535,9 @@ export function ToneMatcher() {
                         key={value as string}
                         type="button"
                         className={`flex min-h-16 items-center justify-center gap-3 rounded-md text-base font-bold transition ${
-                          effectsMode === value ? "bg-white text-ink shadow-lg" : "text-slate-700 hover:bg-white/70"
+                          effectsTab === value ? "bg-white text-ink shadow-lg" : "text-slate-700 hover:bg-white/70"
                         }`}
-                        onClick={() => {
-                          const nextMode = value as string;
-                          setEffectsMode((current) => (current === nextMode ? current : nextMode));
-                          if (nextMode === "multi_fx") {
-                            setGoingDirect(true);
-                          } else {
-                            setGoingDirect(false);
-                          }
-                        }}
+                        onClick={() => setEffectsTab(value as "pedals" | "multifx")}
                       >
                         <ActiveIcon className="h-5 w-5" />
                         {label as string}
@@ -1408,77 +1546,79 @@ export function ToneMatcher() {
                   })}
                 </div>
 
-                {effectsMode === "multi_fx" ? (
-                  <div className="theme-blue-panel mt-6 rounded-lg border border-white/80 p-6 shadow-sm">
-                    <h4 className="flex items-center gap-3 text-xl font-bold text-ink">
-                      <Sparkles className="h-5 w-5" />
-                      Multi FX Mode
-                    </h4>
-                    <p className="mt-2 text-slate-600">{brand.appName} will shape a complete preset for your unit from the tone research.</p>
-                    <div className="mt-4 rounded-lg bg-white/80 p-4 text-sm text-slate-600">Using amp modeling, cab simulation, modulation, delay, and reverb around your selected direct unit.</div>
+                {effectsTab === "pedals" ? (
+                  <div className="mt-6 grid gap-4">
+                    {savedPedalSelections.length ? (
+                      <div className="theme-blue-panel rounded-lg border border-white/80 p-5 shadow-sm">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <h4 className="text-lg font-bold text-ink">Saved pedals from My Gear</h4>
+                            <p className="mt-1 text-sm text-slate-600">Your saved pedals are used automatically for adaptation and stay synced with the Gear page.</p>
+                          </div>
+                          <Link href="/gear" className="button-secondary inline-flex min-h-10 rounded-lg px-4 text-sm">
+                            Manage Pedals
+                          </Link>
+                        </div>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {savedPedalSelections.map((pedal) => (
+                            <span key={pedal.model_id} className="rounded-md border border-ocean/20 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
+                              {formatGearSelectionName(pedal)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-blue-200 bg-white/80 p-6 text-sm text-slate-700">
+                        <p className="font-bold text-ink">No pedals in your collection yet.</p>
+                        <p className="mt-2">Add pedals in My Gear and they&apos;ll appear here automatically.</p>
+                        <Link href="/gear" className="button-primary mt-4 inline-flex min-h-10 rounded-lg px-4 text-sm">
+                          Add Pedals
+                        </Link>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="mt-6 grid gap-4">
                     <div className="rounded-lg border border-moss/50 bg-moss/10 px-4 py-3 text-sm font-semibold text-ink">
-                      Tip: switch to Multi FX mode for complete amp models, cab simulation, and preset translation.
+                      Want to use Multi-FX? Add your Multi-FX unit in My Gear.
                     </div>
-                    <div className="theme-blue-panel rounded-lg border border-white/80 p-4">
-                      <div className="mb-3 flex items-center justify-between gap-4">
-                        <h4 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">Built-in amp effects</h4>
-                        <button type="button" className="text-xs font-bold text-ocean hover:text-ink" onClick={selectAllActiveEffects}>
-                          Select all active
-                        </button>
+                    {savedMultiFxName ? (
+                      <>
+                        <GearSummaryCard
+                          icon={<Sparkles className="h-8 w-8" />}
+                          title={savedMultiFxName}
+                          description={goingDirect ? "Saved Multi-FX selected for direct amp modeling." : "Saved Multi-FX selected. It will act as effects until Going Direct is enabled."}
+                          tags={["saved in my gear", goingDirect ? "amp modeling" : "effects only", "multi-fx"].filter(Boolean)}
+                        />
+                        <div className="theme-blue-panel rounded-lg border border-white/80 p-6 shadow-sm">
+                          <h4 className="flex items-center gap-3 text-xl font-bold text-ink">
+                            <Sparkles className="h-5 w-5" />
+                            Multi FX Mode
+                          </h4>
+                          <p className="mt-2 text-slate-600">
+                            {goingDirect
+                              ? `${brand.appName} will use ${savedMultiFxName} for amp modeling, cab simulation, and effects.`
+                              : `${savedMultiFxName} is ready as your saved Multi-FX device. Enable Going Direct when you want it to replace the physical amp.`}
+                          </p>
+                          <div className="mt-4 rounded-lg bg-white/80 p-4 text-sm text-slate-600">
+                            {goingDirect
+                              ? "Your Multi-FX unit handles amp modeling — no physical amp needed."
+                              : "Multi-FX stays synced with My Gear and can be promoted to the amp slot with Going Direct."}
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-blue-200 bg-white/80 p-6">
+                        <label className="label">Search multi-fx...</label>
+                        <div className="mt-2 flex h-12 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-400">
+                          Search multi-fx...
+                        </div>
+                        <p className="mt-4 text-sm text-slate-600">Add a Multi-FX unit in My Gear to enable this workflow.</p>
+                        <Link href="/gear" className="button-primary mt-4 inline-flex min-h-10 rounded-lg px-4 text-sm">
+                          Add Multi-FX
+                        </Link>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {(builtInAmpEffects.length ? builtInAmpEffects : ["Reverb", "Delay", "Chorus"]).map((effect) => (
-                          <button
-                            key={effect}
-                            type="button"
-                            className={`rounded-md border px-3 py-1 text-xs font-bold transition ${
-                              selectedEffects.includes(effect) ? "border-ocean bg-white text-ink shadow-sm" : "border-white/80 bg-white/70 text-slate-600 hover:border-ocean/40"
-                            }`}
-                            onClick={() => addSelectedEffect(effect)}
-                          >
-                            {effect}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <SelectField
-                      label="Effect preset"
-                      value={selectedFx}
-                      onChange={addSelectedEffect}
-                      options={pedalCatalog.map((preset) => preset.name)}
-                    />
-                    <div className="flex min-h-[112px] flex-col rounded-lg border border-white/80 bg-blue-50/70 p-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="text-sm font-bold">Your Pedals</div>
-                        <div className="text-xs font-semibold text-slate-500">{selectedEffects.length} active</div>
-                      </div>
-                      <div className="mt-3 flex flex-1 flex-wrap content-start gap-2 overflow-hidden">
-                        {selectedEffects.length ? (
-                          selectedEffects.map((effect) => (
-                            <button
-                              key={effect}
-                              type="button"
-                              className="rounded-md border border-ocean/30 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-ink"
-                              onClick={() => removeSelectedEffect(effect)}
-                            >
-                              {effect} x
-                            </button>
-                          ))
-                        ) : (
-                          <span className="text-sm text-slate-500">No pedals selected.</span>
-                        )}
-                      </div>
-                      <div className="mt-4 flex flex-wrap gap-2 border-t border-white/80 pt-3">
-                        {effectCategories.slice(0, 12).map((category) => (
-                          <span key={category} className="rounded-md bg-white/80 px-2 py-1 text-[11px] font-bold text-slate-500">
-                            {category}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1744,7 +1884,7 @@ function readStoredEffectList() {
     // Ignore corrupt local preference data.
   }
 
-  return ["10-Band EQ", "TS9 Tube Screamer"];
+  return [];
 }
 
 function StepProgress() {
@@ -1803,6 +1943,22 @@ function GearSummaryCard({ icon, title, description, tags }: { icon: React.React
             ))}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function GearMetadataPanel({ title, items }: { title: string; items: Array<{ label: string; value: string }> }) {
+  return (
+    <div className="rounded-lg border border-white/80 bg-white/80 p-5 shadow-sm">
+      <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">{title}</h3>
+      <div className="mt-4 grid gap-3">
+        {items.map((item) => (
+          <div key={`${title}-${item.label}`} className="rounded-lg bg-blue-50/70 px-4 py-3">
+            <div className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">{item.label}</div>
+            <div className="mt-1 text-sm font-semibold text-ink">{item.value}</div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -1898,6 +2054,10 @@ function toSelectedGearItems(value: string, category: string): GearSearchItem[] 
       pedalType: null
     }
   ];
+}
+
+function formatGearSelectionName(selection: GearSelectionMetadata) {
+  return `${selection.brand_name} ${selection.model_name}`.trim();
 }
 
 function PickupOverrideSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: CatalogEntry[] }) {
