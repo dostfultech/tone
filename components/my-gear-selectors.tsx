@@ -1,153 +1,37 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Plus, X } from "lucide-react";
+import { Plus, Loader2, X } from "lucide-react";
 import { PedalSelectorModal } from "@/components/pedal-selector-modal";
 import { SearchableGearDropdown } from "@/components/searchable-gear-dropdown";
-import {
-  cacheMyGearProfile,
-  createEmptyMyGearProfile,
-  normalizeMyGearProfile,
-  type GearSearchItem,
-  type GearSelectionCategory,
-  type GearSelectionMetadata,
-  type MyGearProfile
-} from "@/lib/my-gear";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { useMyGearProfile, toSearchItem } from "@/hooks/use-my-gear-profile";
+import type { GearSelectionMetadata } from "@/lib/my-gear";
+import { useState } from "react";
 
-export function MyGearSelectors() {
-  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const [profile, setProfile] = useState<MyGearProfile>(createEmptyMyGearProfile());
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState("");
-  const [userId, setUserId] = useState<string | null>(null);
+type MyGearSelectorsProps = {
+  profile?: ReturnType<typeof useMyGearProfile>["profile"];
+  loading?: boolean;
+  saving?: boolean;
+  status?: string;
+  userId?: string | null;
+  setSingleSelection?: ReturnType<typeof useMyGearProfile>["setSingleSelection"];
+  addPedal?: ReturnType<typeof useMyGearProfile>["addPedal"];
+  removeSingleSelection?: ReturnType<typeof useMyGearProfile>["removeSingleSelection"];
+  removePedal?: ReturnType<typeof useMyGearProfile>["removePedal"];
+};
+
+export function MyGearSelectors(props: MyGearSelectorsProps) {
+  const ownHook = useMyGearProfile();
+  const profile = props.profile ?? ownHook.profile;
+  const loading = props.loading ?? ownHook.loading;
+  const saving = props.saving ?? ownHook.saving;
+  const status = props.status ?? ownHook.status;
+  const userId = props.userId ?? ownHook.userId;
+  const setSingleSelection = props.setSingleSelection ?? ownHook.setSingleSelection;
+  const addPedal = props.addPedal ?? ownHook.addPedal;
+  const removeSingleSelection = props.removeSingleSelection ?? ownHook.removeSingleSelection;
+  const removePedal = props.removePedal ?? ownHook.removePedal;
+
   const [pedalModalOpen, setPedalModalOpen] = useState(false);
-  const lastSavedRef = useRef<string>("");
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadProfile() {
-      if (!supabase) {
-        if (active) {
-          setLoading(false);
-        }
-        return;
-      }
-
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-
-      if (!active) {
-        return;
-      }
-
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-
-      setUserId(user.id);
-
-      const { data } = await supabase.from("profiles").select("my_gear_profile").eq("id", user.id).maybeSingle();
-      if (!active) {
-        return;
-      }
-
-      const normalized = normalizeMyGearProfile(data?.my_gear_profile);
-      setProfile(normalized);
-      cacheMyGearProfile(normalized);
-      lastSavedRef.current = JSON.stringify(normalized);
-      setLoading(false);
-    }
-
-    void loadProfile();
-
-    return () => {
-      active = false;
-    };
-  }, [supabase]);
-
-  useEffect(() => {
-    if (loading) {
-      return;
-    }
-
-    cacheMyGearProfile(profile);
-  }, [loading, profile]);
-
-  useEffect(() => {
-    if (!supabase || !userId || loading) {
-      return;
-    }
-
-    const serialized = JSON.stringify(profile);
-    if (serialized === lastSavedRef.current) {
-      return;
-    }
-
-    const timeout = window.setTimeout(async () => {
-      setSaving(true);
-      const { error } = await supabase.from("profiles").update({ my_gear_profile: profile }).eq("id", userId);
-
-      if (error) {
-        setStatus(error.message);
-      } else {
-        setStatus("My Gear saved.");
-        lastSavedRef.current = serialized;
-      }
-
-      setSaving(false);
-    }, 300);
-
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [loading, profile, supabase, userId]);
-
-  function setSingleSelection(key: "guitar" | "amp" | "multifx", category: GearSelectionCategory, item: GearSearchItem) {
-    const selection = toSelection(category, item);
-    setProfile((current) => ({
-      ...current,
-      [key]: selection,
-      updated_at: new Date().toISOString()
-    }));
-  }
-
-  function addPedal(item: GearSearchItem) {
-    const selection = toSelection("pedal", item);
-
-    setProfile((current) => {
-      const exists = current.pedals.some((pedal) => pedal.model_id === selection.model_id);
-      if (exists) {
-        return current;
-      }
-
-      return {
-        ...current,
-        pedals: [...current.pedals, selection],
-        updated_at: new Date().toISOString()
-      };
-    });
-  }
-
-  function removeSingleSelection(key: "guitar" | "amp" | "multifx") {
-    setProfile((current) => ({
-      ...current,
-      [key]: null,
-      updated_at: new Date().toISOString()
-    }));
-  }
-
-  function removePedal(modelId: string) {
-    setProfile((current) => ({
-      ...current,
-      pedals: current.pedals.filter((pedal) => pedal.model_id !== modelId),
-      updated_at: new Date().toISOString()
-    }));
-  }
 
   if (loading) {
     return (
@@ -239,37 +123,6 @@ export function MyGearSelectors() {
       </div>
     </section>
   );
-}
-
-function toSelection(category: GearSelectionCategory, item: GearSearchItem): GearSelectionMetadata {
-  return {
-    model_id: item.modelId,
-    brand_name: item.brandName,
-    model_name: item.modelName,
-    category,
-    model_category: item.category,
-    pickup_configuration: item.pickupConfiguration,
-    amp_type: item.ampType,
-    pedal_type: item.pedalType
-  };
-}
-
-function toSearchItem(item: GearSelectionMetadata): GearSearchItem {
-  return {
-    modelId: item.model_id,
-    brandName: item.brand_name,
-    modelName: item.model_name,
-    name: `${item.brand_name} ${item.model_name}`,
-    category: item.model_category,
-    tags: [],
-    pickupConfiguration: item.pickup_configuration,
-    ampType: item.amp_type,
-    pedalType: item.pedal_type,
-    priceLow: null,
-    priceHigh: null,
-    usedByArtists: [],
-    description: ""
-  };
 }
 
 function GearChips({

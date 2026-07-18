@@ -1552,19 +1552,51 @@ export function ToneMatcher() {
                       <div className="theme-blue-panel rounded-lg border border-white/80 p-5 shadow-sm">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div>
-                            <h4 className="text-lg font-bold text-ink">Saved pedals from My Gear</h4>
-                            <p className="mt-1 text-sm text-slate-600">Your saved pedals are used automatically for adaptation and stay synced with the Gear page.</p>
+                            <h4 className="text-lg font-bold text-ink">Your Pedals</h4>
+                            <p className="mt-1 text-sm text-slate-600">Click to toggle active/inactive for this adaptation.</p>
                           </div>
-                          <Link href="/gear" className="button-secondary inline-flex min-h-10 rounded-lg px-4 text-sm">
-                            Manage Pedals
-                          </Link>
+                          <button
+                            type="button"
+                            className="text-sm font-semibold text-ocean hover:underline"
+                            onClick={() => {
+                              const allNames = savedPedalSelections.map(formatGearSelectionName);
+                              const allActive = allNames.every((n) => selectedEffects.includes(n));
+                              setSelectedEffects(allActive ? [] : allNames);
+                              if (!allActive && allNames.length) setSelectedFx(allNames[0]);
+                            }}
+                          >
+                            {savedPedalSelections.map(formatGearSelectionName).every((n) => selectedEffects.includes(n))
+                              ? "Deselect All"
+                              : "Select All Active"}
+                          </button>
                         </div>
                         <div className="mt-4 flex flex-wrap gap-2">
-                          {savedPedalSelections.map((pedal) => (
-                            <span key={pedal.model_id} className="rounded-md border border-ocean/20 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
-                              {formatGearSelectionName(pedal)}
-                            </span>
-                          ))}
+                          {savedPedalSelections.map((pedal) => {
+                            const pedalName = formatGearSelectionName(pedal);
+                            const isActive = selectedEffects.includes(pedalName);
+                            return (
+                              <button
+                                key={pedal.model_id}
+                                type="button"
+                                className={`rounded-md border px-3 py-2 text-sm font-semibold shadow-sm transition ${
+                                  isActive
+                                    ? "border-ocean/30 bg-ocean/10 text-ink"
+                                    : "border-slate-200 bg-white text-slate-400 line-through"
+                                }`}
+                                onClick={() => {
+                                  if (isActive) {
+                                    setSelectedEffects((current) => current.filter((n) => n !== pedalName));
+                                  } else {
+                                    setSelectedEffects((current) => [...current, pedalName]);
+                                    if (!selectedFx) setSelectedFx(pedalName);
+                                  }
+                                }}
+                              >
+                                {pedalName}
+                                <span className={`ml-2 inline-block h-2 w-2 rounded-full ${isActive ? "bg-green-500" : "bg-slate-300"}`} />
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     ) : (

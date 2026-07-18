@@ -2,11 +2,15 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Cpu, Guitar, Loader2, Plus, SlidersHorizontal, Trash2, Volume2, Waves } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Cpu, Guitar, Loader2, Plus, SlidersHorizontal, Sparkles, Trash2, Volume2, Waves, X } from "lucide-react";
 import { MyGearSelectors } from "@/components/my-gear-selectors";
+import { PedalSelectorModal } from "@/components/pedal-selector-modal";
+import { SearchableGearDropdown } from "@/components/searchable-gear-dropdown";
 import { OnboardingProgress } from "@/components/onboarding-progress";
+import { useMyGearProfile, toSearchItem } from "@/hooks/use-my-gear-profile";
 import { brand } from "@/lib/brand";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import type { GearSelectionMetadata } from "@/lib/my-gear";
 
 type Preset = {
   id: string;
@@ -30,6 +34,7 @@ type PresetEffects = {
   effectsMode?: string;
   multiFx?: string;
   selectedFx?: string;
+  features?: string[];
   customPickups?: {
     neck?: string;
     middle?: string;
@@ -45,10 +50,15 @@ type CatalogEntry = {
   details: string[];
 };
 
+const PRESET_FEATURES = ["Coil Split", "Presence", "Reverb", "FX Loop"] as const;
+
 export function GearView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const onboardingMode = searchParams.get("onboarding") === "1";
+
+  const gearProfile = useMyGearProfile();
+
   const [presets, setPresets] = useState<Preset[]>([]);
   const [name, setName] = useState("Main rig");
   const [presetInstrument, setPresetInstrument] = useState<"guitar" | "bass">("guitar");
@@ -62,10 +72,16 @@ export function GearView() {
   const [effectsMode, setEffectsMode] = useState("manual");
   const [multiFx, setMultiFx] = useState("");
   const [selectedFx, setSelectedFx] = useState("");
+  const [useMultiFxInPreset, setUseMultiFxInPreset] = useState(false);
+  const [presetFeatures, setPresetFeatures] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<"presets" | "pedals" | "multi_fx" | "catalog">("presets");
   const [showAdvancedSetup, setShowAdvancedSetup] = useState(false);
+  const [showCreatePreset, setShowCreatePreset] = useState(true);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [pedalModalOpen, setPedalModalOpen] = useState(false);
+  const [multiFxSearchOpen, setMultiFxSearchOpen] = useState(false);
+
   const [electricGuitars, setElectricGuitars] = useState<CatalogEntry[]>([]);
   const [bassGuitars, setBassGuitars] = useState<CatalogEntry[]>([]);
   const [acousticGuitars, setAcousticGuitars] = useState<CatalogEntry[]>([]);
@@ -152,14 +168,19 @@ export function GearView() {
     [acousticGuitars, bassAmps, bassGuitars, cabinets, effects, electricGuitars, guitarAmps, multiFxUnits, pedals, pickups]
   );
 
+  function toggleFeature(feature: string) {
+    setPresetFeatures((current) => (current.includes(feature) ? current.filter((f) => f !== feature) : [...current, feature]));
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const supabase = createSupabaseBrowserClient();
     const presetEffects: PresetEffects = {
       cabinetName: cabinet,
-      effectsMode,
-      multiFx,
+      effectsMode: useMultiFxInPreset ? "multi_fx" : effectsMode,
+      multiFx: useMultiFxInPreset ? multiFx : undefined,
       selectedFx,
+      features: presetFeatures,
       customPickups: {
         neck: cleanPickupOverride(neckPickup),
         middle: cleanPickupOverride(middlePickup),
@@ -183,7 +204,7 @@ export function GearView() {
           name,
           instrument_type: presetInstrument,
           guitar_name: guitar,
-          amp_name: amp,
+          amp_name: useMultiFxInPreset ? multiFx : amp,
           pickup_name: pickup || null,
           effects: presetEffects
         })
@@ -213,7 +234,7 @@ export function GearView() {
       return;
     }
 
-    const next = [{ id: crypto.randomUUID(), name, instrument_type: presetInstrument, guitar, amp, pickup, cabinet, effects: presetEffects }, ...presets];
+    const next = [{ id: crypto.randomUUID(), name, instrument_type: presetInstrument, guitar, amp: useMultiFxInPreset ? multiFx : amp, pickup, cabinet, effects: presetEffects }, ...presets];
     setPresets(next);
     localStorage.setItem(`${brand.storagePrefix}_saved_gear_presets`, JSON.stringify(next));
     if (onboardingMode) {
@@ -249,19 +270,18 @@ export function GearView() {
           <p className="mt-4 text-lg text-neutral-600 sm:text-xl">
             {onboardingMode
               ? "We'll save your gear so every supported song can be adapted automatically to your equipment."
-              : "Manage presets and browse the full equipment catalog"}
+              : "Manage your presets, pedals, and multi-effects"}
           </p>
         </div>
 
         {message ? <div className="mb-6 rounded-lg bg-ink px-5 py-4 text-sm font-bold text-white">{message}</div> : null}
 
         {!onboardingMode ? (
-          <div className="mb-10 grid gap-4 lg:grid-cols-4">
+          <div className="mb-10 grid gap-4 sm:grid-cols-3">
             {[
               ["presets", "Presets", SlidersHorizontal, presets.length],
-              ["pedals", "Pedals", Guitar, pedals.length],
-              ["multi_fx", "Multi FX", Cpu, multiFxUnits.length],
-              ["catalog", "Catalog", Waves, groupedCatalog.reduce((total, group) => total + group.items.length, 0)]
+              ["pedals", "Pedals", Guitar, gearProfile.profile.pedals.length],
+              ["multi_fx", "Multi FX", Cpu, gearProfile.profile.multifx ? 1 : 0]
             ].map(([value, label, Icon, count]) => {
               const ActiveIcon = Icon as typeof Guitar;
               const active = activeTab === value;
@@ -276,178 +296,331 @@ export function GearView() {
                 >
                   <ActiveIcon className="h-5 w-5" />
                   {label as string}
-                  <span className={`rounded-full px-3 py-1 text-sm ${active ? "bg-white/20 text-white" : "bg-neutral-100 text-neutral-500"}`}>{count as number}</span>
+                  {(count as number) > 0 ? (
+                    <span className={`rounded-full px-3 py-1 text-sm ${active ? "bg-white/20 text-white" : "bg-neutral-100 text-neutral-500"}`}>{count as number}</span>
+                  ) : null}
                 </button>
               );
             })}
           </div>
         ) : null}
 
+        {/* ─── PRESETS TAB ─── */}
         {activeTab === "presets" || onboardingMode ? (
           <div className="grid gap-10">
-            <MyGearSelectors />
+            <MyGearSelectors
+              profile={gearProfile.profile}
+              loading={gearProfile.loading}
+              saving={gearProfile.saving}
+              status={gearProfile.status}
+              userId={gearProfile.userId}
+              setSingleSelection={gearProfile.setSingleSelection}
+              addPedal={gearProfile.addPedal}
+              removeSingleSelection={gearProfile.removeSingleSelection}
+              removePedal={gearProfile.removePedal}
+            />
 
-            <form onSubmit={submit} className="compact-card p-6 sm:p-8">
-              <div className="mb-7 flex items-center gap-5">
-                <div className="grid h-16 w-16 place-items-center rounded-lg bg-moss text-ink">
+            <div className="compact-card overflow-hidden">
+              <button
+                type="button"
+                className="flex w-full items-center gap-5 p-6 text-left sm:p-8"
+                onClick={() => setShowCreatePreset((v) => !v)}
+              >
+                <div className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-moss text-ink">
                   <Plus className="h-8 w-8" />
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <h2 className="text-2xl font-bold">{onboardingMode ? "Save My Gear" : "Create New Preset"}</h2>
-                  <p className="mt-1 text-base text-neutral-600 sm:text-lg">
-                    {onboardingMode ? "Required: guitar and amplifier. Optional: cabinet, pedals, Multi FX, custom pickups, and going direct." : "Save a rig using the shared equipment catalog"}
+                  <p className="mt-1 text-base text-neutral-600">
+                    {onboardingMode ? "Required: guitar and amplifier." : "Save a guitar and amp combination"}
                   </p>
                 </div>
-              </div>
-
-              <div className="mb-6 inline-flex rounded-lg border border-white/80 bg-white/80 p-1 shadow-sm">
-                {(["guitar", "bass"] as const).map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`min-h-10 rounded-md px-4 text-sm font-bold transition ${presetInstrument === value ? "bg-ink text-white" : "text-slate-700 hover:bg-blue-50"}`}
-                    onClick={() => setPresetInstrument(value)}
-                  >
-                    {value === "guitar" ? "Guitar" : "Bass"}
-                  </button>
-                ))}
-              </div>
-
-              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {!onboardingMode ? (
-                  <div>
-                    <label className="label" htmlFor="preset-name">
-                      Preset name
-                    </label>
-                    <input id="preset-name" className="field mt-2 h-12" value={name} onChange={(event) => setName(event.target.value)} required />
-                  </div>
+                  showCreatePreset ? <ChevronUp className="h-6 w-6 shrink-0 text-slate-400" /> : <ChevronDown className="h-6 w-6 shrink-0 text-slate-400" />
                 ) : null}
-                <Select label={`${presetInstrument === "bass" ? "Bass" : "Guitar"}${onboardingMode ? " *" : ""}`} value={guitar} setValue={setGuitar} options={currentGuitars.map((item) => item.name)} />
-                <Select label={`Amplifier${onboardingMode ? " *" : ""}`} value={amp} setValue={setAmp} options={currentAmps.map((item) => item.name)} />
-              </div>
-              {onboardingMode ? (
-                <div className="mt-6 rounded-lg border border-white/80 bg-blue-50/70 p-5">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="text-lg font-bold">Optional gear details</h3>
-                      <p className="mt-1 text-sm text-slate-600">Cabinet, pickups, pedals, and direct mode can make your future adaptations more accurate.</p>
+              </button>
+
+              {showCreatePreset || onboardingMode ? (
+                <form onSubmit={submit} className="border-t border-blue-100 p-6 sm:p-8">
+                  <div className="mb-6 inline-flex rounded-lg border border-white/80 bg-white/80 p-1 shadow-sm">
+                    {(["guitar", "bass"] as const).map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className={`min-h-10 rounded-md px-4 text-sm font-bold transition ${presetInstrument === value ? "bg-ink text-white" : "text-slate-700 hover:bg-blue-50"}`}
+                        onClick={() => setPresetInstrument(value)}
+                      >
+                        {value === "guitar" ? "Guitar" : "Bass"}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                    {!onboardingMode ? (
+                      <div>
+                        <label className="label" htmlFor="preset-name">Preset Name</label>
+                        <input id="preset-name" className="field mt-2 h-12" value={name} onChange={(event) => setName(event.target.value)} required placeholder="e.g. My Main Rig" />
+                      </div>
+                    ) : null}
+                    <Select label={presetInstrument === "bass" ? "Bass" : "Guitar"} value={guitar} setValue={setGuitar} options={currentGuitars.map((item) => item.name)} />
+
+                    {useMultiFxInPreset ? (
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <label className="label">Multi-FX</label>
+                          <button type="button" className="text-xs font-semibold text-ocean hover:underline" onClick={() => setUseMultiFxInPreset(false)}>
+                            Use Amp instead
+                          </button>
+                        </div>
+                        <select className="field mt-2 h-12" value={multiFx} onChange={(e) => setMultiFx(e.target.value)}>
+                          {multiFxUnits.length ? multiFxUnits.map((item) => <option key={item.name}>{item.name}</option>) : <option>{multiFx || "Loading..."}</option>}
+                        </select>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <label className="label">Amp</label>
+                          <button type="button" className="text-xs font-semibold text-ocean hover:underline" onClick={() => setUseMultiFxInPreset(true)}>
+                            Use Multi-FX instead
+                          </button>
+                        </div>
+                        <select className="field mt-2 h-12" value={amp} onChange={(e) => setAmp(e.target.value)}>
+                          {currentAmps.length ? currentAmps.map((item) => <option key={item.name}>{item.name}</option>) : <option>{amp || "Loading..."}</option>}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-6">
+                    <label className="label">Features</label>
+                    <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      {PRESET_FEATURES.map((feature) => {
+                        const active = presetFeatures.includes(feature);
+                        return (
+                          <button
+                            key={feature}
+                            type="button"
+                            className={`flex min-h-12 items-center gap-3 rounded-lg border px-4 text-sm font-semibold transition ${
+                              active ? "border-ocean/30 bg-ocean/10 text-ink" : "border-white/80 bg-white text-slate-600 hover:border-ocean/20"
+                            }`}
+                            onClick={() => toggleFeature(feature)}
+                          >
+                            {active ? <Check className="h-4 w-4 text-ocean" /> : <div className="h-4 w-4 rounded border border-slate-300" />}
+                            {feature}
+                          </button>
+                        );
+                      })}
                     </div>
+                  </div>
+
+                  <div className="mt-5">
                     <button
                       type="button"
-                      className="button-secondary min-h-10 rounded-lg px-4 text-sm"
-                      onClick={() => setShowAdvancedSetup((value) => !value)}
+                      className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-ink"
+                      onClick={() => setShowAdvancedSetup((v) => !v)}
                     >
-                      {showAdvancedSetup ? "Hide details" : "Add optional details"}
+                      {showAdvancedSetup ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      Custom pickups
                     </button>
-                  </div>
-                  {showAdvancedSetup ? (
-                    <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                      <Select label="Cabinet / Speaker" value={cabinet} setValue={setCabinet} options={cabinets.map((item) => item.name)} />
-                      <Select label="Primary pickup" value={pickup} setValue={setPickup} options={pickups.map((item) => item.name)} />
-                      <div>
-                        <label className="label">Going direct</label>
-                        <button
-                          type="button"
-                          className={`mt-2 flex h-12 w-full items-center justify-between rounded-lg border px-4 text-sm font-semibold transition ${
-                            effectsMode === "multi_fx" ? "border-ink bg-ink text-white" : "border-white/80 bg-white text-slate-700"
-                          }`}
-                          onClick={() => setEffectsMode((current) => (current === "multi_fx" ? "manual" : "multi_fx"))}
-                        >
-                          <span>{effectsMode === "multi_fx" ? "Enabled" : "Disabled"}</span>
-                          <span className={`flex h-6 w-11 items-center rounded-full p-1 ${effectsMode === "multi_fx" ? "bg-white/20" : "bg-slate-200"}`}>
-                            <span className={`h-4 w-4 rounded-full bg-white shadow transition ${effectsMode === "multi_fx" ? "translate-x-5" : ""}`} />
-                          </span>
-                        </button>
+                    {showAdvancedSetup ? (
+                      <div className="mt-4 grid gap-5 rounded-lg border border-blue-100 bg-blue-50/50 p-5 md:grid-cols-2 xl:grid-cols-4">
+                        <Select label="Primary pickup" value={pickup} setValue={setPickup} options={pickups.map((item) => item.name)} />
+                        {presetInstrument === "guitar" ? (
+                          <>
+                            <Select label="Neck override" value={neckPickup} setValue={setNeckPickup} options={["Stock", ...pickups.map((item) => item.name)]} />
+                            <Select label="Middle override" value={middlePickup} setValue={setMiddlePickup} options={["Stock", ...pickups.map((item) => item.name)]} />
+                            <Select label="Bridge override" value={bridgePickup} setValue={setBridgePickup} options={["Stock", ...pickups.map((item) => item.name)]} />
+                          </>
+                        ) : null}
                       </div>
-                      <Select label="Available effects" value={selectedFx} setValue={setSelectedFx} options={[...pedals, ...effects].map((item) => item.name)} />
-                      <Select label="Multi-FX unit" value={multiFx} setValue={setMultiFx} options={multiFxUnits.map((item) => item.name)} />
-                      {presetInstrument === "guitar" ? (
-                        <>
-                          <Select label="Neck pickup override" value={neckPickup} setValue={setNeckPickup} options={["Stock", ...pickups.map((item) => item.name)]} />
-                          <Select label="Middle pickup override" value={middlePickup} setValue={setMiddlePickup} options={["Stock", ...pickups.map((item) => item.name)]} />
-                          <Select label="Bridge pickup override" value={bridgePickup} setValue={setBridgePickup} options={["Stock", ...pickups.map((item) => item.name)]} />
-                        </>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-                  <Select label="Pickup" value={pickup} setValue={setPickup} options={pickups.map((item) => item.name)} />
-                  {presetInstrument === "guitar" ? (
-                    <>
-                      <Select label="Neck pickup override" value={neckPickup} setValue={setNeckPickup} options={["Stock", ...pickups.map((item) => item.name)]} />
-                      <Select label="Middle pickup override" value={middlePickup} setValue={setMiddlePickup} options={["Stock", ...pickups.map((item) => item.name)]} />
-                      <Select label="Bridge pickup override" value={bridgePickup} setValue={setBridgePickup} options={["Stock", ...pickups.map((item) => item.name)]} />
-                    </>
-                  ) : null}
-                  <Select label="Cabinet / Speaker" value={cabinet} setValue={setCabinet} options={cabinets.map((item) => item.name)} />
-                  <Select label="Effects mode" value={effectsMode} setValue={setEffectsMode} options={["manual", "amp_with_effects", "multi_fx"]} />
-                  <Select label="Available effects" value={selectedFx} setValue={setSelectedFx} options={[...pedals, ...effects].map((item) => item.name)} />
-                  <Select label="Multi-FX unit" value={multiFx} setValue={setMultiFx} options={multiFxUnits.map((item) => item.name)} />
-                </div>
-              )}
-              <button className="button-primary mt-6 min-h-12 rounded-lg">
-                <Plus className="h-4 w-4" />
-                {onboardingMode ? "Save My Gear and Continue" : "Save preset"}
-              </button>
-              {onboardingMode ? <p className="mt-3 text-sm text-slate-500">You can update your saved gear anytime from My Gear.</p> : null}
-            </form>
+                    ) : null}
+                  </div>
+
+                  <button className="button-primary mt-6 min-h-12 rounded-lg">
+                    <Plus className="h-4 w-4" />
+                    {onboardingMode ? "Save My Gear and Continue" : "Save Preset"}
+                  </button>
+                  {onboardingMode ? <p className="mt-3 text-sm text-slate-500">You can update your saved gear anytime from My Gear.</p> : null}
+                </form>
+              ) : null}
+            </div>
 
             {!onboardingMode ? (
               <div>
-              <div className="mb-6 flex items-center justify-between">
-                <h2 className="text-2xl font-bold sm:text-3xl">Your Presets</h2>
-                <span className="text-base text-neutral-500">{presets.length} saved</span>
-              </div>
-              {loading ? (
-                <div className="compact-card flex min-h-[260px] items-center justify-center gap-3 p-8 text-neutral-600">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Loading presets
+                <div className="mb-6 flex items-center justify-between">
+                  <h2 className="text-2xl font-bold sm:text-3xl">Your Presets</h2>
+                  <span className="text-base text-neutral-500">{presets.length} saved</span>
                 </div>
-              ) : presets.length ? (
-                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                  {presets.map((preset) => (
-                    <article key={preset.id} className="compact-card p-6">
-                      <div className="mb-5 flex items-start justify-between">
-                        <div>
-                          <h3 className="text-2xl font-bold">{preset.name}</h3>
-                          <p className="text-sm capitalize text-neutral-500">{preset.instrument_type || "gear"} preset</p>
-                        </div>
-                        <button type="button" className="button-secondary px-3" onClick={() => removePreset(preset.id)} aria-label="Delete preset">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                      <div className="grid gap-3 text-base">
-                        <div className="flex items-center gap-3 rounded-lg bg-neutral-50 px-4 py-3">
-                          <Guitar className="h-5 w-5 text-ink" />
-                          {preset.guitar_name || preset.guitar}
-                        </div>
-                        <div className="flex items-center gap-3 rounded-lg bg-neutral-50 px-4 py-3">
-                          <Volume2 className="h-5 w-5 text-ink" />
-                          {preset.amp_name || preset.amp}
-                        </div>
-                        <div className="rounded-lg bg-neutral-50 px-4 py-3">{preset.pickup_name || preset.pickup || "Pickup not set"}</div>
-                        <div className="rounded-lg bg-neutral-50 px-4 py-3">{formatPresetCustomPickups(preset) || "Stock pickup positions"}</div>
-                        <div className="rounded-lg bg-neutral-50 px-4 py-3">{getPresetCabinet(preset) || "Cabinet not set"}</div>
-                        <div className="rounded-lg bg-neutral-50 px-4 py-3">{getPresetEffectsMode(preset).replaceAll("_", " ")}</div>
-                        <div className="rounded-lg bg-neutral-50 px-4 py-3">{getPresetSelectedEffect(preset) || "Effects not set"}</div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState icon={<SlidersHorizontal className="h-12 w-12" />} title="No presets yet" body="Create your first gear preset above to get started." />
-              )}
+                {loading ? (
+                  <div className="compact-card flex min-h-[260px] items-center justify-center gap-3 p-8 text-neutral-600">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Loading presets
+                  </div>
+                ) : presets.length ? (
+                  <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                    {presets.map((preset) => (
+                      <PresetCard key={preset.id} preset={preset} onRemove={removePreset} />
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState icon={<SlidersHorizontal className="h-12 w-12" />} title="No presets yet" body="Create your first gear preset above to get started." />
+                )}
               </div>
             ) : null}
           </div>
         ) : null}
 
-        {activeTab === "pedals" ? <CatalogGrid title="Pedals and Drive Chains" items={[...pedals, ...effects]} /> : null}
+        {/* ─── PEDALS TAB ─── */}
+        {activeTab === "pedals" ? (
+          <div className="grid gap-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-2xl font-bold sm:text-3xl">My Pedals</h2>
+                <p className="mt-1 text-base text-neutral-600">Manage your pedal collection for tone matching</p>
+              </div>
+              <button
+                type="button"
+                className="button-primary inline-flex min-h-12 items-center gap-2 rounded-lg px-5 text-sm"
+                onClick={() => setPedalModalOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+                Add Pedal
+              </button>
+            </div>
 
-        {activeTab === "multi_fx" ? <CatalogGrid title="Multi FX Units" items={multiFxUnits} /> : null}
+            {gearProfile.profile.pedals.length > 0 ? (
+              <>
+                <SignalChain pedals={gearProfile.profile.pedals} />
 
+                <div className="grid gap-4 md:grid-cols-2">
+                  {gearProfile.profile.pedals.map((pedal) => (
+                    <div key={pedal.model_id} className="compact-card flex items-start gap-4 p-5">
+                      <div className="mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-green-100 text-green-700">
+                        <Check className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-lg font-bold">{pedal.model_name}</h3>
+                        <p className="text-sm text-slate-500">{pedal.brand_name}</p>
+                        {pedal.pedal_type ? (
+                          <span className="mt-2 inline-block rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold capitalize text-neutral-600">
+                            {pedal.pedal_type.replace(/_/g, " ")}
+                          </span>
+                        ) : null}
+                      </div>
+                      <button
+                        type="button"
+                        className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                        onClick={() => gearProfile.removePedal(pedal.model_id)}
+                        aria-label={`Remove ${pedal.model_name}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <EmptyState
+                icon={<Guitar className="h-12 w-12" />}
+                title="No pedals in your collection yet"
+                body="Add pedals to build your signal chain and get better tone adaptations."
+              />
+            )}
+
+            <PedalSelectorModal
+              open={pedalModalOpen}
+              onClose={() => setPedalModalOpen(false)}
+              onSelect={gearProfile.addPedal}
+              selectedPedals={gearProfile.profile.pedals.map(toSearchItem)}
+            />
+          </div>
+        ) : null}
+
+        {/* ─── MULTI FX TAB ─── */}
+        {activeTab === "multi_fx" ? (
+          <div className="grid gap-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-2xl font-bold sm:text-3xl">My Multi FX Units</h2>
+                <p className="mt-1 text-base text-neutral-600">Manage your multi FX processors for tone matching</p>
+              </div>
+              <button
+                type="button"
+                className="button-primary inline-flex min-h-12 items-center gap-2 rounded-lg px-5 text-sm"
+                onClick={() => setMultiFxSearchOpen((v) => !v)}
+              >
+                <Plus className="h-4 w-4" />
+                Add Multi FX
+              </button>
+            </div>
+
+            {multiFxSearchOpen ? (
+              <div className="compact-card p-5">
+                <SearchableGearDropdown
+                  label="Search for a Multi-FX unit"
+                  placeholder="e.g. Boss Katana, Helix, Matribox..."
+                  endpoint="/api/equipment/search?type=multifx"
+                  selectedItems={gearProfile.profile.multifx ? [toSearchItem(gearProfile.profile.multifx)] : []}
+                  onSelect={(item) => {
+                    gearProfile.setSingleSelection("multifx", "multifx", item);
+                    setMultiFxSearchOpen(false);
+                  }}
+                  requestType="Multi FX Unit"
+                />
+              </div>
+            ) : null}
+
+            {gearProfile.profile.multifx ? (
+              <div className="compact-card flex items-start gap-5 p-6">
+                <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-purple-100 text-purple-700">
+                  <Sparkles className="h-7 w-7" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xl font-bold">{gearProfile.profile.multifx.model_name}</h3>
+                  <p className="text-sm text-slate-500">{gearProfile.profile.multifx.brand_name}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {gearProfile.profile.multifx.model_category ? (
+                      <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
+                        {gearProfile.profile.multifx.model_category === "multifx" ? "Amp Modeling" : gearProfile.profile.multifx.model_category}
+                      </span>
+                    ) : null}
+                    <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold text-neutral-600">Amp Modeling</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                  onClick={() => gearProfile.removeSingleSelection("multifx")}
+                  aria-label="Remove Multi FX"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </button>
+              </div>
+            ) : (
+              <EmptyState
+                icon={<Cpu className="h-12 w-12" />}
+                title="No Multi FX units yet"
+                body="Add your multi-effects processor to get complete preset adaptations."
+              />
+            )}
+
+            <div className="compact-card p-6">
+              <h3 className="text-lg font-bold text-ink">How Multi FX Matching Works</h3>
+              <div className="mt-4 grid gap-3 text-sm text-slate-600">
+                <p>
+                  <span className="font-bold text-ink">Effects-Only Units (Boss ME-80, GT-1):</span>{" "}
+                  We&apos;ll show you the internal effects to use plus amp settings for your physical amp.
+                </p>
+                <p>
+                  <span className="font-bold text-ink">Amp Modelers (Helix, Kemper, Axe-Fx):</span>{" "}
+                  We&apos;ll provide a complete preset including amp model selection and all effect settings.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {/* ─── CATALOG TAB ─── */}
         {activeTab === "catalog" ? (
           <div className="grid gap-8">
             {groupedCatalog.map((group) => (
@@ -457,6 +630,79 @@ export function GearView() {
         ) : null}
       </div>
     </div>
+  );
+}
+
+function SignalChain({ pedals }: { pedals: GearSelectionMetadata[] }) {
+  return (
+    <div className="compact-card p-6">
+      <h3 className="mb-2 text-base font-bold text-ink">Signal Chain</h3>
+      <p className="mb-5 text-sm text-slate-500">Drag to reorder &bull; Click to toggle active/bypass</p>
+      <div className="flex items-center gap-3 overflow-x-auto pb-2">
+        <div className="flex shrink-0 items-center gap-2 text-sm font-semibold text-slate-500">
+          <Guitar className="h-5 w-5" />
+          Guitar
+        </div>
+        <span className="text-slate-300">—</span>
+        {pedals.map((pedal, index) => (
+          <div key={pedal.model_id} className="flex shrink-0 items-center gap-3">
+            <div className="rounded-lg border border-ocean/20 bg-ocean/5 px-4 py-2 text-center">
+              <div className="text-sm font-bold text-ink">{pedal.model_name}</div>
+              <div className="text-xs text-slate-500">{pedal.brand_name}</div>
+              {pedal.pedal_type ? (
+                <div className="mt-1 text-xs capitalize text-ocean">{pedal.pedal_type.replace(/_/g, " ")}</div>
+              ) : null}
+              <div className="mx-auto mt-2 h-2 w-2 rounded-full bg-green-500" />
+            </div>
+            {index < pedals.length - 1 ? <span className="text-slate-300">—</span> : null}
+          </div>
+        ))}
+        <span className="text-slate-300">—</span>
+        <div className="flex shrink-0 items-center gap-2 text-sm font-semibold text-slate-500">
+          <Volume2 className="h-5 w-5" />
+          Amp
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PresetCard({ preset, onRemove }: { preset: Preset; onRemove: (id: string) => void }) {
+  const effects = readPresetEffects(preset);
+  const features = effects.features || [];
+  const isMultiFx = effects.effectsMode === "multi_fx";
+
+  return (
+    <article className="compact-card p-6">
+      <div className="mb-4 flex items-start justify-between">
+        <div>
+          <h3 className="text-xl font-bold">{preset.name}</h3>
+          <p className="text-sm capitalize text-neutral-500">{preset.instrument_type || "gear"} preset</p>
+        </div>
+        <button type="button" className="button-secondary px-3" onClick={() => onRemove(preset.id)} aria-label="Delete preset">
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="grid gap-3 text-base">
+        <div className="flex items-center gap-3 rounded-lg bg-neutral-50 px-4 py-3">
+          <Guitar className="h-5 w-5 text-ink" />
+          {preset.guitar_name || preset.guitar || "Guitar not set"}
+        </div>
+        <div className="flex items-center gap-3 rounded-lg bg-neutral-50 px-4 py-3">
+          {isMultiFx ? <Sparkles className="h-5 w-5 text-ink" /> : <Volume2 className="h-5 w-5 text-ink" />}
+          {preset.amp_name || preset.amp || "Amp not set"}
+        </div>
+      </div>
+      {features.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {features.map((feature) => (
+            <span key={feature} className="rounded-full bg-ocean/10 px-3 py-1 text-xs font-semibold text-ocean">
+              {feature}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </article>
   );
 }
 
@@ -481,47 +727,19 @@ function readPresetEffects(preset: Preset): PresetEffects {
   if (Array.isArray(preset.effects)) {
     return preset.effects[0] || {};
   }
-
   return preset.effects && typeof preset.effects === "object" ? preset.effects : {};
-}
-
-function getPresetCabinet(preset: Preset) {
-  return readPresetEffects(preset).cabinetName || preset.cabinet || "";
-}
-
-function getPresetEffectsMode(preset: Preset) {
-  return readPresetEffects(preset).effectsMode || preset.effectsMode || "manual";
-}
-
-function getPresetSelectedEffect(preset: Preset) {
-  return readPresetEffects(preset).selectedFx || preset.selectedFx || "";
 }
 
 function cleanPickupOverride(value: string) {
   return value && value !== "Stock" ? value : undefined;
 }
 
-function formatPresetCustomPickups(preset: Preset) {
-  const custom = readPresetEffects(preset).customPickups;
-  if (!custom) return "";
-  return [
-    custom.neck ? `Neck: ${custom.neck}` : null,
-    custom.middle ? `Middle: ${custom.middle}` : null,
-    custom.bridge ? `Bridge: ${custom.bridge}` : null
-  ].filter(Boolean).join(" | ");
-}
-
 function selectDefaultCabinet(mode: "guitar" | "bass", cabinets: CatalogEntry[], current?: string) {
   const currentCabinet = cabinets.find((item) => item.name === current);
-  if (currentCabinet) {
-    return currentCabinet.name;
-  }
+  if (currentCabinet) return currentCabinet.name;
 
   const bassCabinet = cabinets.find((item) => /ampeg|darkglass|bass/i.test(`${item.name} ${item.description}`));
-  if (mode === "bass") {
-    return bassCabinet?.name || cabinets[0]?.name || current || "";
-  }
-
+  if (mode === "bass") return bassCabinet?.name || cabinets[0]?.name || current || "";
   return cabinets.find((item) => item.id !== bassCabinet?.id)?.name || cabinets[0]?.name || current || "";
 }
 
