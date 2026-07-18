@@ -29,7 +29,6 @@ import {
   type ToneRequest,
   type ToneType
 } from "@/lib/mock-data";
-import { getAmpMetadata, getInstrumentMetadata } from "@/lib/equipment-metadata";
 import { brand } from "@/lib/brand";
 import { loadClientSubscriptionSnapshot, type ClientSubscriptionSnapshot } from "@/lib/subscription-client";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -251,6 +250,7 @@ export function ToneMatcher() {
   const [gearPresets, setGearPresets] = useState<MatcherGearPreset[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [showAdvancedGear, setShowAdvancedGear] = useState(false);
+  const [showCustomPickups, setShowCustomPickups] = useState(false);
   const [songSuggestions, setSongSuggestions] = useState<SongSuggestion[]>([]);
   const [songSearchOpen, setSongSearchOpen] = useState(false);
   const [songSearchLoading, setSongSearchLoading] = useState(false);
@@ -1183,11 +1183,6 @@ export function ToneMatcher() {
   const savedPedalNames = savedPedalSelections.map(formatGearSelectionName);
   const savedMultiFxSelection = myGearProfile.multifx;
   const savedMultiFxName = savedMultiFxSelection ? formatGearSelectionName(savedMultiFxSelection) : "";
-  const selectedGuitar = currentGuitars.find((item) => item.name === guitar);
-  const selectedAmp = currentAmps.find((item) => item.name === amp);
-  const selectedMultiFx = multiFxCatalog.find((item) => item.name === savedMultiFxName || item.name === multiFx);
-  const instrumentMeta = getInstrumentMetadata(guitar, mode, selectedGuitar);
-  const ampMeta = getAmpMetadata(goingDirect ? savedMultiFxName || multiFx || amp : amp, goingDirect ? selectedMultiFx || selectedAmp : selectedAmp, goingDirect);
   const partChoices = mode === "bass"
     ? partOptions.filter((option) => option.value === "bassline")
     : partOptions.filter((option) => option.value === "riff" || option.value === "solo");
@@ -1444,86 +1439,47 @@ export function ToneMatcher() {
                 </div>
               </div>
 
-              {firstAdaptationOnboarding ? (
-                <div className="rounded-lg border border-white/80 bg-neutral-50 px-4 py-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="text-base font-bold text-ink">Advanced gear details</h3>
-                      <p className="mt-1 text-sm text-slate-600">Custom pickups and pedal details are optional. Your first adaptation will still work without them.</p>
+              {mode === "guitar" && guitar ? (
+                showCustomPickups ? (
+                  <div className="rounded-lg border border-white/80 bg-blue-50/70 p-5">
+                    <div className="mb-4 flex items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-lg font-bold">Custom Pickups</h3>
+                        <p className="mt-1 text-sm text-slate-600">Leave stock positions blank, or override each pickup position independently.</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="text-xs font-bold text-slate-500 hover:text-ink"
+                        onClick={() => {
+                          setNeckPickup("");
+                          setMiddlePickup("");
+                          setBridgePickup("");
+                          setShowCustomPickups(false);
+                        }}
+                      >
+                        Clear &amp; close
+                      </button>
                     </div>
-                    <button type="button" className="button-secondary min-h-10 rounded-lg px-4 text-sm" onClick={() => setShowAdvancedGear((value) => !value)}>
-                      {showAdvancedGear ? "Hide advanced options" : "Add advanced options"}
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              {mode === "guitar" && (!firstAdaptationOnboarding || showAdvancedGear) ? (
-                <div className="rounded-lg border border-white/80 bg-blue-50/70 p-5">
-                  <div className="mb-4 flex items-center justify-between gap-4">
-                    <div>
-                      <h3 className="text-lg font-bold">Custom Pickups</h3>
-                      <p className="mt-1 text-sm text-slate-600">Leave stock positions blank, or override each pickup position independently.</p>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <PickupOverrideSelect label="Neck" value={neckPickup} onChange={setNeckPickup} options={pickupCatalog} />
+                      <PickupOverrideSelect label="Middle" value={middlePickup} onChange={setMiddlePickup} options={pickupCatalog} />
+                      <PickupOverrideSelect label="Bridge" value={bridgePickup} onChange={setBridgePickup} options={pickupCatalog} />
                     </div>
-                    <button
-                      type="button"
-                      className="text-xs font-bold text-slate-500 hover:text-ink"
-                      onClick={() => {
-                        setNeckPickup("");
-                        setMiddlePickup("");
-                        setBridgePickup("");
-                      }}
-                    >
-                      Clear
-                    </button>
                   </div>
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <PickupOverrideSelect label="Neck" value={neckPickup} onChange={setNeckPickup} options={pickupCatalog} />
-                    <PickupOverrideSelect label="Middle" value={middlePickup} onChange={setMiddlePickup} options={pickupCatalog} />
-                    <PickupOverrideSelect label="Bridge" value={bridgePickup} onChange={setBridgePickup} options={pickupCatalog} />
-                  </div>
-                </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-ink"
+                    onClick={() => setShowCustomPickups(true)}
+                  >
+                    <SlidersHorizontal className="h-4 w-4" />
+                    Custom pickups?
+                  </button>
+                )
               ) : null}
-
-              <div>
-                <label className="label flex items-center gap-2 uppercase tracking-[0.16em]">
-                  <BadgeCheck className="h-4 w-4 text-moss" />
-                  Selected gear
-                </label>
-                <div className="mt-4 grid gap-5 lg:grid-cols-2">
-                  <GearSummaryCard icon={<Guitar className="h-8 w-8" />} title={guitar} description={instrumentMeta.description} tags={instrumentMeta.tags} />
-                  <GearSummaryCard icon={<Volume2 className="h-8 w-8" />} title={goingDirect ? savedMultiFxName || "Multi-FX required" : amp} description={ampMeta.description} tags={ampMeta.tags} />
-                </div>
-                <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                  <GearMetadataPanel
-                    title={mode === "bass" ? "Bass metadata" : "Guitar metadata"}
-                    items={[
-                      { label: "Pickup configuration", value: instrumentMeta.pickupConfig || "Stock" },
-                      { label: "Output", value: instrumentMeta.outputLevel || "Medium output" },
-                      { label: "Tone", value: instrumentMeta.toneCharacteristics.join(", ") || "Balanced" }
-                    ]}
-                  />
-                  <GearMetadataPanel
-                    title={goingDirect ? "Direct workflow" : "Amp details"}
-                    items={
-                      goingDirect
-                        ? [
-                            { label: "Device", value: savedMultiFxName || "Add a Multi-FX in My Gear" },
-                            { label: "Mode", value: savedMultiFxName ? "Amp modeling active" : "Waiting for Multi-FX" },
-                            { label: "Note", value: savedMultiFxName ? "Physical amp hidden while going direct" : "Cannot continue until a Multi-FX is selected" }
-                          ]
-                        : [
-                            { label: "Built-in effects", value: ampMeta.features.join(", ") || "Reverb, EQ" },
-                            { label: "Tags", value: ampMeta.tags.join(", ") || "Stage ready" },
-                            { label: "Tone", value: ampMeta.toneCharacteristics.join(", ") || "Flexible" }
-                          ]
-                    }
-                  />
-                </div>
-              </div>
 
               <div className={`border-t border-blue-100 pt-8 ${firstAdaptationOnboarding && !showAdvancedGear ? "hidden" : ""}`}>
-                <h3 className="mb-5 text-xl font-bold">Effects Workflow</h3>
+                <h3 className="mb-5 text-xl font-bold">Select Your Effects (Optional)</h3>
                 <div className="grid rounded-lg border border-white/80 bg-blue-50/80 p-2 shadow-inner md:grid-cols-2">
                   {[
                     ["pedals", "Pedals", SlidersHorizontal],
@@ -1544,6 +1500,12 @@ export function ToneMatcher() {
                       </button>
                     );
                   })}
+                </div>
+
+                <div className="mt-4 rounded-lg border border-moss/40 bg-moss/10 px-4 py-3 text-sm text-ink">
+                  <Info className="mr-2 inline-block h-4 w-4 text-moss" />
+                  <span className="font-semibold">Want to use Multi-FX?</span>{" "}
+                  Add your multi effects unit in <Link href="/gear" className="font-bold text-ocean hover:underline">My Gear &rarr; Multi FX</Link> to get complete presets instead of individual pedals.
                 </div>
 
                 {effectsTab === "pedals" ? (
@@ -1611,41 +1573,17 @@ export function ToneMatcher() {
                   </div>
                 ) : (
                   <div className="mt-6 grid gap-4">
-                    <div className="rounded-lg border border-moss/50 bg-moss/10 px-4 py-3 text-sm font-semibold text-ink">
-                      Want to use Multi-FX? Add your Multi-FX unit in My Gear.
-                    </div>
                     {savedMultiFxName ? (
-                      <>
-                        <GearSummaryCard
-                          icon={<Sparkles className="h-8 w-8" />}
-                          title={savedMultiFxName}
-                          description={goingDirect ? "Saved Multi-FX selected for direct amp modeling." : "Saved Multi-FX selected. It will act as effects until Going Direct is enabled."}
-                          tags={["saved in my gear", goingDirect ? "amp modeling" : "effects only", "multi-fx"].filter(Boolean)}
-                        />
-                        <div className="theme-blue-panel rounded-lg border border-white/80 p-6 shadow-sm">
-                          <h4 className="flex items-center gap-3 text-xl font-bold text-ink">
-                            <Sparkles className="h-5 w-5" />
-                            Multi FX Mode
-                          </h4>
-                          <p className="mt-2 text-slate-600">
-                            {goingDirect
-                              ? `${brand.appName} will use ${savedMultiFxName} for amp modeling, cab simulation, and effects.`
-                              : `${savedMultiFxName} is ready as your saved Multi-FX device. Enable Going Direct when you want it to replace the physical amp.`}
-                          </p>
-                          <div className="mt-4 rounded-lg bg-white/80 p-4 text-sm text-slate-600">
-                            {goingDirect
-                              ? "Your Multi-FX unit handles amp modeling — no physical amp needed."
-                              : "Multi-FX stays synced with My Gear and can be promoted to the amp slot with Going Direct."}
-                          </div>
-                        </div>
-                      </>
+                      <div className="rounded-lg border border-moss/40 bg-moss/10 p-4 text-sm text-ink">
+                        <p className="font-bold">{savedMultiFxName}</p>
+                        <p className="mt-1 text-slate-600">
+                          {goingDirect ? "Handling amp modeling and effects." : "Ready as effects unit. Enable Going Direct for amp modeling."}
+                        </p>
+                      </div>
                     ) : (
-                      <div className="rounded-lg border border-dashed border-blue-200 bg-white/80 p-6">
-                        <label className="label">Search multi-fx...</label>
-                        <div className="mt-2 flex h-12 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-400">
-                          Search multi-fx...
-                        </div>
-                        <p className="mt-4 text-sm text-slate-600">Add a Multi-FX unit in My Gear to enable this workflow.</p>
+                      <div className="rounded-lg border border-dashed border-blue-200 bg-white/80 p-6 text-sm text-slate-700">
+                        <p className="font-bold text-ink">No Multi-FX saved yet.</p>
+                        <p className="mt-2">Add a Multi-FX unit in My Gear to use this workflow.</p>
                         <Link href="/gear" className="button-primary mt-4 inline-flex min-h-10 rounded-lg px-4 text-sm">
                           Add Multi-FX
                         </Link>
@@ -1956,43 +1894,6 @@ function WorkflowCard({ step, title, children }: { step: string; title: string; 
       </header>
       <div className="p-8 lg:p-12">{children}</div>
     </section>
-  );
-}
-
-function GearSummaryCard({ icon, title, description, tags }: { icon: React.ReactNode; title: string; description: string; tags: string[] }) {
-  return (
-    <div className="theme-blue-panel rounded-lg border border-white/80 p-6 shadow-sm">
-      <div className="flex gap-5">
-        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-ink text-moss shadow-lg">{icon}</div>
-        <div className="min-w-0">
-          <h3 className="truncate text-2xl font-bold">{title}</h3>
-          <p className="mt-3 text-base leading-7 text-slate-600">{description}</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {tags.map((tag) => (
-              <span key={tag} className="rounded-md border border-white/80 bg-white/80 px-3 py-1 text-sm font-semibold capitalize text-slate-700">
-                {tag}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function GearMetadataPanel({ title, items }: { title: string; items: Array<{ label: string; value: string }> }) {
-  return (
-    <div className="rounded-lg border border-white/80 bg-white/80 p-5 shadow-sm">
-      <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">{title}</h3>
-      <div className="mt-4 grid gap-3">
-        {items.map((item) => (
-          <div key={`${title}-${item.label}`} className="rounded-lg bg-blue-50/70 px-4 py-3">
-            <div className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">{item.label}</div>
-            <div className="mt-1 text-sm font-semibold text-ink">{item.value}</div>
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 

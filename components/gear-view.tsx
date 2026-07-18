@@ -413,28 +413,30 @@ export function GearView() {
                     </div>
                   </div>
 
-                  <div className="mt-5">
-                    <button
-                      type="button"
-                      className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-ink"
-                      onClick={() => setShowAdvancedSetup((v) => !v)}
-                    >
-                      {showAdvancedSetup ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                      Custom pickups
-                    </button>
-                    {showAdvancedSetup ? (
-                      <div className="mt-4 grid gap-5 rounded-lg border border-blue-100 bg-blue-50/50 p-5 md:grid-cols-2 xl:grid-cols-4">
-                        <Select label="Primary pickup" value={pickup} setValue={setPickup} options={pickups.map((item) => item.name)} />
-                        {presetInstrument === "guitar" ? (
-                          <>
-                            <Select label="Neck override" value={neckPickup} setValue={setNeckPickup} options={["Stock", ...pickups.map((item) => item.name)]} />
-                            <Select label="Middle override" value={middlePickup} setValue={setMiddlePickup} options={["Stock", ...pickups.map((item) => item.name)]} />
-                            <Select label="Bridge override" value={bridgePickup} setValue={setBridgePickup} options={["Stock", ...pickups.map((item) => item.name)]} />
-                          </>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
+                  {guitar ? (
+                    <div className="mt-5">
+                      <button
+                        type="button"
+                        className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-ink"
+                        onClick={() => setShowAdvancedSetup((v) => !v)}
+                      >
+                        {showAdvancedSetup ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        Custom pickups?
+                      </button>
+                      {showAdvancedSetup ? (
+                        <div className="mt-4 grid gap-5 rounded-lg border border-blue-100 bg-blue-50/50 p-5 md:grid-cols-2 xl:grid-cols-4">
+                          <Select label="Primary pickup" value={pickup} setValue={setPickup} options={pickups.map((item) => item.name)} />
+                          {presetInstrument === "guitar" ? (
+                            <>
+                              <Select label="Neck override" value={neckPickup} setValue={setNeckPickup} options={["Stock", ...pickups.map((item) => item.name)]} />
+                              <Select label="Middle override" value={middlePickup} setValue={setMiddlePickup} options={["Stock", ...pickups.map((item) => item.name)]} />
+                              <Select label="Bridge override" value={bridgePickup} setValue={setBridgePickup} options={["Stock", ...pickups.map((item) => item.name)]} />
+                            </>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   <button className="button-primary mt-6 min-h-12 rounded-lg">
                     <Plus className="h-4 w-4" />

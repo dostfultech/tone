@@ -9,7 +9,7 @@ import {
 } from "@/lib/mock-data";
 import { getEntitlement, getCurrentSession } from "@/lib/server-access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { searchEquipmentModels, searchMultiFxModels, searchPedalModels, toCatalogItem, toCatalogResultFromGearSearchItem } from "../../../lib/equipment-service";
+import { searchEquipmentModels, searchMultiFxModels, searchPedalModels, searchPickupModels, toCatalogItem, toCatalogResultFromGearSearchItem } from "../../../lib/equipment-service";
 import { resolveCoreTone, TONE_CORE_MODEL_NAME } from "@/lib/tone-core";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { assertCanCreateAdaptation, recordSuccessfulAdaptationUsage } from "@/lib/usage";
@@ -98,9 +98,21 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return json({ results });
   }
 
+  if (route === "pickups/catalog") {
+    const supabase = await createSupabaseServerClient();
+    const pickups = await searchPickupModels(supabase, { query, limit: 200 });
+    const results = (pickups || []).map((item) => ({
+      id: item.id,
+      name: item.displayName,
+      description: item.description,
+      category: item.category,
+      details: [item.category, ...item.tags].filter(Boolean)
+    }));
+    return json({ results });
+  }
+
   if (
     route === "acoustic-guitars/lookup" ||
-    route === "pickups/catalog" ||
     route === "cabinets/catalog" ||
     route === "effects/catalog"
   ) {

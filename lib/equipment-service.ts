@@ -209,6 +209,66 @@ export async function searchMultiFxModels(
   return rankAndLimitCatalogResults(rows, query, limit).map(toGearSearchCatalogItem);
 }
 
+export async function searchPickupModels(
+  supabase: SupabaseClient | null,
+  options: CatalogSearchOptions = {}
+): Promise<CatalogSearchItem[] | null> {
+  if (!supabase) {
+    return null;
+  }
+
+  const query = normalizeQuery(options.query);
+  const limit = normalizeLimit(options.limit, 200);
+
+  let builder: SupabaseQuery = supabase
+    .from("pickup_models")
+    .select("id, model_name, pickup_type_id, circuit_type, output_level, brightness, search_text, is_active, manufacturer:equipment_manufacturers!manufacturer_id(name, slug)")
+    .eq("is_active", true)
+    .order("model_name", { ascending: true })
+    .limit(limit);
+
+  if (query) {
+    const escaped = escapeLike(query);
+    builder = builder.or(`search_text.ilike.%${escaped}%,model_name.ilike.%${escaped}%`);
+  }
+
+  const { data, error } = await builder;
+  if (error) {
+    return [];
+  }
+
+  const rows = (Array.isArray(data) ? data : []) as RowRecord[];
+  const items: CatalogSearchItem[] = rows.map((row) => {
+    const manufacturer = nestedBrandRecord(row.manufacturer);
+    const brandName = asString(manufacturer?.name, "Unknown");
+    const modelName = asString(row.model_name, "Unknown");
+    const pickupType = asString(row.pickup_type_id);
+    const circuitType = asString(row.circuit_type);
+
+    return {
+      id: asString(row.id),
+      kind: "guitar" as EquipmentTableKind,
+      equipmentType: null,
+      brandId: asString(manufacturer?.slug) || null,
+      brandName,
+      modelName,
+      displayName: `${brandName} ${modelName}`.trim(),
+      category: pickupType,
+      tags: [circuitType],
+      pickupConfiguration: null,
+      ampType: null,
+      pedalType: null,
+      instrumentType: null,
+      priceLow: null,
+      priceHigh: null,
+      usedByArtists: [],
+      description: `${pickupType} | ${circuitType}`
+    };
+  });
+
+  return rankAndLimitCatalogResults(items, query, limit);
+}
+
 export async function listEquipmentBrands(
   supabase: SupabaseClient | null,
   kind: EquipmentTableKind,
