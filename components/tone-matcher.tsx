@@ -296,11 +296,6 @@ export function ToneMatcher() {
       if (!hasAppliedMyGearDefaultsRef.current) {
         if (normalized.guitar && !requestedGuitar) {
           setMode(normalized.guitar.model_category === "bass_guitar" ? "bass" : "guitar");
-          setGuitar(formatGearSelectionName(normalized.guitar));
-        }
-
-        if (normalized.amp && !requestedAmp) {
-          setAmp(formatGearSelectionName(normalized.amp));
         }
 
         hasAppliedMyGearDefaultsRef.current = true;
@@ -1406,7 +1401,7 @@ export function ToneMatcher() {
                       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-sm">
                         <p className="font-bold">Going Direct — Select your Multi-FX below.</p>
                         <p className="mt-2">Want to use Multi-FX? Add your Multi-FX unit in My Gear.</p>
-                        <Link href="/gear" className="button-secondary mt-3 inline-flex min-h-10 rounded-lg px-4 text-sm">
+                        <Link href="/gear?tab=multifx" className="button-secondary mt-3 inline-flex min-h-10 rounded-lg px-4 text-sm">
                           Open My Gear
                         </Link>
                       </div>
@@ -1536,11 +1531,13 @@ export function ToneMatcher() {
                   })}
                 </div>
 
-                <div className="mt-4 rounded-lg border border-moss/40 bg-moss/10 px-4 py-3 text-sm text-ink">
-                  <Info className="mr-2 inline-block h-4 w-4 text-moss" />
-                  <span className="font-semibold">Want to use Multi-FX?</span>{" "}
-                  Add your multi effects unit in <Link href="/gear" className="font-bold text-ocean hover:underline">My Gear &rarr; Multi FX</Link> to get complete presets instead of individual pedals.
-                </div>
+                {!savedMultiFxName && (
+                  <div className="mt-4 rounded-lg border border-moss/40 bg-moss/10 px-4 py-3 text-sm text-ink">
+                    <Info className="mr-2 inline-block h-4 w-4 text-moss" />
+                    <span className="font-semibold">Want to use Multi-FX?</span>{" "}
+                    Add your multi effects unit in <Link href="/gear?tab=multifx" className="font-bold text-ocean hover:underline">My Gear &rarr; Multi FX</Link> to get complete presets instead of individual pedals.
+                  </div>
+                )}
 
                 {effectsTab === "pedals" ? (
                   <div className="mt-6 grid gap-4">
@@ -1599,7 +1596,7 @@ export function ToneMatcher() {
                       <div className="rounded-lg border border-dashed border-blue-200 bg-white/80 p-6 text-sm text-slate-700">
                         <p className="font-bold text-ink">No pedals in your collection yet.</p>
                         <p className="mt-2">Add pedals in My Gear and they&apos;ll appear here automatically.</p>
-                        <Link href="/gear" className="button-primary mt-4 inline-flex min-h-10 rounded-lg px-4 text-sm">
+                        <Link href="/gear?tab=pedals" className="button-primary mt-4 inline-flex min-h-10 rounded-lg px-4 text-sm">
                           Add Pedals
                         </Link>
                       </div>
@@ -1618,7 +1615,7 @@ export function ToneMatcher() {
                       <div className="rounded-lg border border-dashed border-blue-200 bg-white/80 p-6 text-sm text-slate-700">
                         <p className="font-bold text-ink">No Multi-FX saved yet.</p>
                         <p className="mt-2">Add a Multi-FX unit in My Gear to use this workflow.</p>
-                        <Link href="/gear" className="button-primary mt-4 inline-flex min-h-10 rounded-lg px-4 text-sm">
+                        <Link href="/gear?tab=multifx" className="button-primary mt-4 inline-flex min-h-10 rounded-lg px-4 text-sm">
                           Add Multi-FX
                         </Link>
                       </div>

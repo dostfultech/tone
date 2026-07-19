@@ -73,7 +73,13 @@ export function GearView() {
   const [selectedFx, setSelectedFx] = useState("");
   const [useMultiFxInPreset, setUseMultiFxInPreset] = useState(false);
   const [presetFeatures, setPresetFeatures] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<"presets" | "pedals" | "multi_fx" | "catalog">("presets");
+  const [activeTab, setActiveTab] = useState<"presets" | "pedals" | "multi_fx" | "catalog">(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "pedals") return "pedals";
+    if (tab === "multifx" || tab === "multi_fx") return "multi_fx";
+    if (tab === "catalog") return "catalog";
+    return "presets";
+  });
   const [showAdvancedSetup, setShowAdvancedSetup] = useState(false);
   const [showCreatePreset, setShowCreatePreset] = useState(true);
   const [loading, setLoading] = useState(true);
