@@ -634,8 +634,8 @@ export function ToneMatcher() {
             return current === next ? current : next;
           })
       ],
-      ["toneMatch_guitar", (value: string) => setGuitar((current) => (current === value ? current : value))],
-      ["toneMatch_amp", (value: string) => setAmp((current) => (current === value ? current : value))],
+      ["toneMatch_guitar", (_value: string) => {}],
+      ["toneMatch_amp", (_value: string) => {}],
       ["toneMatch_cabinet", (value: string) => setCabinet((current) => (current === value ? current : value))],
       ["toneMatch_pickup", (value: string) => setPickup((current) => (current === value ? current : value))],
       ["toneMatch_neckPickup", (value: string) => setNeckPickup((current) => (current === value ? current : value))],
@@ -904,8 +904,8 @@ export function ToneMatcher() {
         return;
       }
 
-      const storedGuitar = requestedGuitar || localStorage.getItem("toneMatch_guitar") || "";
-      const storedAmp = requestedAmp || localStorage.getItem("toneMatch_amp") || "";
+      const storedGuitar = requestedGuitar || "";
+      const storedAmp = requestedAmp || "";
       const storedCabinet = localStorage.getItem("toneMatch_cabinet") || "";
       const storedPickup = localStorage.getItem("toneMatch_pickup") || "";
       const cachedProfile = readCachedMyGearProfile();
@@ -925,19 +925,19 @@ export function ToneMatcher() {
       setAmp(storedAmp);
 
       if (storedGuitar && guitarsResponse.length && storedMode !== "bass" && !guitarsResponse.some((item) => item.name === storedGuitar)) {
-        setGuitar(guitarsResponse[0].name);
+        setGuitar("");
       }
 
       if (storedGuitar && bassGuitarsResponse.length && storedMode === "bass" && !bassGuitarsResponse.some((item) => item.name === storedGuitar)) {
-        setGuitar(bassGuitarsResponse[0].name);
+        setGuitar("");
       }
 
       if (storedAmp && ampsResponse.length && storedMode !== "bass" && !ampsResponse.some((item) => item.name === storedAmp)) {
-        setAmp(ampsResponse[0].name);
+        setAmp("");
       }
 
       if (storedAmp && bassAmpsResponse.length && storedMode === "bass" && !bassAmpsResponse.some((item) => item.name === storedAmp)) {
-        setAmp(bassAmpsResponse[0].name);
+        setAmp("");
       }
 
       if (storedCabinet && cabinetsResponse.length && !cabinetsResponse.some((item) => item.name === storedCabinet)) {
@@ -1016,13 +1016,6 @@ export function ToneMatcher() {
     if (!gearPresets.length || selectedPresetId || autoAdaptTriggeredRef.current) {
       return;
     }
-
-    const compatiblePreset = selectCompatibleGearPreset(gearPresets, mode);
-    if (!compatiblePreset) {
-      return;
-    }
-
-    applyGearPreset(compatiblePreset);
   }, [applyGearPreset, gearPresets, mode, selectedPresetId]);
 
   useEffect(() => {
@@ -1481,22 +1474,32 @@ export function ToneMatcher() {
                         </div>
                       </div>
                     ) : null}
-                    {selectedAmpItem ? (
-                      <div className="flex items-start gap-4 rounded-lg border border-white/80 bg-white/80 p-4 shadow-sm">
-                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-ocean text-white">
-                          <Volume2 className="h-5 w-5" />
-                        </div>
-                        <div className="min-w-0">
-                          <h4 className="font-bold text-ink">{selectedAmpItem.name}</h4>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {selectedAmpItem.tags.slice(0, 4).map((tag) => (
-                              <span key={tag} className="rounded-md border border-ocean/20 bg-ocean/10 px-2 py-0.5 text-xs font-semibold text-ocean">{tag}</span>
-                            ))}
-                            {selectedAmpItem.ampType ? <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">{selectedAmpItem.ampType}</span> : null}
+                    {selectedAmpItem ? (() => {
+                      const builtInEffects = getAmpBuiltInEffects(selectedAmpItem.name);
+                      return (
+                        <div className="flex items-start gap-4 rounded-lg border border-white/80 bg-white/80 p-4 shadow-sm">
+                          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-ocean text-white">
+                            <Volume2 className="h-5 w-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-ink">{selectedAmpItem.name}</h4>
+                            {builtInEffects.length > 0 ? (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {builtInEffects.map((effect) => (
+                                  <span key={effect} className="rounded-md border border-ocean/30 bg-ocean/10 px-2 py-0.5 text-xs font-semibold text-ocean">{effect}</span>
+                                ))}
+                              </div>
+                            ) : null}
+                            <div className={`${builtInEffects.length > 0 ? "mt-1.5" : "mt-2"} flex flex-wrap gap-2`}>
+                              {selectedAmpItem.tags.slice(0, 4).map((tag) => (
+                                <span key={tag} className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">{tag}</span>
+                              ))}
+                              {selectedAmpItem.ampType ? <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">{selectedAmpItem.ampType}</span> : null}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ) : null}
+                      );
+                    })() : null}
                   </div>
                 </div>
               ) : null}
@@ -2027,6 +2030,77 @@ function SearchableOptionFallback({
       </datalist>
     </div>
   );
+}
+
+function getAmpBuiltInEffects(ampName: string): string[] {
+  const lower = ampName.toLowerCase();
+  const effects: string[] = [];
+
+  const modelingAmps = [
+    "katana", "mustang", "spark", "id:core", "idcore", "code", "catalyst",
+    "spider", "vt40x", "vt20x", "vt100x", "valvetronix", "thrii", "thr",
+    "pathfinder", "adio", "mighty", "micro dark", "positive grid"
+  ];
+
+  const isModeling = modelingAmps.some((keyword) => lower.includes(keyword));
+
+  if (isModeling) {
+    effects.push("Reverb", "Delay", "Chorus", "Presets");
+    return effects;
+  }
+
+  const hasReverb =
+    lower.includes("reverb") ||
+    lower.includes("twin") ||
+    lower.includes("deluxe") ||
+    lower.includes("princeton") ||
+    lower.includes("blues junior") ||
+    lower.includes("blues jr") ||
+    lower.includes("hot rod") ||
+    lower.includes("champion") ||
+    lower.includes("frontman") ||
+    lower.includes("ac15") ||
+    lower.includes("ac30") ||
+    lower.includes("ht-20") ||
+    lower.includes("ht-5") ||
+    lower.includes("ht-1") ||
+    lower.includes("ht club") ||
+    lower.includes("dsl") ||
+    lower.includes("origin") ||
+    lower.includes("crush") ||
+    lower.includes("rumble");
+
+  if (hasReverb) effects.push("Reverb");
+
+  const hasDelay = lower.includes("champion") && !lower.includes("champion 20");
+  if (hasDelay) effects.push("Delay");
+
+  const hasChorus =
+    lower.includes("champion") ||
+    lower.includes("jazz chorus") ||
+    lower.includes("jc-");
+  if (hasChorus) effects.push("Chorus");
+
+  const hasModes =
+    lower.includes("crush") ||
+    lower.includes("dsl") ||
+    lower.includes("origin") ||
+    lower.includes("ht-") ||
+    lower.includes("ht club") ||
+    lower.includes("6505") ||
+    lower.includes("dual rec") ||
+    lower.includes("rectifier");
+
+  if (hasModes) {
+    const modes: string[] = [];
+    if (lower.includes("crush") || lower.includes("origin")) modes.push("Clean", "Dirty");
+    else if (lower.includes("dsl")) modes.push("Clean", "Crunch", "Lead");
+    else if (lower.includes("6505") || lower.includes("rectifier") || lower.includes("dual rec")) modes.push("Clean", "Lead");
+    else if (lower.includes("ht-") || lower.includes("ht club")) modes.push("Clean", "Overdrive");
+    if (modes.length) effects.push(`Modes: ${modes.join(", ")}`);
+  }
+
+  return effects;
 }
 
 function toSelectedGearItems(value: string, category: string): GearSearchItem[] {
