@@ -874,10 +874,10 @@ export function ToneMatcher() {
         return;
       }
 
-      const storedGuitar = requestedGuitar || localStorage.getItem("toneMatch_guitar") || "Fender Stratocaster";
-      const storedAmp = requestedAmp || localStorage.getItem("toneMatch_amp") || "Boss Katana Artist";
-      const storedCabinet = localStorage.getItem("toneMatch_cabinet") || "Mesa/Boogie Rectifier 4x12";
-      const storedPickup = localStorage.getItem("toneMatch_pickup") || "Vintage Single Coil";
+      const storedGuitar = requestedGuitar || localStorage.getItem("toneMatch_guitar") || "";
+      const storedAmp = requestedAmp || localStorage.getItem("toneMatch_amp") || "";
+      const storedCabinet = localStorage.getItem("toneMatch_cabinet") || "";
+      const storedPickup = localStorage.getItem("toneMatch_pickup") || "";
       const cachedProfile = readCachedMyGearProfile();
       const storedSelectedFx = cachedProfile.pedals.length ? formatGearSelectionName(cachedProfile.pedals[0]) : localStorage.getItem("toneMatch_selectedEffects") || "";
       const storedMultiFx = cachedProfile.multifx ? formatGearSelectionName(cachedProfile.multifx) : localStorage.getItem("toneMatch_multiFx") || "";
@@ -894,27 +894,27 @@ export function ToneMatcher() {
       setGuitar(storedGuitar);
       setAmp(storedAmp);
 
-      if (guitarsResponse.length && storedMode !== "bass" && !guitarsResponse.some((item) => item.name === storedGuitar)) {
+      if (storedGuitar && guitarsResponse.length && storedMode !== "bass" && !guitarsResponse.some((item) => item.name === storedGuitar)) {
         setGuitar(guitarsResponse[0].name);
       }
 
-      if (bassGuitarsResponse.length && storedMode === "bass" && !bassGuitarsResponse.some((item) => item.name === storedGuitar)) {
+      if (storedGuitar && bassGuitarsResponse.length && storedMode === "bass" && !bassGuitarsResponse.some((item) => item.name === storedGuitar)) {
         setGuitar(bassGuitarsResponse[0].name);
       }
 
-      if (ampsResponse.length && storedMode !== "bass" && !ampsResponse.some((item) => item.name === storedAmp)) {
+      if (storedAmp && ampsResponse.length && storedMode !== "bass" && !ampsResponse.some((item) => item.name === storedAmp)) {
         setAmp(ampsResponse[0].name);
       }
 
-      if (bassAmpsResponse.length && storedMode === "bass" && !bassAmpsResponse.some((item) => item.name === storedAmp)) {
+      if (storedAmp && bassAmpsResponse.length && storedMode === "bass" && !bassAmpsResponse.some((item) => item.name === storedAmp)) {
         setAmp(bassAmpsResponse[0].name);
       }
 
-      if (cabinetsResponse.length && !cabinetsResponse.some((item) => item.name === storedCabinet)) {
+      if (storedCabinet && cabinetsResponse.length && !cabinetsResponse.some((item) => item.name === storedCabinet)) {
         setCabinet(cabinetsResponse[0].name);
       }
 
-      if (pickupsResponse.length && !pickupsResponse.some((item) => item.name === storedPickup)) {
+      if (storedPickup && pickupsResponse.length && !pickupsResponse.some((item) => item.name === storedPickup)) {
         setPickup(pickupsResponse[0].name);
       }
 
@@ -1238,15 +1238,15 @@ export function ToneMatcher() {
                   onClick={() => {
                     setMode(item.value as "guitar" | "bass");
                     if (item.value === "bass") {
-                      setGuitar(bassGuitarCatalog[0]?.name || "Fender Precision Bass");
-                      setAmp(bassAmpCatalog[0]?.name || "Ampeg SVT-CL");
-                      setCabinet(cabinetCatalog.find((item) => item.name.includes("Ampeg"))?.name || "Ampeg SVT-410HLF");
+                      setGuitar("");
+                      setAmp("");
+                      setCabinet("");
                       setPartType("bassline");
                       setToneType("bass_clean");
                     } else {
-                      setGuitar(guitarCatalog[0]?.name || "Fender Stratocaster");
-                      setAmp(ampCatalog[0]?.name || "Boss Katana Artist");
-                      setCabinet(cabinetCatalog.find((item) => !item.name.includes("Ampeg") && !item.name.includes("Darkglass"))?.name || "Mesa/Boogie Rectifier 4x12");
+                      setGuitar("");
+                      setAmp("");
+                      setCabinet("");
                       setPartType((current) => current === "solo" ? "solo" : "riff");
                       setToneType("auto");
                     }
@@ -1367,7 +1367,7 @@ export function ToneMatcher() {
                 <div>
                   <SearchableGearDropdown
                     label={mode === "bass" ? "Bass archetype" : "Guitar archetype"}
-                    placeholder={mode === "bass" ? "Search bass..." : "Search guitar..."}
+                    placeholder={mode === "bass" ? "Select bass..." : "Select guitar..."}
                     endpoint={guitarSearchEndpoint}
                     selectedItems={toSelectedGearItems(guitar, mode === "bass" ? "bass" : "guitar")}
                     onSelect={(item) => setGuitar(item.name)}
@@ -1424,7 +1424,7 @@ export function ToneMatcher() {
                   ) : (
                     <SearchableGearDropdown
                       label="Amplifier"
-                      placeholder="Search amplifier..."
+                      placeholder="Select amp..."
                       endpoint={ampSearchEndpoint}
                       selectedItems={toSelectedGearItems(amp, "amp")}
                       onSelect={(item) => setAmp(item.name)}

@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Check, ChevronDown, ChevronUp, Cpu, Guitar, Loader2, Plus, SlidersHorizontal, Sparkles, Trash2, Volume2, Waves, X } from "lucide-react";
-import { MyGearSelectors } from "@/components/my-gear-selectors";
 import { PedalSelectorModal } from "@/components/pedal-selector-modal";
 import { SearchableGearDropdown } from "@/components/searchable-gear-dropdown";
 import { OnboardingProgress } from "@/components/onboarding-progress";
@@ -125,12 +124,7 @@ export function GearView() {
       setMultiFxUnits(multiFxResponse);
       setPresets(presetResponse.error ? [] : presetResponse.data || []);
 
-      setGuitar((current) => current || electricResponse[0]?.name || bassResponse[0]?.name || "");
-      setAmp((current) => current || guitarAmpResponse[0]?.name || bassAmpResponse[0]?.name || "");
-      setPickup((current) => current || pickupResponse[0]?.name || "");
       setCabinet((current) => current || selectDefaultCabinet("guitar", cabinetResponse));
-      setMultiFx((current) => current || multiFxResponse[0]?.name || "");
-      setSelectedFx((current) => current || pedalResponse[0]?.name || effectResponse[0]?.name || "");
       setLoading(false);
     }
 
@@ -139,14 +133,26 @@ export function GearView() {
 
   useEffect(() => {
     if (presetInstrument === "bass") {
-      setGuitar((current) => bassGuitars.find((item) => item.name === current)?.name || bassGuitars[0]?.name || current);
-      setAmp((current) => bassAmps.find((item) => item.name === current)?.name || bassAmps[0]?.name || current);
+      setGuitar((current) => {
+        if (!current) return "";
+        return bassGuitars.find((item) => item.name === current)?.name || "";
+      });
+      setAmp((current) => {
+        if (!current) return "";
+        return bassAmps.find((item) => item.name === current)?.name || "";
+      });
       setCabinet((current) => selectDefaultCabinet("bass", cabinets, current));
       return;
     }
 
-    setGuitar((current) => electricGuitars.find((item) => item.name === current)?.name || electricGuitars[0]?.name || current);
-    setAmp((current) => guitarAmps.find((item) => item.name === current)?.name || guitarAmps[0]?.name || current);
+    setGuitar((current) => {
+      if (!current) return "";
+      return electricGuitars.find((item) => item.name === current)?.name || "";
+    });
+    setAmp((current) => {
+      if (!current) return "";
+      return guitarAmps.find((item) => item.name === current)?.name || "";
+    });
     setCabinet((current) => selectDefaultCabinet("guitar", cabinets, current));
   }, [bassAmps, bassGuitars, cabinets, electricGuitars, guitarAmps, presetInstrument]);
 
@@ -308,18 +314,6 @@ export function GearView() {
         {/* ─── PRESETS TAB ─── */}
         {activeTab === "presets" || onboardingMode ? (
           <div className="grid gap-10">
-            <MyGearSelectors
-              profile={gearProfile.profile}
-              loading={gearProfile.loading}
-              saving={gearProfile.saving}
-              status={gearProfile.status}
-              userId={gearProfile.userId}
-              setSingleSelection={gearProfile.setSingleSelection}
-              addPedal={gearProfile.addPedal}
-              removeSingleSelection={gearProfile.removeSingleSelection}
-              removePedal={gearProfile.removePedal}
-            />
-
             <div className="compact-card overflow-hidden">
               <button
                 type="button"
