@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Check, ChevronDown, ChevronUp, Cpu, Guitar, Loader2, Plus, SlidersHorizontal, Sparkles, Trash2, Volume2, Waves, X } from "lucide-react";
 import { PedalSelectorModal } from "@/components/pedal-selector-modal";
@@ -356,7 +356,13 @@ export function GearView() {
                         <input id="preset-name" className="field mt-2 h-12" value={name} onChange={(event) => setName(event.target.value)} required placeholder="e.g. My Main Rig" />
                       </div>
                     ) : null}
-                    <Select label={presetInstrument === "bass" ? "Bass" : "Guitar"} value={guitar} setValue={setGuitar} options={currentGuitars.map((item) => item.name)} />
+                    <SearchSelect
+                      label={presetInstrument === "bass" ? "Bass" : "Guitar"}
+                      placeholder={presetInstrument === "bass" ? "Select bass..." : "Select guitar..."}
+                      value={guitar}
+                      setValue={setGuitar}
+                      options={currentGuitars}
+                    />
 
                     {useMultiFxInPreset ? (
                       <div>
@@ -378,9 +384,13 @@ export function GearView() {
                             Use Multi-FX instead
                           </button>
                         </div>
-                        <select className="field mt-2 h-12" value={amp} onChange={(e) => setAmp(e.target.value)}>
-                          {currentAmps.length ? currentAmps.map((item) => <option key={item.name}>{item.name}</option>) : <option>{amp || "Loading..."}</option>}
-                        </select>
+                        <SearchSelect
+                          placeholder="Select amp..."
+                          value={amp}
+                          setValue={setAmp}
+                          options={currentAmps}
+                          hideLabel
+                        />
                       </div>
                     )}
                   </div>
@@ -715,6 +725,71 @@ function Select({ label, value, setValue, options }: { label: string; value: str
           <option value={value || ""}>{value || "Loading options..."}</option>
         )}
       </select>
+    </div>
+  );
+}
+
+function SearchSelect({ label, placeholder, value, setValue, options, hideLabel }: { label?: string; placeholder: string; value: string; setValue: (value: string) => void; options: CatalogEntry[]; hideLabel?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState("");
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    function handleOutsideClick(event: MouseEvent) {
+      if (rootRef.current && event.target instanceof Node && !rootRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  const filtered = filter
+    ? options.filter((item) => item.name.toLowerCase().includes(filter.toLowerCase()))
+    : options;
+
+  return (
+    <div ref={rootRef} className="relative">
+      {label && !hideLabel ? <label className="label">{label}</label> : null}
+      <button
+        type="button"
+        className={`${label && !hideLabel ? "mt-2 " : ""}flex min-h-12 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 text-left text-sm font-semibold shadow-sm transition hover:border-ocean/50`}
+        onClick={() => { setOpen((v) => !v); setFilter(""); window.setTimeout(() => inputRef.current?.focus(), 0); }}
+      >
+        <span className={value ? "text-slate-900" : "text-slate-400"}>{value || placeholder}</span>
+        <ChevronDown className={`h-4 w-4 text-slate-400 transition ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open ? (
+        <div className="absolute left-0 right-0 z-40 mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+          <div className="border-b border-slate-100 p-2">
+            <input
+              ref={inputRef}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder={placeholder}
+              className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-ocean"
+            />
+          </div>
+          <div className="max-h-60 overflow-y-auto p-1">
+            {filtered.length ? filtered.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
+                  item.name === value ? "bg-ocean/10 font-bold text-ink" : "text-slate-700 hover:bg-slate-50"
+                }`}
+                onClick={() => { setValue(item.name); setOpen(false); setFilter(""); }}
+              >
+                <span>{item.name}</span>
+                {item.name === value ? <Check className="h-4 w-4 text-ocean" /> : null}
+              </button>
+            )) : (
+              <div className="px-3 py-4 text-sm text-slate-400">No results found</div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

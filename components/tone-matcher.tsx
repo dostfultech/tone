@@ -228,10 +228,12 @@ export function ToneMatcher() {
   const [part, setPart] = useState("");
   const [partType, setPartType] = useState<TonePartType>("riff");
   const [toneType, setToneType] = useState<ToneType>("auto");
-  const [guitar, setGuitar] = useState("Fender Stratocaster");
-  const [amp, setAmp] = useState("Boss Katana Artist");
-  const [cabinet, setCabinet] = useState("Mesa/Boogie Rectifier 4x12");
-  const [pickup, setPickup] = useState("Vintage Single Coil");
+  const [guitar, setGuitar] = useState("");
+  const [amp, setAmp] = useState("");
+  const [cabinet, setCabinet] = useState("");
+  const [pickup, setPickup] = useState("");
+  const [selectedGuitarItem, setSelectedGuitarItem] = useState<GearSearchItem | null>(null);
+  const [selectedAmpItem, setSelectedAmpItem] = useState<GearSearchItem | null>(null);
   const [neckPickup, setNeckPickup] = useState("");
   const [middlePickup, setMiddlePickup] = useState("");
   const [bridgePickup, setBridgePickup] = useState("");
@@ -996,22 +998,6 @@ export function ToneMatcher() {
   }, [applyGearPreset, gearPresets, mode, selectedPresetId]);
 
   useEffect(() => {
-    if (currentGuitars.length && !currentGuitars.some((item) => item.name === guitar)) {
-      setGuitar(currentGuitars[0].name);
-    }
-
-    if (currentAmps.length && !currentAmps.some((item) => item.name === amp)) {
-      setAmp(currentAmps[0].name);
-    }
-
-    if (cabinetCatalog.length && !cabinetCatalog.some((item) => item.name === cabinet)) {
-      setCabinet(cabinetCatalog[0].name);
-    }
-
-    if (pickupCatalog.length && !pickupCatalog.some((item) => item.name === pickup)) {
-      setPickup(pickupCatalog[0].name);
-    }
-
     if (selectedFx && pedalCatalog.length && !pedalCatalog.some((item) => item.name === selectedFx)) {
       const nextSelectedFx = resolveCatalogSelection(selectedFx, pedalCatalog, pedalCatalog[0].name);
       setSelectedFx((current) => (current === nextSelectedFx ? current : nextSelectedFx));
@@ -1020,7 +1006,7 @@ export function ToneMatcher() {
     if (multiFx && multiFxCatalog.length && !multiFxCatalog.some((item) => item.name === multiFx)) {
       setMultiFx(multiFxCatalog[0].name);
     }
-  }, [amp, cabinet, cabinetCatalog, currentAmps, currentGuitars, guitar, multiFx, multiFxCatalog, pedalCatalog, pickup, pickupCatalog, selectedFx]);
+  }, [multiFx, multiFxCatalog, pedalCatalog, selectedFx]);
 
   useEffect(() => {
     if (mode === "bass") {
@@ -1241,12 +1227,16 @@ export function ToneMatcher() {
                       setGuitar("");
                       setAmp("");
                       setCabinet("");
+                      setSelectedGuitarItem(null);
+                      setSelectedAmpItem(null);
                       setPartType("bassline");
                       setToneType("bass_clean");
                     } else {
                       setGuitar("");
                       setAmp("");
                       setCabinet("");
+                      setSelectedGuitarItem(null);
+                      setSelectedAmpItem(null);
                       setPartType((current) => current === "solo" ? "solo" : "riff");
                       setToneType("auto");
                     }
@@ -1370,7 +1360,7 @@ export function ToneMatcher() {
                     placeholder={mode === "bass" ? "Select bass..." : "Select guitar..."}
                     endpoint={guitarSearchEndpoint}
                     selectedItems={toSelectedGearItems(guitar, mode === "bass" ? "bass" : "guitar")}
-                    onSelect={(item) => setGuitar(item.name)}
+                    onSelect={(item) => { setGuitar(item.name); setSelectedGuitarItem(item); }}
                     requestType={mode === "bass" ? "Bass" : "Guitar"}
                     limit={300}
                   />
@@ -1427,7 +1417,7 @@ export function ToneMatcher() {
                       placeholder="Select amp..."
                       endpoint={ampSearchEndpoint}
                       selectedItems={toSelectedGearItems(amp, "amp")}
-                      onSelect={(item) => setAmp(item.name)}
+                      onSelect={(item) => { setAmp(item.name); setSelectedAmpItem(item); }}
                       requestType={mode === "bass" ? "Bass Amp" : "Guitar Amp"}
                       limit={300}
                       hideLabel
@@ -1438,6 +1428,50 @@ export function ToneMatcher() {
                   </Link>
                 </div>
               </div>
+
+              {(selectedGuitarItem || selectedAmpItem) ? (
+                <div className="mt-2">
+                  <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.12em] text-slate-500">
+                    <BadgeCheck className="h-4 w-4 text-moss" />
+                    Selected Gear
+                  </div>
+                  <div className="mt-3 grid gap-3">
+                    {selectedGuitarItem ? (
+                      <div className="flex items-start gap-4 rounded-lg border border-white/80 bg-white/80 p-4 shadow-sm">
+                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-ocean text-white">
+                          <Guitar className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-ink">{selectedGuitarItem.name}</h4>
+                          {selectedGuitarItem.description ? <p className="mt-1 text-sm text-slate-600">{selectedGuitarItem.description}</p> : null}
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {selectedGuitarItem.pickupConfiguration ? <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">{selectedGuitarItem.pickupConfiguration}</span> : null}
+                            {selectedGuitarItem.tags.slice(0, 3).map((tag) => (
+                              <span key={tag} className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">{tag}</span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                    {selectedAmpItem ? (
+                      <div className="flex items-start gap-4 rounded-lg border border-white/80 bg-white/80 p-4 shadow-sm">
+                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-ocean text-white">
+                          <Volume2 className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-ink">{selectedAmpItem.name}</h4>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {selectedAmpItem.tags.slice(0, 4).map((tag) => (
+                              <span key={tag} className="rounded-md border border-ocean/20 bg-ocean/10 px-2 py-0.5 text-xs font-semibold text-ocean">{tag}</span>
+                            ))}
+                            {selectedAmpItem.ampType ? <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">{selectedAmpItem.ampType}</span> : null}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
 
               {mode === "guitar" && guitar ? (
                 showCustomPickups ? (
