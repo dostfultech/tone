@@ -2,6 +2,7 @@ import type { NormalizedToneAdaptationRequest, ToneAdaptationLogSummary, ToneAda
 import { elapsedMs, nowMs, type ToneBackendLogger, consoleToneBackendLogger } from "../logging";
 import type { GeneratedToneCacheKey } from "../cache-key";
 import type { RuleEngineService } from "./rule-engine-service";
+import { buildTonePresentation } from "./presentation-service";
 import type { LoadedGearContext, LoadedMasterToneContext, LoadedToneRequestContext, ToneCacheRecord, ToneCacheWriteInput } from "../types";
 import { isToneBackendError } from "../errors";
 
@@ -329,8 +330,11 @@ export class ToneService {
         ? recordValue(result.metadata?.initialSettings)
         : context.masterTone.masterTone.settings;
 
+    const presentation = buildTonePresentation(request, context, result);
+
     return {
       ...result,
+      presentation,
       metadata: {
         ...(result.metadata ?? {}),
         storageFormatVersion: "tone-cache-v3",

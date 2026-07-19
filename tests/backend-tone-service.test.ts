@@ -118,7 +118,7 @@ test("cache key changes when pickup position, pedal order, or direct device chan
 test("cache request signature is stable valid JSON", () => {
   const parsed = JSON.parse(generateToneCacheKey(toCacheIdentity(loadedContext())).requestSignature) as Record<string, unknown>;
 
-  assert.equal(parsed.schemaVersion, 3);
+  assert.equal(parsed.schemaVersion, 4);
   assert.equal(parsed.song, "Example Song");
 });
 
@@ -264,6 +264,7 @@ function createHarness(options: {
     service,
     request: {
       requestId: "request-1",
+      requestSource: "manual_generate" as const,
       song: "Example Song",
       artist: "Example Artist",
       part: "Riff",

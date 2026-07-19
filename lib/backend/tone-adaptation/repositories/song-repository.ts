@@ -178,7 +178,7 @@ export class SupabaseSongRepository implements SongRepository {
     const { data, error } = await this.supabase
       .from("song_tone_profiles")
       .select(
-        "id, song_id, song_title, artist_name, mode, part_type, part_label, tone_type, original_guitar, original_amp, original_cab, original_pickup, original_settings, confidence, updated_at, tone_profile_effects(effect_name)"
+        "id, song_id, song_title, artist_name, mode, part_type, part_label, tone_type, genre, difficulty, original_guitar, original_amp, original_cab, original_pickup, original_settings, original_effects, playing_notes, adaptation_notes, source_summary, confidence, updated_at, tone_profile_effects(effect_order, effect_type, effect_name, placement, settings), tone_profile_sources(source_type, title, url)"
       )
       .eq("is_public", true)
       .eq("mode", request.mode)
@@ -263,7 +263,24 @@ function mapLegacyToneProfileRow(
   const partType = stringField(row, "part_type") || request.partType || "main";
   const toneType = normalizeLegacyToneType(stringField(row, "tone_type"));
 
+  const originalEffects = mapOriginalEffects(row.original_effects, row.tone_profile_effects);
+  const original: NonNullable<LoadedMasterToneContext["original"]> = {
+    guitar: stringField(row, "original_guitar") || null,
+    pickup: stringField(row, "original_pickup") || null,
+    amp: stringField(row, "original_amp") || null,
+    cab: stringField(row, "original_cab") || null,
+    notes: stringField(row, "source_summary") || null,
+    settings: numericRecord(originalSettings),
+    effects: originalEffects,
+    playingNotes: stringArray(row.playing_notes),
+    adaptationNotes: stringArray(row.adaptation_notes),
+    sources: mapProfileSources(row.tone_profile_sources),
+    difficulty: stringField(row, "difficulty") || null,
+    genre: stringField(row, "genre") || null
+  };
+
   return {
+    original,
     masterTone: {
       id: stringField(row, "id"),
       songId: stringField(row, "song_id") || stringField(row, "id"),
@@ -371,4 +388,89 @@ function relationValues(value: unknown, key: string) {
   return list
     .map((entry) => (entry && typeof entry === "object" && !Array.isArray(entry) ? (entry as Record<string, unknown>)[key] : null))
     .filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+}
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
+}
+
+function numericRecord(value: Record<string, unknown>): Record<string, number> {
+  return Object.entries(value).reduce<Record<string, number>>((accumulator, [key, entry]) => {
+    const numeric = numberValue(entry);
+    if (typeof numeric === "number") {
+      accumulator[key] = numeric;
+    }
+    return accumulator;
+  }, {});
+}
+
+function mapOriginalEffects(originalEffects: unknown, relationEffects: unknown) {
+  const fromColumn = Array.isArray(originalEffects) ? originalEffects : [];
+  const mappedColumn = fromColumn
+    .map((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        return null;
+      }
+      const record = entry as Record<string, unknown>;
+      const type = stringField(record, "effect_type") || stringField(record, "type");
+      const name = stringField(record, "effect_name") || stringField(record, "name");
+      if (!type && !name) {
+        return null;
+      }
+      return {
+        type: type || "effect",
+        name: name || type || "effect",
+        placement: stringField(record, "placement") || null,
+        settings: numericRecord(recordField(record, "settings"))
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
+  if (mappedColumn.length) {
+    return mappedColumn;
+  }
+
+  const fromRelation = Array.isArray(relationEffects) ? relationEffects : [];
+  return fromRelation
+    .map((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        return null;
+      }
+      const record = entry as Record<string, unknown>;
+      const name = stringField(record, "effect_name");
+      if (!name) {
+        return null;
+      }
+      return {
+        type: stringField(record, "effect_type") || "effect",
+        name,
+        placement: stringField(record, "placement") || null,
+        settings: numericRecord(recordField(record, "settings"))
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+}
+
+function mapProfileSources(value: unknown) {
+  const list = Array.isArray(value) ? value : [];
+  return list
+    .map((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        return null;
+      }
+      const record = entry as Record<string, unknown>;
+      const title = stringField(record, "title");
+      if (!title) {
+        return null;
+      }
+      return {
+        type: stringField(record, "source_type") || "internal_seed",
+        title,
+        url: stringField(record, "url") || null
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
 }

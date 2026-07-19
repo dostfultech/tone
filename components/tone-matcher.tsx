@@ -55,6 +55,37 @@ import {
   type MyGearProfile
 } from "@/lib/my-gear";
 
+type TonePresentationDto = {
+  original: {
+    song: string;
+    artist: string;
+    partLabel: string;
+    toneType: string;
+    genre: string | null;
+    difficulty: { level: string; description: string } | null;
+    gear: { guitar: string | null; pickups: string | null; amp: string | null; cab: string | null };
+    notes: string | null;
+    settings: Record<string, number>;
+    guitarControls: { volume: number; tone: number };
+    signalChainText: string | null;
+    pedalsUsed: Array<{ name: string; type: string; importance: string; role: string }>;
+    ampEffects: Array<{ effect: string; level: number }>;
+    sources: Array<{ type: string; title: string; url: string | null }>;
+  };
+  adapted: {
+    gearSummary: string;
+    pickupChoice: { recommendation: string; reason: string } | null;
+    ampConfiguration: { recommendedPreset: string; reason: string } | null;
+    settings: Record<string, number>;
+    guitarControls: { volume: number; tone: number };
+    signalChain: string[];
+    ampEffectsSettings: Array<{ effect: string; level: number | null; note: string }>;
+    missingEffects: Array<{ name: string; type: string; importance: string; description: string; substitution: string | null }>;
+    playingNotes: string[];
+  };
+  confidence: { score: number; factors: string[] };
+};
+
 type ToneResult = {
   id: string;
   toneResultId?: string | null;
@@ -66,6 +97,7 @@ type ToneResult = {
   pickupAdvice: string;
   effects: string[];
   playingTips: string[];
+  presentation?: TonePresentationDto | null;
   sourceProfile?: {
     id: string;
     partType: TonePartType;
@@ -86,6 +118,7 @@ type ToneBackendApiResponse = {
     multifxParameters: Record<string, number | string | boolean>;
     notes: string[];
     warnings: string[];
+    presentation?: TonePresentationDto | null;
     metadata?: Record<string, unknown>;
   };
   source: {
@@ -2211,17 +2244,23 @@ function mapToneAdaptationApiResponse(payload: ToneRequest, response: ToneBacken
       ? `Adapted around ${pickupNames.join(", ")}. Start there, then fine-tune gain and presence by ear on your rig.`
       : "Use your selected pickup position first, then fine-tune gain and treble by ear on your rig.";
 
+  const presentation = response.result.presentation || null;
+
   return {
     id: response.requestId,
     toneResultId: response.tracking?.toneResultId || null,
     request: payload,
-    accuracy: response.masterTone.confidence,
+    accuracy: presentation?.confidence?.score ?? response.masterTone.confidence,
     originalRig: `${response.masterTone.song} by ${response.masterTone.artist}`,
     originalSettings,
     targetSettings,
     pickupAdvice,
     effects: response.result.effectsChain || [],
-    playingTips: [...(response.result.notes || []), ...(response.result.warnings || [])].slice(0, 6),
+    playingTips:
+      presentation?.adapted?.playingNotes?.length
+        ? presentation.adapted.playingNotes
+        : [...(response.result.notes || []), ...(response.result.warnings || [])].slice(0, 6),
+    presentation,
     sourceProfile: {
       id: response.masterTone.id,
       partType: normalizePartType(response.masterTone.partType, response.masterTone.part),
@@ -2382,7 +2421,7 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => Pro
           <div>
             <div className="inline-flex items-center gap-2 rounded-md bg-moss px-3 py-1 text-xs font-bold text-ink">
               <BadgeCheck className="h-4 w-4" />
-              100% tone match
+              {Math.round(result.accuracy)}% tone match
             </div>
             <h2 className="mt-3 text-2xl font-semibold">{result.request.song}</h2>
             <p className="text-sm text-slate-600">
@@ -2393,7 +2432,7 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => Pro
               <span className="rounded-md bg-blue-50 px-2 py-1 capitalize text-slate-700">{(profile?.toneType || result.request.toneType || "auto").replace("_", " ")}</span>
               {profile ? <span className="rounded-md bg-white px-2 py-1 text-ocean">{profile.verificationStatus.replace("_", " ")}</span> : null}
             </div>
-            {profile ? <p className="mt-3 text-xs font-semibold text-slate-500">Matched source confidence: 100%</p> : null}
+            {profile ? <p className="mt-3 text-xs font-semibold text-slate-500">Matched source confidence: {Math.round(profile.confidence)}%</p> : null}
           </div>
           <div className="flex flex-col items-start gap-2 sm:items-end">
             <motion.button
@@ -2444,39 +2483,305 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => Pro
         </div>
       </div>
 
-      <div className="grid gap-5 p-5">
-        <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}>
-          <SettingsBlock title="Your adapted tone" icon={<Gauge className="h-4 w-4 text-ocean" />} settings={result.targetSettings} empty="No target settings returned" />
-        </motion.section>
+      {result.presentation ? (
+        <SplitResultBody result={result} presentation={result.presentation} />
+      ) : (
+        <div className="grid gap-5 p-5">
+          <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}>
+            <SettingsBlock title="Your adapted tone" icon={<Gauge className="h-4 w-4 text-ocean" />} settings={result.targetSettings} empty="No target settings returned" />
+          </motion.section>
 
-        <motion.section className="grid gap-4 lg:grid-cols-2" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.12 }}>
-          <InfoBlock icon={<Guitar className="h-4 w-4" />} title="Pickup and touch">
-            {result.pickupAdvice}
-          </InfoBlock>
-          <InfoBlock icon={<SlidersHorizontal className="h-4 w-4" />} title="Effects chain">
+          <motion.section className="grid gap-4 lg:grid-cols-2" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.12 }}>
+            <InfoBlock icon={<Guitar className="h-4 w-4" />} title="Pickup and touch">
+              {result.pickupAdvice}
+            </InfoBlock>
+            <InfoBlock icon={<SlidersHorizontal className="h-4 w-4" />} title="Effects chain">
+              <div className="grid gap-2">
+                {result.effects.map((effect) => (
+                  <div key={effect} className="flex items-center gap-2 text-sm">
+                    <ChevronRight className="h-4 w-4 text-copper" />
+                    {effect}
+                  </div>
+                ))}
+              </div>
+            </InfoBlock>
+          </motion.section>
+
+          <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.18 }}>
+            <h3 className="mb-3 font-semibold">Playing tips</h3>
             <div className="grid gap-2">
-              {result.effects.map((effect) => (
-                <div key={effect} className="flex items-center gap-2 text-sm">
-                  <ChevronRight className="h-4 w-4 text-copper" />
-                  {effect}
+              {result.playingTips.map((tip) => (
+                <div key={tip} className="rounded-md border border-white/80 bg-blue-50/70 px-3 py-2 text-sm text-slate-700">
+                  {tip}
                 </div>
               ))}
             </div>
-          </InfoBlock>
-        </motion.section>
-
-        <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.18 }}>
-          <h3 className="mb-3 font-semibold">Playing tips</h3>
-          <div className="grid gap-2">
-            {result.playingTips.map((tip) => (
-              <div key={tip} className="rounded-md border border-white/80 bg-blue-50/70 px-3 py-2 text-sm text-slate-700">
-                {tip}
-              </div>
-            ))}
-          </div>
-        </motion.section>
-      </div>
+          </motion.section>
+        </div>
+      )}
     </motion.article>
+  );
+}
+
+const IMPORTANCE_BADGE_CLASSES: Record<string, string> = {
+  important: "border-amber-200 bg-amber-50 text-amber-800",
+  recommended: "border-ocean/30 bg-ocean/10 text-ocean",
+  "nice-to-have": "border-slate-200 bg-slate-50 text-slate-600"
+};
+
+function ImportanceBadge({ importance }: { importance: string }) {
+  return (
+    <span className={`rounded-md border px-2 py-0.5 text-[11px] font-bold ${IMPORTANCE_BADGE_CLASSES[importance] ?? IMPORTANCE_BADGE_CLASSES["nice-to-have"]}`}>
+      {importance.replace(/-/g, " ")}
+    </span>
+  );
+}
+
+function ResultCard({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-white/80 bg-white/80 p-4 shadow-sm">
+      <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+        {icon}
+        {title}
+      </h4>
+      <div className="mt-3">{children}</div>
+    </div>
+  );
+}
+
+function GearSpecRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-3 text-sm">
+      <span className="w-16 shrink-0 font-semibold text-slate-500">{label}</span>
+      <span className="text-slate-700">{value}</span>
+    </div>
+  );
+}
+
+function GuitarControlsRow({ controls }: { controls: { volume: number; tone: number } }) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Volume</p>
+        <p className="text-lg font-bold text-ink">{formatDisplayValue(controls.volume)}</p>
+      </div>
+      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Tone</p>
+        <p className="text-lg font-bold text-ink">{formatDisplayValue(controls.tone)}</p>
+      </div>
+    </div>
+  );
+}
+
+function SplitResultBody({ result, presentation }: { result: ToneResult; presentation: TonePresentationDto }) {
+  const original = presentation.original;
+  const adapted = presentation.adapted;
+  const hasOriginalGear = Boolean(original.gear.guitar || original.gear.pickups || original.gear.amp || original.gear.cab || original.notes);
+
+  return (
+    <div className="grid gap-5 p-5 lg:grid-cols-2">
+      {/* ORIGINAL TONE — left column */}
+      <motion.section className="grid content-start gap-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}>
+        <div className="flex items-center gap-3">
+          <div className="grid h-9 w-9 place-items-center rounded-lg bg-ink text-moss">
+            <Music2 className="h-4 w-4" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-ink">Original Tone</h3>
+            <p className="text-sm text-slate-600">
+              {original.song} by {original.artist}
+            </p>
+          </div>
+        </div>
+
+        {hasOriginalGear ? (
+          <ResultCard title="Original Gear" icon={<Guitar className="h-3.5 w-3.5" />}>
+            <div className="grid gap-2">
+              {original.gear.guitar ? <GearSpecRow label="Guitar" value={original.gear.guitar} /> : null}
+              {original.gear.pickups ? <GearSpecRow label="Pickups" value={original.gear.pickups} /> : null}
+              {original.gear.amp ? <GearSpecRow label="Amp" value={original.gear.amp} /> : null}
+              {original.gear.cab ? <GearSpecRow label="Cab" value={original.gear.cab} /> : null}
+              {original.notes ? (
+                <div className="mt-2 rounded-md border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm leading-6 text-slate-600">{original.notes}</div>
+              ) : null}
+            </div>
+          </ResultCard>
+        ) : null}
+
+        {original.difficulty ? (
+          <ResultCard title="Difficulty" icon={<Gauge className="h-3.5 w-3.5" />}>
+            <div className="flex items-center gap-2">
+              <span className="rounded-md bg-ink px-2 py-1 text-xs font-bold capitalize text-moss">{original.difficulty.level}</span>
+              <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold capitalize text-slate-700">{original.partLabel}</span>
+            </div>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{original.difficulty.description}</p>
+          </ResultCard>
+        ) : null}
+
+        {Object.keys(original.settings).length ? (
+          <SettingsBlock title="Amp settings — original" icon={<Gauge className="h-4 w-4 text-ocean" />} settings={original.settings} empty="No original settings available" />
+        ) : null}
+
+        <ResultCard title="Guitar Controls" icon={<SlidersHorizontal className="h-3.5 w-3.5" />}>
+          <GuitarControlsRow controls={original.guitarControls} />
+        </ResultCard>
+
+        {original.signalChainText || original.pedalsUsed.length || original.ampEffects.length ? (
+          <ResultCard title="Effects & Pedals — original" icon={<SlidersHorizontal className="h-3.5 w-3.5" />}>
+            {original.signalChainText ? (
+              <p className="rounded-md border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm font-semibold leading-6 text-slate-700">{original.signalChainText}</p>
+            ) : null}
+            {original.pedalsUsed.length ? (
+              <div className="mt-3 grid gap-2">
+                {original.pedalsUsed.map((pedal) => (
+                  <div key={pedal.name} className="rounded-md border border-slate-200 bg-white px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-bold text-ink">{pedal.name}</span>
+                      <ImportanceBadge importance={pedal.importance} />
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">{pedal.role}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {original.ampEffects.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {original.ampEffects.map((entry) => (
+                  <span key={entry.effect} className="rounded-md border border-ocean/30 bg-ocean/10 px-2 py-1 text-xs font-semibold text-ocean">
+                    {entry.effect} level {formatDisplayValue(entry.level)}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </ResultCard>
+        ) : null}
+
+        {original.sources.length ? (
+          <ResultCard title="Sources" icon={<Info className="h-3.5 w-3.5" />}>
+            <div className="grid gap-2">
+              {original.sources.map((source) => (
+                <div key={source.title} className="rounded-md border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm">
+                  {source.url ? (
+                    <a href={source.url} target="_blank" rel="noreferrer" className="font-semibold text-ocean hover:underline">
+                      {source.title}
+                    </a>
+                  ) : (
+                    <span className="text-slate-700">{source.title}</span>
+                  )}
+                  <span className="ml-2 text-xs capitalize text-slate-400">{source.type.replace(/_/g, " ")}</span>
+                </div>
+              ))}
+            </div>
+          </ResultCard>
+        ) : null}
+      </motion.section>
+
+      {/* YOUR ADAPTED TONE — right column */}
+      <motion.section className="grid content-start gap-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.12 }}>
+        <div className="flex items-center gap-3">
+          <div className="grid h-9 w-9 place-items-center rounded-lg bg-ocean text-white">
+            <Gauge className="h-4 w-4" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-ink">Your Adapted Tone</h3>
+            <p className="text-sm text-slate-600">{adapted.gearSummary}</p>
+          </div>
+        </div>
+
+        {adapted.pickupChoice ? (
+          <ResultCard title="Pickup Choice" icon={<Guitar className="h-3.5 w-3.5" />}>
+            <p className="text-sm font-bold text-ink">{adapted.pickupChoice.recommendation}</p>
+            <p className="mt-1 text-sm text-slate-600">{adapted.pickupChoice.reason}</p>
+          </ResultCard>
+        ) : null}
+
+        {adapted.ampConfiguration ? (
+          <ResultCard title="Amp Configuration" icon={<SlidersHorizontal className="h-3.5 w-3.5" />}>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Recommended preset</p>
+            <p className="mt-1 text-sm font-bold text-ocean">{adapted.ampConfiguration.recommendedPreset}</p>
+            <p className="mt-1 text-sm text-slate-600">{adapted.ampConfiguration.reason}</p>
+          </ResultCard>
+        ) : null}
+
+        <SettingsBlock title="Amp settings — adapted" icon={<Gauge className="h-4 w-4 text-ocean" />} settings={result.targetSettings} empty="No target settings returned" />
+
+        <ResultCard title="Guitar Controls" icon={<SlidersHorizontal className="h-3.5 w-3.5" />}>
+          <GuitarControlsRow controls={adapted.guitarControls} />
+        </ResultCard>
+
+        {adapted.signalChain.length ? (
+          <ResultCard title="Signal Chain" icon={<ChevronRight className="h-3.5 w-3.5" />}>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {adapted.signalChain.map((node, index) => (
+                <span key={`${node}-${index}`} className="inline-flex items-center gap-1.5">
+                  {index > 0 ? <ChevronRight className="h-3.5 w-3.5 text-copper" /> : null}
+                  <span className={`rounded-md px-2 py-1 text-xs font-bold ${index === 0 ? "bg-ink text-white" : "border border-slate-200 bg-slate-50 text-slate-700"}`}>
+                    {node}
+                  </span>
+                </span>
+              ))}
+            </div>
+          </ResultCard>
+        ) : null}
+
+        {adapted.ampEffectsSettings.length ? (
+          <ResultCard title="Amp Effects Settings" icon={<SlidersHorizontal className="h-3.5 w-3.5" />}>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {adapted.ampEffectsSettings.map((entry) => (
+                <div key={entry.effect} className="rounded-md border border-slate-200 bg-white px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-bold text-ink">{entry.effect}</span>
+                    {entry.level != null ? <span className="text-sm font-bold text-ocean">{formatDisplayValue(entry.level)}/10</span> : null}
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">{entry.note}</p>
+                </div>
+              ))}
+            </div>
+          </ResultCard>
+        ) : null}
+
+        {adapted.missingEffects.length ? (
+          <ResultCard title="Missing Effects" icon={<Info className="h-3.5 w-3.5" />}>
+            <div className="grid gap-2">
+              {adapted.missingEffects.map((effect) => (
+                <div key={effect.name} className="rounded-md border border-amber-100 bg-amber-50/60 px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-bold text-ink">{effect.name}</span>
+                    <ImportanceBadge importance={effect.importance} />
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">{effect.description}</p>
+                  {effect.substitution ? <p className="mt-1 text-xs font-semibold text-ocean">{effect.substitution}</p> : null}
+                </div>
+              ))}
+            </div>
+          </ResultCard>
+        ) : null}
+
+        {adapted.playingNotes.length ? (
+          <ResultCard title="Playing Notes" icon={<Music2 className="h-3.5 w-3.5" />}>
+            <div className="grid gap-2">
+              {adapted.playingNotes.map((note) => (
+                <div key={note} className="rounded-md border border-white/80 bg-blue-50/70 px-3 py-2 text-sm leading-6 text-slate-700">
+                  {note}
+                </div>
+              ))}
+            </div>
+          </ResultCard>
+        ) : null}
+
+        {presentation.confidence.factors.length ? (
+          <ResultCard title="Confidence Notes" icon={<Info className="h-3.5 w-3.5" />}>
+            <div className="grid gap-1.5">
+              {presentation.confidence.factors.map((factor) => (
+                <p key={factor} className="text-xs leading-5 text-slate-500">
+                  {factor}
+                </p>
+              ))}
+            </div>
+          </ResultCard>
+        ) : null}
+      </motion.section>
+    </div>
   );
 }
 

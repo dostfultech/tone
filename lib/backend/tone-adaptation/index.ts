@@ -105,6 +105,8 @@ export * from "./services/gear-service";
 export * from "./services/multifx-service";
 export * from "./services/pedal-service";
 export * from "./services/pickup-service";
+export * from "./services/presentation-service";
+export * from "./services/gear-inference";
 export * from "./services/rule-engine-service";
 export * from "./services/song-service";
 export * from "./services/tone-service";

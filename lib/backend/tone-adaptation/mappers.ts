@@ -51,8 +51,11 @@ export function mapMasterToneRow(
   const toneType = toToneType(row.tone_type_id, "auto_detect");
   const mode = row.instrument_type === "bass" ? "bass" : "guitar";
   const version = Math.max(1, toNumber(row.version) ?? 1);
+  const metadata = jsonRecord(row.metadata);
+  const original = mapMasterToneOriginal(metadata, settings);
 
   return {
+    original,
     masterTone: {
       id: stringValue(row.id, "unknown-master-tone"),
       songId: stringValue(song.id),
@@ -87,6 +90,50 @@ export function mapMasterToneRow(
       confidence: Math.round(toNumber(row.confidence) ?? 70)
     }
   };
+}
+
+function mapMasterToneOriginal(
+  metadata: JsonRecord,
+  settings: MasterToneInput["settings"]
+): LoadedMasterToneContext["original"] {
+  const guitar = nullableString(metadata.originalGuitar) ?? nullableString(metadata.original_guitar);
+  const pickup = nullableString(metadata.originalPickup) ?? nullableString(metadata.original_pickup);
+  const amp = nullableString(metadata.originalAmp) ?? nullableString(metadata.original_amp);
+  const cab = nullableString(metadata.originalCab) ?? nullableString(metadata.original_cab);
+  const notes = nullableString(metadata.sourceSummary) ?? nullableString(metadata.source_summary) ?? nullableString(metadata.notes);
+
+  if (!guitar && !pickup && !amp && !cab && !notes) {
+    return undefined;
+  }
+
+  const numericSettings = Object.entries(settings).reduce<Record<string, number>>((accumulator, [key, value]) => {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      accumulator[key] = value;
+    }
+    return accumulator;
+  }, {});
+
+  return {
+    guitar,
+    pickup,
+    amp,
+    cab,
+    notes,
+    settings: numericSettings,
+    effects: [],
+    playingNotes: metadataStringArray(metadata.playingNotes ?? metadata.playing_notes),
+    adaptationNotes: metadataStringArray(metadata.adaptationNotes ?? metadata.adaptation_notes),
+    sources: [],
+    difficulty: nullableString(metadata.difficulty),
+    genre: nullableString(metadata.genre)
+  };
+}
+
+function metadataStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
 }
 
 export function mapGuitarRow(row: Record<string, unknown>): GuitarProfileInput {

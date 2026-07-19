@@ -13,8 +13,37 @@ import type {
 } from "../../rule-engine";
 import type { ToneAdaptationMode } from "./dtos";
 
+export interface OriginalToneEffect {
+  type: string;
+  name: string;
+  placement?: string | null;
+  settings?: Record<string, number>;
+}
+
+export interface OriginalToneSource {
+  type: string;
+  title: string;
+  url?: string | null;
+}
+
+export interface OriginalToneContext {
+  guitar?: string | null;
+  pickup?: string | null;
+  amp?: string | null;
+  cab?: string | null;
+  notes?: string | null;
+  settings: Record<string, number>;
+  effects: OriginalToneEffect[];
+  playingNotes: string[];
+  adaptationNotes: string[];
+  sources: OriginalToneSource[];
+  difficulty?: string | null;
+  genre?: string | null;
+}
+
 export interface LoadedMasterToneContext {
   masterTone: MasterToneInput;
+  original?: OriginalToneContext;
   source: {
     id: string;
     sourceType: "master_tones" | "song_tone_profiles_bridge";
@@ -33,6 +62,18 @@ export interface LoadedMasterToneContext {
   };
 }
 
+export type GearMatchQuality = "catalog" | "inferred" | "none";
+
+export interface GearResolution {
+  guitar: GearMatchQuality;
+  amp: GearMatchQuality;
+  cabinet: GearMatchQuality;
+  pickupsMatched: number;
+  pickupsRequested: number;
+  pedalsMatched: number;
+  pedalsRequested: number;
+}
+
 export interface LoadedGearContext {
   guitar?: GuitarProfileInput | null;
   pickups: PickupProfileInput[];
@@ -41,6 +82,7 @@ export interface LoadedGearContext {
   pedals: PedalProfileInput[];
   goingDirect: boolean;
   multiFx?: MultiFxProfileInput | null;
+  resolution?: GearResolution;
 }
 
 export interface LoadedToneRequestContext {
