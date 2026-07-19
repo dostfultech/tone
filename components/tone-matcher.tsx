@@ -1575,6 +1575,21 @@ export function ToneMatcher() {
                   </div>
                 )}
 
+                {amp && (() => {
+                  const ampEffects = getAmpBuiltInEffects(amp);
+                  if (!ampEffects.length) return null;
+                  return (
+                    <div className="mt-4 rounded-lg border border-white/80 bg-blue-50/80 p-4 shadow-sm">
+                      <h4 className="text-sm font-bold text-ocean">Built-in Amp Effects</h4>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {ampEffects.map((effect) => (
+                          <span key={effect} className="rounded-md border border-ocean/30 bg-ocean/10 px-3 py-1 text-sm font-semibold text-ocean">{effect}</span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {effectsTab === "pedals" ? (
                   <div className="mt-6 grid gap-4">
                     {savedPedalSelections.length ? (
