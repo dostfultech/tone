@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Database, Guitar, Loader2, Search, Sparkles, ThumbsUp, Volume2 } from "lucide-react";
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
@@ -50,6 +50,32 @@ export function CommunityView() {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const showFreeOnboardingJourney = shouldShowFreeOnboardingJourney(snapshot, onboardingMode);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const loadNextPage = useCallback(() => {
+    if (hasMore && !loading) {
+      setPage((current) => current + 1);
+    }
+  }, [hasMore, loading]);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          loadNextPage();
+        }
+      },
+      { rootMargin: "400px" }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadNextPage]);
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -278,11 +304,13 @@ export function CommunityView() {
             </div>
 
             {hasMore ? (
-              <div className="mt-8 flex justify-center">
-                <button type="button" className="button-secondary min-h-12 rounded-lg px-6" onClick={() => setPage((current) => current + 1)} disabled={loading}>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Load More Tones
-                </button>
+              <div ref={sentinelRef} className="mt-8 flex justify-center py-4">
+                {loading ? (
+                  <div className="flex items-center gap-3 text-neutral-500">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span className="text-sm font-semibold">Loading more tones</span>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </>

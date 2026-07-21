@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Database, Gauge, Guitar, Link2, Lock, Music2, ShieldCheck, SlidersHorizontal, Sparkles, Volume2 } from "lucide-react";
+import { AmpSettingsKnobs } from "@/components/amp-settings-knobs";
 import { AppShell } from "@/components/app-shell";
 import { CommunityToneCta } from "@/components/community-tone-cta";
 import { buildPageMetadata } from "@/lib/seo";
@@ -42,15 +43,20 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
     notFound();
   }
 
-  const settings = Object.entries(profile.originalSettings || {});
+  const originalSettings = (profile.originalSettings || {}) as Record<string, number>;
+  const settingsEntries = Object.entries(originalSettings);
   const researchCount = Math.max(24, profile.confidence * 4);
   const likes = Math.max(10, Math.round(profile.confidence / 1.35));
   const hasPremiumAccess = entitlement.hasAccess;
   const userLoggedIn = Boolean(user);
   const canAdapt = userLoggedIn;
   const redirectTarget = `/community/${profile.id}`;
-  const visibleSettings = hasPremiumAccess ? settings : settings.slice(0, 2);
-  const lockedSettings = hasPremiumAccess ? [] : settings.slice(2);
+  const visibleSettingsMap = hasPremiumAccess
+    ? originalSettings
+    : Object.fromEntries(settingsEntries.slice(0, 2));
+  const lockedSettingsMap = hasPremiumAccess
+    ? {}
+    : Object.fromEntries(settingsEntries.slice(2));
 
   return (
     <AppShell>
@@ -114,19 +120,12 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
                     <p className="text-sm text-slate-500">Stored baseline values before gear adaptation</p>
                   </div>
                 </div>
-                {visibleSettings.length ? (
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {visibleSettings.map(([key, value]) => (
-                      <div key={key} className="compact-card p-5 text-center">
-                        <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{prettifyKey(key)}</div>
-                        <div className="mt-3 text-4xl font-bold text-ink">{value}</div>
-                      </div>
-                    ))}
-                  </div>
+                {Object.keys(visibleSettingsMap).length ? (
+                  <AmpSettingsKnobs settings={visibleSettingsMap} empty="No structured amp settings are stored for this profile yet." />
                 ) : (
                   <p className="text-sm text-slate-500">No structured amp settings are stored for this profile yet.</p>
                 )}
-                {lockedSettings.length ? (
+                {Object.keys(lockedSettingsMap).length ? (
                   <LockedContent
                     className="mt-6"
                     redirectTarget={redirectTarget}
@@ -134,14 +133,7 @@ export default async function CommunityToneDetailPage({ params }: CommunityToneD
                     title="Unlock full amp settings"
                     body="Beginner and Expert plans reveal every stored setting for this tone profile."
                   >
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                      {lockedSettings.map(([key, value]) => (
-                        <div key={key} className="compact-card p-5 text-center">
-                          <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{prettifyKey(key)}</div>
-                          <div className="mt-3 text-4xl font-bold text-ink">{value}</div>
-                        </div>
-                      ))}
-                    </div>
+                    <AmpSettingsKnobs settings={lockedSettingsMap} />
                   </LockedContent>
                 ) : null}
               </section>
