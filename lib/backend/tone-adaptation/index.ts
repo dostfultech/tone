@@ -37,24 +37,46 @@ export function createToneAdaptationService(supabase: SupabaseClient, logger?: T
     ruleEngineService: new DeterministicRuleEngineService(),
     sourceHydrationService: {
       async hydrateSourceTone(request) {
-        const response = await ingestionService.generateAndStore(
-          {
-            song: request.song || "Unknown Song",
-            artist: request.artist || "Unknown Artist",
-            part: request.part || "Main",
-            partType: normalizeHydrationPartType(request.partType, request.part),
-            toneType: request.toneType,
-            mode: request.mode,
-            runImmediately: true,
-            metadata: {
-              source: "tone_adaptation_auto_hydration",
-              requestId: request.requestId
-            }
-          },
-          { requestedBy: null, regenerate: false }
-        );
+        let hydratedMasterToneId: string | null = null;
+        let hydrationSucceeded = false;
 
-        return { masterToneId: response.masterToneId };
+        try {
+          const response = await ingestionService.generateAndStore(
+            {
+              song: request.song || "Unknown Song",
+              artist: request.artist || "Unknown Artist",
+              part: request.part || "Main",
+              partType: normalizeHydrationPartType(request.partType, request.part),
+              toneType: request.toneType,
+              mode: request.mode,
+              runImmediately: true,
+              metadata: {
+                source: "tone_adaptation_auto_hydration",
+                requestId: request.requestId
+              }
+            },
+            { requestedBy: null, regenerate: false }
+          );
+
+          hydratedMasterToneId = response.masterToneId ?? null;
+          hydrationSucceeded = true;
+          return { masterToneId: response.masterToneId };
+        } finally {
+          try {
+            await supabase.rpc("record_song_search_miss", {
+              p_song: request.song || "Unknown Song",
+              p_artist: request.artist || "Unknown Artist",
+              p_part: request.part ?? null,
+              p_part_type: request.partType ?? null,
+              p_tone_type: request.toneType ?? null,
+              p_mode: request.mode ?? null,
+              p_hydration_succeeded: hydrationSucceeded,
+              p_master_tone_id: hydratedMasterToneId
+            });
+          } catch {
+            // Miss logging must never block or fail a tone adaptation.
+          }
+        }
       }
     },
     logger
