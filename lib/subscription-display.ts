@@ -24,13 +24,25 @@ export function getAdaptationSummaryProps(snapshot: ClientSubscriptionSnapshot) 
     };
   }
 
+  if (snapshot.usage.freeAdaptationLimit > 0 && snapshot.usage.freeAdaptationsRemaining > 0) {
+    return {
+      remaining: snapshot.usage.freeAdaptationsRemaining,
+      limit: snapshot.usage.freeAdaptationLimit,
+      unlimited: false,
+      label: `${snapshot.usage.freeAdaptationsRemaining} Free Adaptation${snapshot.usage.freeAdaptationsRemaining === 1 ? "" : "s"} Remaining`,
+      helpText: "Only successful Generate My Tone clicks use one.",
+      valueText: "Generate My Tone only"
+    };
+  }
+
   return {
-    remaining: snapshot.usage.freeAdaptationsRemaining,
-    limit: snapshot.usage.freeAdaptationLimit,
+    remaining: 0,
+    limit: 0,
     unlimited: false,
-    label: `${snapshot.usage.freeAdaptationsRemaining} Free Adaptation${snapshot.usage.freeAdaptationsRemaining === 1 ? "" : "s"} Remaining`,
-    helpText: "Only successful Generate My Tone clicks use one.",
-    valueText: "Generate My Tone only"
+    showTrialCta: true,
+    label: "No Active Plan",
+    helpText: "Start a free trial to unlock adaptations.",
+    valueText: "3-day free trial available"
   };
 }
 
@@ -44,15 +56,17 @@ export function getFreeAdaptationBannerCopy(snapshot: ClientSubscriptionSnapshot
   }
 
   const remaining = snapshot.usage.freeAdaptationsRemaining;
-  if (remaining <= 0) {
+  const limit = snapshot.usage.freeAdaptationLimit;
+
+  if (limit > 0 && remaining > 0) {
     return {
-      title: "You’ve used all 3 free adaptations.",
-      body: "Upgrade to Expert to keep adapting tones with your saved gear."
+      title: `You have ${remaining} free adaptation${remaining === 1 ? "" : "s"} remaining.`,
+      body: "Only a successful adapted tone uses a credit. Searching, browsing, and changing your gear do not."
     };
   }
 
   return {
-    title: `You have ${remaining} free adaptation${remaining === 1 ? "" : "s"} remaining.`,
-    body: "Only a successful adapted tone uses a credit. Searching, browsing, and changing your gear do not."
+    title: "Start your 3-day free trial to get started.",
+    body: "Pick a plan and try Tonefex free — cancel anytime."
   };
 }

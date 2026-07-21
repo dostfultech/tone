@@ -170,8 +170,8 @@ export function Pricing() {
               <UsageRow label="Saved tones in library" value={String(snapshot.totals.savedTones)} />
               <UsageRow label="Gear presets" value={formatUsage(snapshot.usage.gearPresetsUsed, snapshot.usage.gearPresetsRemaining)} />
               <UsageRow
-                label="Free adaptations"
-                value={snapshot.adaptationAccess.isUnlimited ? "Unlimited" : `${snapshot.usage.freeAdaptationsRemaining} / ${snapshot.usage.freeAdaptationLimit}`}
+                label="Trial adaptations"
+                value={snapshot.adaptationAccess.isUnlimited ? "Unlimited" : snapshot.status === "trialing" ? `${snapshot.usage.adaptationsRemaining ?? 0} remaining` : "Active plan"}
               />
               <UsageRow label="Billing" value={snapshot.billingInterval === "annual" ? "Annual" : "Monthly"} />
               <UsageRow label="Plan status" value={formatSubscriptionStatus(snapshot.status)} />
@@ -208,7 +208,7 @@ export function Pricing() {
               <p className="mt-2 text-sm text-neutral-600">{plan.subline}</p>
               {plan.savings ? <p className="mt-2 text-sm font-semibold text-ink"><span className="lime-highlight">Save {plan.savings}%</span> per year</p> : null}
               <div className="mt-6 grid gap-3 text-sm">
-                <Feature>{plan.trialAdaptations} starter adaptations included</Feature>
+                <Feature>{plan.trialDays}-day free trial — {plan.trialAdaptations} adaptations</Feature>
                 <Feature>{plan.adaptations}</Feature>
                 <Feature>{plan.saved}</Feature>
                 {plan.perks.map((perk) => (
@@ -217,7 +217,7 @@ export function Pricing() {
               </div>
               <button className="button-primary mt-7 w-full" onClick={() => startCheckout(plan.id)} disabled={loadingPlan !== null}>
                 {loadingPlan === plan.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {snapshot?.planId === "beginner" && plan.id === "expert" ? "Upgrade to Expert" : "Choose Plan"}
+                {snapshot?.planId === "beginner" && plan.id === "expert" ? "Upgrade to Expert" : `Start ${plan.trialDays}-Day Free Trial`}
               </button>
               <p className="mt-3 text-center text-xs text-neutral-500">Cancel anytime from the customer portal.</p>
             </article>

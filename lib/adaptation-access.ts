@@ -1,6 +1,6 @@
 import type { Entitlement } from "@/lib/entitlements";
 
-export const DEFAULT_FREE_ADAPTATION_LIMIT = 3;
+export const DEFAULT_FREE_ADAPTATION_LIMIT = 0;
 
 export type ProfileAccessRow = {
   free_adaptation_limit?: number | null;

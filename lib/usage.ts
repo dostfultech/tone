@@ -87,7 +87,7 @@ export async function assertCanCreateAdaptation(
   if (requestSource !== "manual_generate") {
     return {
       ok: false,
-      error: "This adaptation workflow requires a paid subscription. Use Generate My Tone for your 3 free adaptations, or upgrade for unlimited gear adaptation.",
+      error: "This adaptation workflow requires a paid subscription. Start a free trial or upgrade for full access.",
       path: "free",
       freeAdaptationsRemaining: profileQuota.remaining,
       monthlyAdaptationsRemaining: null
@@ -97,7 +97,7 @@ export async function assertCanCreateAdaptation(
   if (profileQuota.remaining <= 0) {
     return {
       ok: false,
-      error: "You've used your 3 free adaptations. Upgrade to Expert for unlimited tone adaptations.",
+      error: "Start a free trial to unlock tone adaptations, or upgrade to Expert for unlimited access.",
       path: "free",
       freeAdaptationsRemaining: 0,
       monthlyAdaptationsRemaining: null

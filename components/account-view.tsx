@@ -203,8 +203,8 @@ export function AccountView() {
                   <MetricCard label="Adaptations" value={snapshot ? formatRemaining(snapshot.usage.adaptationsUsed, snapshot.usage.adaptationsRemaining) : "0 used"} />
                   <MetricCard label="Saved tones" value={snapshot ? formatRemaining(snapshot.usage.savedTonesUsed, snapshot.usage.savedTonesRemaining) : "0 used"} />
                   <MetricCard
-                    label="Free adaptations"
-                    value={snapshot?.adaptationAccess.isUnlimited ? "Unlimited" : `${snapshot?.usage.freeAdaptationsRemaining ?? 0} / ${snapshot?.usage.freeAdaptationLimit ?? 3}`}
+                    label="Trial adaptations"
+                    value={snapshot?.adaptationAccess.isUnlimited ? "Unlimited" : snapshot?.hasAccess ? "Active plan" : snapshot?.usage.freeAdaptationLimit && snapshot.usage.freeAdaptationLimit > 0 ? `${snapshot.usage.freeAdaptationsRemaining} / ${snapshot.usage.freeAdaptationLimit}` : "Start a trial"}
                   />
                   <MetricCard label="Gear presets" value={snapshot ? formatRemaining(snapshot.usage.gearPresetsUsed, snapshot.usage.gearPresetsRemaining) : "0 used"} />
                 </div>

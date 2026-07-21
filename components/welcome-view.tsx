@@ -58,18 +58,18 @@ export function WelcomeView() {
             </div>
 
             <div className="rounded-2xl border border-white/80 bg-white/80 p-6 shadow-lg">
-              <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Your account starts with</div>
+              <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Try before you buy</div>
               <div className="mt-4 flex items-end gap-3">
                 <div className="text-5xl font-bold text-ink">3</div>
-                <div className="pb-1 text-lg font-semibold text-slate-600">Free Adaptations</div>
+                <div className="pb-1 text-lg font-semibold text-slate-600">Day Free Trial</div>
               </div>
               <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
-                Only successful adaptations use a credit.
+                Cancel anytime — no hidden fees.
               </div>
               <div className="mt-6 grid gap-3 text-sm text-slate-600">
                 <div className="rounded-lg bg-slate-50 px-4 py-3">Unlimited song search and browsing</div>
                 <div className="rounded-lg bg-slate-50 px-4 py-3">My Gear setup and editing included</div>
-                <div className="rounded-lg bg-slate-50 px-4 py-3">Expert unlocks unlimited adaptations</div>
+                <div className="rounded-lg bg-slate-50 px-4 py-3">Pick a plan to start your free trial</div>
               </div>
             </div>
           </div>

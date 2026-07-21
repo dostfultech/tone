@@ -160,7 +160,7 @@ export function CommunityView() {
           </h1>
           <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-neutral-600 sm:text-lg">
             {showFreeOnboardingJourney
-              ? "Search for the first song you want adapted to your saved gear. You can browse as much as you like before using a free adaptation."
+              ? "Search for the first song you want adapted to your saved gear. Browsing is free — start a trial to adapt."
               : "Browse community tone research, compare gear assumptions, and preview source rigs before adapting them to your setup."}
           </p>
           <div className="relative mx-auto mt-10 max-w-3xl">
@@ -190,7 +190,7 @@ export function CommunityView() {
           <div className="mt-8 rounded-lg border border-moss/50 bg-moss/10 px-5 py-4 text-sm text-ink">
             <div className="font-bold">Step 2: find a song you know.</div>
             <div className="mt-1 text-slate-700">
-              Open any song page, then use <span className="font-semibold">Adapt to My Gear</span>. Searching and browsing do not use a free adaptation.
+              Open any song page, then use <span className="font-semibold">Adapt to My Gear</span>. Searching and browsing are always free.
             </div>
           </div>
         ) : null}

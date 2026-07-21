@@ -425,7 +425,7 @@ export function ToneMatcher() {
 
       if (beforeFirstAdaptation && !subscriptionSnapshot?.hasAccess && data.firstAdaptationCompleted) {
         const remaining = typeof data.freeAdaptationsRemaining === "number" ? data.freeAdaptationsRemaining : nextSnapshot?.usage.freeAdaptationsRemaining ?? 0;
-        setCelebrationMessage(`Congratulations! Your first tone has been adapted to your gear. You have ${remaining} free adaptations remaining.`);
+        setCelebrationMessage(remaining > 0 ? `Congratulations! Your first tone has been adapted to your gear. You have ${remaining} free adaptations remaining.` : "Congratulations! Your first tone has been adapted to your gear.");
       }
 
       return data as {
@@ -495,12 +495,12 @@ export function ToneMatcher() {
           return;
         }
         if (response.status === 402) {
-          setMessage(data.error?.message || "Upgrade to Expert to continue adapting tones.");
+          setMessage(data.error?.message || "Start a free trial to unlock tone adaptations.");
           trackEvent("paywall_shown", {
             source: "tone_adaptation_api",
-            reason: "subscription_required"
+            reason: "trial_prompt"
           });
-          router.push(`/plans?required=subscription&redirect=${encodeURIComponent(matcherRedirectTarget)}&source=free-adaptation-limit`);
+          router.push(`/plans?required=subscription&redirect=${encodeURIComponent(matcherRedirectTarget)}&source=trial-prompt`);
           return;
         }
         if (!response.ok) {
@@ -1104,9 +1104,9 @@ export function ToneMatcher() {
     if (subscriptionSnapshot?.user && !subscriptionSnapshot.hasAccess && subscriptionSnapshot.usage.freeAdaptationsRemaining <= 0) {
       trackEvent("paywall_shown", {
         source: "tone_matcher_submit",
-        reason: "free_adaptation_limit"
+        reason: "trial_prompt"
       });
-      router.push(`/plans?required=subscription&redirect=${encodeURIComponent(matcherRedirectTarget)}&source=free-adaptation-limit`);
+      router.push(`/plans?required=subscription&redirect=${encodeURIComponent(matcherRedirectTarget)}&source=trial-prompt`);
       return;
     }
 
