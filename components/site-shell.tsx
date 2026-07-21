@@ -14,11 +14,9 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const nav = [
-    { href: "/", label: "Home" },
-    { href: "/songs", label: "Songs" },
-    { href: "/artists", label: "Artists" },
-    { href: "/app", label: isAuthenticated ? "Workspace" : "App" },
-    { href: "/plans", label: "Plans" },
+    { href: "#how-it-works", label: "How it works" },
+    { href: "#trending", label: "Trending" },
+    { href: "/app", label: "Match Tones" },
     ...(isAuthenticated ? [{ href: "/account", label: "Account" }] : [{ href: "/login", label: "Login" }])
   ];
 
@@ -92,12 +90,9 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="hidden items-center gap-2 md:flex">
-            <Link href="/plans" className="button-secondary">
-              Plans
-            </Link>
-            <Link href={isAuthenticated ? "/app" : "/login?redirect=%2Fapp"} className="button-primary">
+            <Link href="/app" className="button-primary">
               <Music2 className="h-4 w-4" />
-              Match Tone
+              Start Matching
             </Link>
           </div>
 
