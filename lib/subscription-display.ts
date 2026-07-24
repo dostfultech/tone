@@ -1,5 +1,7 @@
 import type { ClientSubscriptionSnapshot } from "@/lib/subscription-client";
 
+const earlyTesterMode = process.env.NEXT_PUBLIC_EARLY_TESTER_MODE === "true";
+
 export function getAdaptationSummaryProps(snapshot: ClientSubscriptionSnapshot) {
   if (snapshot.adaptationAccess.isUnlimited) {
     return {
@@ -25,13 +27,32 @@ export function getAdaptationSummaryProps(snapshot: ClientSubscriptionSnapshot) 
   }
 
   if (snapshot.usage.freeAdaptationLimit > 0 && snapshot.usage.freeAdaptationsRemaining > 0) {
+    const r = snapshot.usage.freeAdaptationsRemaining;
     return {
-      remaining: snapshot.usage.freeAdaptationsRemaining,
+      remaining: r,
       limit: snapshot.usage.freeAdaptationLimit,
       unlimited: false,
-      label: `${snapshot.usage.freeAdaptationsRemaining} Free Adaptation${snapshot.usage.freeAdaptationsRemaining === 1 ? "" : "s"} Remaining`,
-      helpText: "Only successful Generate My Tone clicks use one.",
-      valueText: "Generate My Tone only"
+      label: earlyTesterMode
+        ? `${r} Free Adaptation${r === 1 ? "" : "s"} Remaining`
+        : `${r} Free Adaptation${r === 1 ? "" : "s"} Remaining`,
+      helpText: earlyTesterMode
+        ? "Share feedback after your adaptations to unlock unlimited access."
+        : "Only successful Generate My Tone clicks use one.",
+      valueText: earlyTesterMode
+        ? (r === 1 ? "This is your final free adaptation" : `${r} free adaptation${r === 1 ? "" : "s"} remaining`)
+        : "Generate My Tone only"
+    };
+  }
+
+  if (earlyTesterMode) {
+    return {
+      remaining: 0,
+      limit: 0,
+      unlimited: false,
+      showFeedbackCta: true,
+      label: "Adaptations Used",
+      helpText: "Share your feedback to unlock unlimited access.",
+      valueText: "Share feedback to continue"
     };
   }
 
@@ -62,6 +83,13 @@ export function getFreeAdaptationBannerCopy(snapshot: ClientSubscriptionSnapshot
     return {
       title: `You have ${remaining} free adaptation${remaining === 1 ? "" : "s"} remaining.`,
       body: "Only a successful adapted tone uses a credit. Searching, browsing, and changing your gear do not."
+    };
+  }
+
+  if (earlyTesterMode) {
+    return {
+      title: "You've used all your free adaptations.",
+      body: "Share your feedback to unlock a complimentary Expert Plan with unlimited access."
     };
   }
 

@@ -41,6 +41,7 @@ import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
 import { OnboardingProgress } from "@/components/onboarding-progress";
 import { trackEvent, trackToneGenerated, trackToneSaved } from "@/lib/analytics";
 import { getAdaptationSummaryProps, getFreeAdaptationBannerCopy, shouldShowFreeOnboardingJourney } from "@/lib/subscription-display";
+const earlyTesterMode = process.env.NEXT_PUBLIC_EARLY_TESTER_MODE === "true";
 import { addSubscriptionRefreshListener, dispatchSubscriptionRefresh } from "@/lib/subscription-events";
 import { SearchableGearDropdown } from "@/components/searchable-gear-dropdown";
 import {
@@ -495,12 +496,15 @@ export function ToneMatcher() {
           return;
         }
         if (response.status === 402) {
-          setMessage(data.error?.message || "Start a free trial to unlock tone adaptations.");
-          trackEvent("paywall_shown", {
-            source: "tone_adaptation_api",
-            reason: "trial_prompt"
-          });
-          router.push(`/plans?required=subscription&redirect=${encodeURIComponent(matcherRedirectTarget)}&source=trial-prompt`);
+          if (earlyTesterMode) {
+            setMessage("You've used all your free adaptations. Share your feedback to unlock unlimited access.");
+            trackEvent("feedback_redirect", { source: "tone_adaptation_api" });
+            router.push("/feedback");
+          } else {
+            setMessage(data.error?.message || "Start a free trial to unlock tone adaptations.");
+            trackEvent("paywall_shown", { source: "tone_adaptation_api", reason: "trial_prompt" });
+            router.push(`/plans?required=subscription&redirect=${encodeURIComponent(matcherRedirectTarget)}&source=trial-prompt`);
+          }
           return;
         }
         if (!response.ok) {
@@ -1102,11 +1106,13 @@ export function ToneMatcher() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (subscriptionSnapshot?.user && !subscriptionSnapshot.hasAccess && subscriptionSnapshot.usage.freeAdaptationsRemaining <= 0) {
-      trackEvent("paywall_shown", {
-        source: "tone_matcher_submit",
-        reason: "trial_prompt"
-      });
-      router.push(`/plans?required=subscription&redirect=${encodeURIComponent(matcherRedirectTarget)}&source=trial-prompt`);
+      if (earlyTesterMode) {
+        trackEvent("feedback_redirect", { source: "tone_matcher_submit" });
+        router.push("/feedback");
+      } else {
+        trackEvent("paywall_shown", { source: "tone_matcher_submit", reason: "trial_prompt" });
+        router.push(`/plans?required=subscription&redirect=${encodeURIComponent(matcherRedirectTarget)}&source=trial-prompt`);
+      }
       return;
     }
 

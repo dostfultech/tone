@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Database, Gift, Guitar, Loader2, Search } from "lucide-react";
+import { Database, Gift, Guitar, Loader2, Search, Star } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { EARLY_TESTER_FREE_ADAPTATIONS } from "@/lib/early-tester";
+
+const earlyTesterMode = process.env.NEXT_PUBLIC_EARLY_TESTER_MODE === "true";
 
 export function WelcomeView() {
   const router = useRouter();
@@ -19,9 +22,15 @@ export function WelcomeView() {
       } = await supabase.auth.getUser();
 
       if (user) {
+        const updates: Record<string, unknown> = {
+          welcome_completed_at: new Date().toISOString()
+        };
+        if (earlyTesterMode) {
+          updates.free_adaptation_limit = EARLY_TESTER_FREE_ADAPTATIONS;
+        }
         await supabase
           .from("profiles")
-          .update({ welcome_completed_at: new Date().toISOString() })
+          .update(updates)
           .eq("id", user.id)
           .is("welcome_completed_at", null);
       }
@@ -37,14 +46,18 @@ export function WelcomeView() {
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center">
             <div>
               <div className="inline-flex items-center gap-2 rounded-md bg-white/80 px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-600">
-                <Gift className="h-4 w-4 text-ocean" />
-                Welcome to Tonefex
+                {earlyTesterMode ? <Star className="h-4 w-4 text-amber-500" /> : <Gift className="h-4 w-4 text-ocean" />}
+                {earlyTesterMode ? "Early Access Program" : "Welcome to Tonefex"}
               </div>
               <h1 className="mt-6 text-4xl font-bold tracking-normal sm:text-5xl">
-                Get your first 3 songs adapted to <span className="lime-highlight">your gear</span> for free.
+                {earlyTesterMode
+                  ? <>You&apos;re one of our first <span className="lime-highlight">early testers</span>.</>
+                  : <>Get your first 3 songs adapted to <span className="lime-highlight">your gear</span> for free.</>}
               </h1>
               <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">
-                Save your guitar rig once, search the tone database, and turn any supported song into settings that fit the gear you actually play.
+                {earlyTesterMode
+                  ? `You have ${EARLY_TESTER_FREE_ADAPTATIONS} free tone adaptations to experience how Tonefex adapts guitar tones to your own gear. Your honest feedback will help shape the future of this product.`
+                  : "Save your guitar rig once, search the tone database, and turn any supported song into settings that fit the gear you actually play."}
               </p>
               <div className="mt-8 grid gap-3 sm:grid-cols-3">
                 <WelcomeFeature icon={<Search className="h-5 w-5" />} label="Search thousands of songs" />
@@ -58,19 +71,39 @@ export function WelcomeView() {
             </div>
 
             <div className="rounded-2xl border border-white/80 bg-white/80 p-6 shadow-lg">
-              <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Try before you buy</div>
-              <div className="mt-4 flex items-end gap-3">
-                <div className="text-5xl font-bold text-ink">3</div>
-                <div className="pb-1 text-lg font-semibold text-slate-600">Day Free Trial</div>
-              </div>
-              <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
-                Cancel anytime — no hidden fees.
-              </div>
-              <div className="mt-6 grid gap-3 text-sm text-slate-600">
-                <div className="rounded-lg bg-slate-50 px-4 py-3">Unlimited song search and browsing</div>
-                <div className="rounded-lg bg-slate-50 px-4 py-3">My Gear setup and editing included</div>
-                <div className="rounded-lg bg-slate-50 px-4 py-3">Pick a plan to start your free trial</div>
-              </div>
+              {earlyTesterMode ? (
+                <>
+                  <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Early Tester Benefit</div>
+                  <div className="mt-4 flex items-end gap-3">
+                    <div className="text-5xl font-bold text-ink">{EARLY_TESTER_FREE_ADAPTATIONS}</div>
+                    <div className="pb-1 text-lg font-semibold text-slate-600">Free Adaptations</div>
+                  </div>
+                  <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+                    Share your feedback and get unlimited access.
+                  </div>
+                  <div className="mt-6 grid gap-3 text-sm text-slate-600">
+                    <div className="rounded-lg bg-slate-50 px-4 py-3">Full tone adaptation experience</div>
+                    <div className="rounded-lg bg-slate-50 px-4 py-3">Your feedback shapes the product</div>
+                    <div className="rounded-lg bg-slate-50 px-4 py-3">Complimentary Expert Plan after feedback</div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Try before you buy</div>
+                  <div className="mt-4 flex items-end gap-3">
+                    <div className="text-5xl font-bold text-ink">3</div>
+                    <div className="pb-1 text-lg font-semibold text-slate-600">Day Free Trial</div>
+                  </div>
+                  <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
+                    Cancel anytime — no hidden fees.
+                  </div>
+                  <div className="mt-6 grid gap-3 text-sm text-slate-600">
+                    <div className="rounded-lg bg-slate-50 px-4 py-3">Unlimited song search and browsing</div>
+                    <div className="rounded-lg bg-slate-50 px-4 py-3">My Gear setup and editing included</div>
+                    <div className="rounded-lg bg-slate-50 px-4 py-3">Pick a plan to start your free trial</div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </section>
