@@ -1,6 +1,7 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createFreeAdaptationQuota } from "@/lib/adaptation-access";
 import { type Entitlement } from "@/lib/entitlements";
+import { EARLY_TESTER_FREE_ADAPTATIONS, isEarlyTesterMode } from "@/lib/early-tester";
 
 export function currentUsageMonth() {
   const now = new Date();
@@ -362,6 +363,15 @@ async function loadProfileUsage(admin: SupabaseClient, userId: string) {
   }
 
   const row = (data as ProfileUsageRow | null) || null;
+
+  if (isEarlyTesterMode() && row && (row.free_adaptation_limit === null || row.free_adaptation_limit === 0) && (row.free_adaptations_used === null || row.free_adaptations_used === 0)) {
+    await admin
+      .from("profiles")
+      .update({ free_adaptation_limit: EARLY_TESTER_FREE_ADAPTATIONS })
+      .eq("id", userId);
+    row.free_adaptation_limit = EARLY_TESTER_FREE_ADAPTATIONS;
+  }
+
   const eventUsage = await countConfirmedFreeAdaptations(admin, userId);
   const rawQuota = createFreeAdaptationQuota(row?.free_adaptation_limit, row?.free_adaptations_used);
   const reconciledUsed = Math.min(Math.max(rawQuota.used, eventUsage), rawQuota.limit);

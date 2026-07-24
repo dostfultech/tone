@@ -4,8 +4,11 @@ import {
   createOnboardingProgressState,
   resolveAdaptationAccessState
 } from "@/lib/adaptation-access";
+import { EARLY_TESTER_FREE_ADAPTATIONS } from "@/lib/early-tester";
 import { planLimits } from "@/lib/entitlements";
 import { plans } from "@/lib/mock-data";
+
+const earlyTesterMode = process.env.NEXT_PUBLIC_EARLY_TESTER_MODE === "true";
 
 export type PlanId = "beginner" | "expert";
 export type BillingInterval = "monthly" | "annual";
@@ -134,8 +137,12 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
   const plan = planId ? plans.find((item) => item.id === planId) || null : null;
   const limits = planId ? planLimits[planId] : null;
   const profile = (profileResult.data as RawProfile | null) || null;
+  let effectiveFreeLimit = profile?.free_adaptation_limit;
+  if (earlyTesterMode && (effectiveFreeLimit === null || effectiveFreeLimit === 0) && (profile?.free_adaptations_used === null || profile?.free_adaptations_used === 0)) {
+    effectiveFreeLimit = EARLY_TESTER_FREE_ADAPTATIONS;
+  }
   const freeAdaptationsUsed = Math.max(profile?.free_adaptations_used || 0, freeUsageEventsResult.count || 0);
-  const freeQuota = createFreeAdaptationQuota(profile?.free_adaptation_limit, freeAdaptationsUsed);
+  const freeQuota = createFreeAdaptationQuota(effectiveFreeLimit, freeAdaptationsUsed);
   const onboarding = createOnboardingProgressState(profile);
   const adaptationsUsed = monthlyUsageResult.data?.adaptations_used || 0;
   const savedTonesUsed = savedThisMonthResult.count || 0;
