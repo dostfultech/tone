@@ -2,6 +2,7 @@ import { createOpenAIClient } from "../../../provider-clients";
 import type { GenerateSongRequestDto, NormalizedMasterToneDraft } from "../dtos";
 import { ingestionConfigError } from "../errors";
 import { validateAiDraft } from "../validation";
+import { researchToneSources } from "./web-research-service";
 
 const normalizedMasterToneSchema = {
   type: "object",
@@ -120,6 +121,10 @@ export class OpenAiToneResearchProvider implements AiToneResearchProvider {
       throw ingestionConfigError("OPENAI_API_KEY is required for AI ingestion.");
     }
 
+    // Live web research (rig rundowns, interviews, forums) when a search key is set.
+    // Grounds the gear + settings in real sources instead of the model's memory.
+    const research = await researchToneSources(request);
+
     const model = process.env.AI_INGESTION_MODEL || process.env.OPENAI_MODEL || "gpt-4.1-nano";
     const completion = await client.chat.completions.create({
       model,
@@ -127,20 +132,23 @@ export class OpenAiToneResearchProvider implements AiToneResearchProvider {
       messages: [
         {
           role: "system",
-          content:
-            "You are Tonefex's ingestion-only tone researcher. Create normalized master tones, never amplifier-specific adaptations. Use cautious language, avoid lyrics, and return JSON only."
+          content: research
+            ? "You are Tonefex's ingestion-only tone researcher. Base the original gear (guitar, pickups, amp, cabinet) and knob settings on the provided WEB SOURCES about the actual recording — prefer facts stated in the sources over assumptions, and identify the correct part (riff vs solo) and its player. Only include effects/pedals the sources confirm were used. In sourceSummary, briefly cite what the sources say and flag anything estimated. Create normalized master tones on a 0-10 knob scale, never amplifier-specific adaptations. Avoid lyrics. Return JSON only."
+            : "You are Tonefex's ingestion-only tone researcher. Create normalized master tones, never amplifier-specific adaptations. Use cautious language, avoid lyrics, and return JSON only."
         },
         {
           role: "user",
           content: JSON.stringify({
             task: "Generate one normalized master tone for permanent database storage.",
             request,
+            webSources: research ? { answer: research.answer, sources: research.sources } : undefined,
             constraints: {
               knobScale: "0-10",
               noUserGearAdaptation: true,
               noCopyrightedLyrics: true,
               includeOnlyReusableMasterToneKnowledge: true,
-              doNotClaimOfficialRigCertainty: true
+              doNotClaimOfficialRigCertainty: true,
+              preferWebSourcesWhenPresent: Boolean(research)
             }
           })
         }

@@ -101,6 +101,7 @@ export interface ToneAdaptationResponseDto {
     version: number;
     confidence: number;
     sourceType: "master_tones" | "song_tone_profiles_bridge";
+    verificationStatus: string;
   };
   gear: {
     guitar?: string;

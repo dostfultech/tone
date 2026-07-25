@@ -147,6 +147,7 @@ type ToneBackendApiResponse = {
     version: number;
     confidence: number;
     sourceType: "master_tones" | "song_tone_profiles_bridge";
+    verificationStatus?: string;
   };
   gear: {
     guitar?: string;
@@ -2414,7 +2415,8 @@ function mapToneAdaptationApiResponse(payload: ToneRequest, response: ToneBacken
       partLabel: response.masterTone.part,
       confidence: response.masterTone.confidence,
       verificationStatus:
-        response.masterTone.sourceType === "master_tones" ? "normalized_master_tone" : "legacy_song_tone_profile"
+        response.masterTone.verificationStatus ||
+        (response.masterTone.sourceType === "master_tones" ? "normalized_master_tone" : "legacy_song_tone_profile")
     }
   };
 }
@@ -2576,9 +2578,25 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => Pro
             <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
               <span className="rounded-md bg-blue-50 px-2 py-1 capitalize text-slate-700">{profile?.partType || result.request.partType || "main"}</span>
               <span className="rounded-md bg-blue-50 px-2 py-1 capitalize text-slate-700">{(profile?.toneType || result.request.toneType || "auto").replace("_", " ")}</span>
-              {profile ? <span className="rounded-md bg-white px-2 py-1 text-ocean">{profile.verificationStatus.replace("_", " ")}</span> : null}
+              {profile ? (
+                profile.verificationStatus === "admin_verified" ? (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-1 font-semibold text-emerald-700">
+                    <BadgeCheck className="h-3.5 w-3.5" /> Verified
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-1 font-semibold text-amber-700">
+                    <Info className="h-3.5 w-3.5" /> Estimated
+                  </span>
+                )
+              ) : null}
             </div>
-            {profile ? <p className="mt-3 text-xs font-semibold text-slate-500">Matched source confidence: {Math.round(profile.confidence)}%</p> : null}
+            {profile ? (
+              <p className="mt-3 text-xs font-semibold text-slate-500">
+                {profile.verificationStatus === "admin_verified"
+                  ? `Verified research · ${Math.round(profile.confidence)}% source confidence`
+                  : `Estimated starting point · ${Math.round(profile.confidence)}% confidence — a solid baseline to refine by ear`}
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-col items-start gap-2 sm:items-end">
             <motion.button

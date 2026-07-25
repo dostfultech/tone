@@ -315,7 +315,8 @@ function loadedContext(): LoadedToneRequestContext {
       toneType: "clean",
       mode: "guitar",
       version: 2,
-      confidence: 82
+      confidence: 82,
+      verificationStatus: "admin_verified"
     }
   };
 

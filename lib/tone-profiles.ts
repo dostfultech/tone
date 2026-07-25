@@ -185,6 +185,10 @@ export async function listCommunityToneProfiles(options: CommunityToneQuery): Pr
         dbQuery = dbQuery.or(`search_text.ilike.%${escapeLike(normalized)}%,song_title.ilike.%${escapeLike(normalized)}%,artist_name.ilike.%${escapeLike(normalized)}%`);
       }
 
+      // Verified songs surface first as the user scrolls (admin_verified sorts ahead of
+      // community_submitted / needs_review / starter_estimate alphabetically), then the
+      // chosen sort applies within each tier.
+      dbQuery = dbQuery.order("verification_status", { ascending: true });
       if (sort === "recent") {
         dbQuery = dbQuery.order("updated_at", { ascending: false });
       } else if (sort === "popular") {

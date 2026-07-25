@@ -59,6 +59,7 @@ export interface LoadedMasterToneContext {
     mode: ToneAdaptationMode;
     version: number;
     confidence: number;
+    verificationStatus: string;
   };
 }
 

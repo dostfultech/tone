@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Database, Guitar, Loader2, Search, Sparkles, ThumbsUp, Volume2 } from "lucide-react";
+import { BadgeCheck, Database, Guitar, Info, Loader2, Search, Sparkles, ThumbsUp, Volume2 } from "lucide-react";
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
 import { OnboardingProgress } from "@/components/onboarding-progress";
 import type { TonePartType } from "@/lib/mock-data";
@@ -276,7 +276,15 @@ export function CommunityView() {
                 <Pill>{normalizePart(item.part)}</Pill>
                 <Pill tone>{(item.toneType || "auto").replace("_", " ")}</Pill>
                 {item.toneCategory ? <Pill>{item.toneCategory}</Pill> : null}
-                {item.verificationStatus ? <Pill icon={<Sparkles className="h-4 w-4" />}>{item.verificationStatus.replace("_", " ")}</Pill> : null}
+                {item.verificationStatus === "admin_verified" ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                    <BadgeCheck className="h-4 w-4" /> Verified
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">
+                    <Info className="h-4 w-4" /> Estimated
+                  </span>
+                )}
               </div>
               <div className="mt-5 rounded-xl border border-blue-50 bg-gradient-to-br from-white to-slate-50 px-4 py-3.5">
                 <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Original Rig Snapshot</div>

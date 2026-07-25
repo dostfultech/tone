@@ -87,7 +87,8 @@ export function mapMasterToneRow(
       toneType,
       mode,
       version,
-      confidence: Math.round(toNumber(row.confidence) ?? 70)
+      confidence: Math.round(toNumber(row.confidence) ?? 70),
+      verificationStatus: stringValue(row.verification_status, "needs_review")
     }
   };
 }

@@ -5,6 +5,7 @@ import type { RuleEngineService } from "./rule-engine-service";
 import { buildTonePresentation } from "./presentation-service";
 import type { LoadedGearContext, LoadedMasterToneContext, LoadedToneRequestContext, ToneCacheRecord, ToneCacheWriteInput } from "../types";
 import { isToneBackendError, notFoundError } from "../errors";
+import { isWebResearchEnabled } from "../../ai-ingestion/services/web-research-service";
 
 export interface ToneServiceDependencies {
   songService: {
@@ -171,6 +172,45 @@ export class ToneService {
         this.dependencies.gearService.loadGear(request)
       ]);
       record({ databaseTimeMs: elapsedMs(dbLoadStart), aiUsed: false, sourceHydrationUsed: false });
+
+      // If the found profile is low-quality templated data ("starter_estimate") and live
+      // web research is enabled, research the song properly, store it, and serve that
+      // instead. First user waits; every user after gets the researched version cached.
+      const upgradeService = this.dependencies.sourceHydrationService;
+      const shouldUpgrade =
+        upgradeService &&
+        isWebResearchEnabled() &&
+        Boolean(request.song && request.artist) &&
+        masterTone.source.verificationStatus === "starter_estimate";
+
+      if (shouldUpgrade) {
+        try {
+          const upgradeStart = nowMs();
+          const hydrated = await upgradeService.hydrateSourceTone(request);
+          const retryRequest = hydrated?.masterToneId ? { ...request, masterToneId: hydrated.masterToneId } : request;
+          const [upgradedMasterTone, upgradedGear] = await Promise.all([
+            this.dependencies.songService.loadMasterTone(retryRequest),
+            this.dependencies.gearService.loadGear(retryRequest)
+          ]);
+          record({ databaseTimeMs: elapsedMs(upgradeStart), aiUsed: true, sourceHydrationUsed: true });
+          this.logger.info("tone_low_quality_profile_upgraded", {
+            requestId: request.requestId,
+            song: request.song,
+            artist: request.artist
+          });
+          return { masterTone: upgradedMasterTone, gear: upgradedGear };
+        } catch (upgradeError) {
+          // Research failed — keep the existing profile rather than erroring out.
+          this.logger.warn("tone_low_quality_upgrade_failed", {
+            requestId: request.requestId,
+            song: request.song,
+            artist: request.artist,
+            message: upgradeError instanceof Error ? upgradeError.message : "Unknown upgrade error"
+          });
+          return { masterTone, gear };
+        }
+      }
+
       return { masterTone, gear };
     } catch (error) {
       const hydrationService = this.dependencies.sourceHydrationService;
@@ -284,7 +324,8 @@ export class ToneService {
         toneType: context.masterTone.source.toneType,
         version: context.masterTone.source.version,
         confidence: context.masterTone.source.confidence,
-        sourceType: context.masterTone.source.sourceType
+        sourceType: context.masterTone.source.sourceType,
+        verificationStatus: context.masterTone.source.verificationStatus
       },
       gear: {
         guitar: context.gear.guitar?.name ?? stringValue(requestSnapshot.guitar),

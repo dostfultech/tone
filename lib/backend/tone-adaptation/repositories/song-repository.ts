@@ -186,7 +186,7 @@ export class SupabaseSongRepository implements SongRepository {
     const { data, error } = await this.supabase
       .from("song_tone_profiles")
       .select(
-        "id, song_id, song_title, artist_name, mode, part_type, part_label, tone_type, genre, difficulty, original_guitar, original_amp, original_cab, original_pickup, original_settings, original_effects, playing_notes, adaptation_notes, source_summary, confidence, updated_at, tone_profile_effects(effect_order, effect_type, effect_name, placement, settings), tone_profile_sources(source_type, title, url)"
+        "id, song_id, song_title, artist_name, mode, part_type, part_label, tone_type, genre, difficulty, original_guitar, original_amp, original_cab, original_pickup, original_settings, original_effects, playing_notes, adaptation_notes, source_summary, confidence, verification_status, updated_at, tone_profile_effects(effect_order, effect_type, effect_name, placement, settings), tone_profile_sources(source_type, title, url)"
       )
       .eq("is_public", true)
       .eq("mode", request.mode)
@@ -326,7 +326,8 @@ function mapLegacyToneProfileRow(
       toneType,
       mode: request.mode,
       version: deriveLegacyVersion(updatedAt, originalSettings),
-      confidence: Math.round(numberField(row, "confidence") ?? 70)
+      confidence: Math.round(numberField(row, "confidence") ?? 70),
+      verificationStatus: stringField(row, "verification_status") || "needs_review"
     }
   };
 }
