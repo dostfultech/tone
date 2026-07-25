@@ -83,6 +83,35 @@ export function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+// Streaming/iTunes catalogs list songs with trailing qualifiers like "(Remastered)",
+// "(Live)", "(2011 Remaster)", "- Deluxe Edition". Those are the SAME song for tone
+// purposes, so strip a trailing qualifier group when it names a variant. Real
+// parentheticals that are part of the title (e.g. "Voodoo Child (Slight Return)") are
+// preserved because they do not contain a variant keyword.
+const SONG_VARIANT_QUALIFIER =
+  /\b(?:re-?master(?:ed)?|digital remaster|live|deluxe|mono|stereo|anniversary|edition|version|remix|radio edit|single version|album version|bonus(?: track)?|demo|take\s*\d+|session|expanded|reissue|remastered)\b/i;
+
+export function normalizeSongTitle(title: string): string {
+  let result = title.trim();
+
+  // Strip up to a few stacked trailing "(...)" / "[...]" qualifier groups, e.g.
+  // "Song (Live) (2011 Remaster)" -> "Song".
+  for (let i = 0; i < 3; i += 1) {
+    const stripped = result.replace(/[([][^()[\]]*[)\]]\s*$/, (match) =>
+      SONG_VARIANT_QUALIFIER.test(match) ? "" : match
+    );
+    if (stripped === result) {
+      break;
+    }
+    result = stripped.trim();
+  }
+
+  // Strip a trailing "- Remastered 2011" / "- Live at ..." dash suffix.
+  result = result.replace(/\s[-–—]\s.*$/, (match) => (SONG_VARIANT_QUALIFIER.test(match) ? "" : match));
+
+  return result.trim() || title.trim();
+}
+
 function normalizeMode(value: unknown): ToneAdaptationMode {
   return value === "bass" ? "bass" : "guitar";
 }

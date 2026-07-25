@@ -4,7 +4,7 @@ import { isToneBackendError, repositoryError, notFoundError } from "../errors";
 import { mapMasterToneRow } from "../mappers";
 import type { NormalizedToneAdaptationRequest } from "../dtos";
 import type { LoadedMasterToneContext } from "../types";
-import { slugify } from "../validation";
+import { normalizeSongTitle, slugify } from "../validation";
 
 type SupabaseQuery = any;
 type SupabaseSingleResult = PromiseLike<{ data: unknown; error: { message: string } | null }>;
@@ -21,17 +21,25 @@ export class SupabaseSongRepository implements SongRepository {
       return this.findMasterToneById(request.masterToneId);
     }
 
+    // Map streaming-catalog title variants ("Smoke on the Water (Remastered)",
+    // "One - 2011 Remaster", etc.) to the base song so they resolve to verified data
+    // instead of a duplicate row or an on-the-fly AI-hydrated profile.
+    const lookupRequest =
+      request.song && request.song !== normalizeSongTitle(request.song)
+        ? { ...request, song: normalizeSongTitle(request.song) }
+        : request;
+
     try {
-      const artist = await this.findArtist(request.artist ?? "");
-      const song = await this.findSong(idOf(artist), request.song ?? "");
-      const part = await this.findSongPart(idOf(song), request.partType, request.part);
-      const masterTone = await this.findMasterToneForPart(idOf(part), request.mode, request.toneType);
+      const artist = await this.findArtist(lookupRequest.artist ?? "");
+      const song = await this.findSong(idOf(artist), lookupRequest.song ?? "");
+      const part = await this.findSongPart(idOf(song), lookupRequest.partType, lookupRequest.part);
+      const masterTone = await this.findMasterToneForPart(idOf(part), lookupRequest.mode, lookupRequest.toneType);
       const suggestedPedals = await this.findSuggestedPedals(idOf(masterTone));
 
       return mapMasterToneRow(masterTone, part, song, artist, suggestedPedals);
     } catch (error) {
       if (isToneBackendError(error) && error.code === "NOT_FOUND") {
-        const legacyToneProfile = await this.findLegacyToneProfile(request);
+        const legacyToneProfile = await this.findLegacyToneProfile(lookupRequest);
         if (legacyToneProfile) {
           return legacyToneProfile;
         }
