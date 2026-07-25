@@ -9,7 +9,34 @@ import { OnboardingProgress } from "@/components/onboarding-progress";
 import { useMyGearProfile, toSearchItem } from "@/hooks/use-my-gear-profile";
 import { brand } from "@/lib/brand";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import type { GearSelectionMetadata } from "@/lib/my-gear";
+import type { GearSearchItem, GearSelectionMetadata } from "@/lib/my-gear";
+
+// Build a display-only selected item from a stored gear name so the full-catalog
+// dropdown can show the current selection even when it isn't in the popular shortlist.
+function toSelectedGearItems(value: string, category: string): GearSearchItem[] {
+  const normalized = value.trim();
+  if (!normalized) {
+    return [];
+  }
+  const [brandName, ...rest] = normalized.split(/\s+/);
+  return [
+    {
+      modelId: `selected:${category}:${normalized.toLowerCase()}`,
+      brandName,
+      modelName: rest.join(" ") || brandName,
+      name: normalized,
+      category,
+      tags: [],
+      pickupConfiguration: null,
+      ampType: null,
+      pedalType: null,
+      priceLow: null,
+      priceHigh: null,
+      usedByArtists: [],
+      description: ""
+    }
+  ];
+}
 
 type Preset = {
   id: string;
@@ -139,31 +166,27 @@ export function GearView() {
 
   useEffect(() => {
     if (presetInstrument === "bass") {
-      setGuitar((current) => {
-        if (!current) return "";
-        return bassGuitars.find((item) => item.name === current)?.name || "";
-      });
-      setAmp((current) => {
-        if (!current) return "";
-        return bassAmps.find((item) => item.name === current)?.name || "";
-      });
+      // Normalize casing against the popular list when present, but never clear a
+      // valid full-catalog selection just because it isn't in the top-N shortlist.
+      setGuitar((current) => (current ? bassGuitars.find((item) => item.name === current)?.name || current : ""));
+      setAmp((current) => (current ? bassAmps.find((item) => item.name === current)?.name || current : ""));
       setCabinet((current) => selectDefaultCabinet("bass", cabinets, current));
       return;
     }
 
-    setGuitar((current) => {
-      if (!current) return "";
-      return electricGuitars.find((item) => item.name === current)?.name || "";
-    });
-    setAmp((current) => {
-      if (!current) return "";
-      return guitarAmps.find((item) => item.name === current)?.name || "";
-    });
+    setGuitar((current) => (current ? electricGuitars.find((item) => item.name === current)?.name || current : ""));
+    setAmp((current) => (current ? guitarAmps.find((item) => item.name === current)?.name || current : ""));
     setCabinet((current) => selectDefaultCabinet("guitar", cabinets, current));
   }, [bassAmps, bassGuitars, cabinets, electricGuitars, guitarAmps, presetInstrument]);
 
-  const currentGuitars = presetInstrument === "bass" ? bassGuitars : electricGuitars;
-  const currentAmps = presetInstrument === "bass" ? bassAmps : guitarAmps;
+  const guitarSearchEndpoint =
+    presetInstrument === "bass"
+      ? "/api/equipment/search?type=guitar&instrumentType=bass"
+      : "/api/equipment/search?type=guitar&instrumentType=guitar";
+  const ampSearchEndpoint =
+    presetInstrument === "bass"
+      ? "/api/equipment/search?type=amp&instrumentType=bass"
+      : "/api/equipment/search?type=amp&instrumentType=guitar";
 
   const groupedCatalog = useMemo(
     () => [
@@ -362,12 +385,13 @@ export function GearView() {
                         <input id="preset-name" className="field mt-2 h-12" value={name} onChange={(event) => setName(event.target.value)} required placeholder="e.g. My Main Rig" />
                       </div>
                     ) : null}
-                    <SearchSelect
+                    <SearchableGearDropdown
                       label={presetInstrument === "bass" ? "Bass" : "Guitar"}
                       placeholder={presetInstrument === "bass" ? "Select bass..." : "Select guitar..."}
-                      value={guitar}
-                      setValue={setGuitar}
-                      options={currentGuitars}
+                      endpoint={guitarSearchEndpoint}
+                      selectedItems={toSelectedGearItems(guitar, presetInstrument === "bass" ? "bass" : "guitar")}
+                      onSelect={(item) => setGuitar(item.name)}
+                      requestType={presetInstrument === "bass" ? "Bass Guitar" : "Guitar"}
                     />
 
                     {useMultiFxInPreset ? (
@@ -390,11 +414,13 @@ export function GearView() {
                             Use Multi-FX instead
                           </button>
                         </div>
-                        <SearchSelect
+                        <SearchableGearDropdown
+                          label="Amp"
                           placeholder="Select amp..."
-                          value={amp}
-                          setValue={setAmp}
-                          options={currentAmps}
+                          endpoint={ampSearchEndpoint}
+                          selectedItems={toSelectedGearItems(amp, presetInstrument === "bass" ? "bass" : "amp")}
+                          onSelect={(item) => setAmp(item.name)}
+                          requestType={presetInstrument === "bass" ? "Bass Amp" : "Guitar Amp"}
                           hideLabel
                         />
                       </div>
