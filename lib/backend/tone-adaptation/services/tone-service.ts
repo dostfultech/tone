@@ -4,7 +4,7 @@ import type { GeneratedToneCacheKey } from "../cache-key";
 import type { RuleEngineService } from "./rule-engine-service";
 import { buildTonePresentation } from "./presentation-service";
 import type { LoadedGearContext, LoadedMasterToneContext, LoadedToneRequestContext, ToneCacheRecord, ToneCacheWriteInput } from "../types";
-import { isToneBackendError } from "../errors";
+import { isToneBackendError, notFoundError } from "../errors";
 
 export interface ToneServiceDependencies {
   songService: {
@@ -194,25 +194,62 @@ export class ToneService {
         mode: request.mode
       });
 
-      const hydrated = await hydrationService.hydrateSourceTone(request);
+      let hydrated: { masterToneId?: string } | null = null;
+      try {
+        hydrated = await hydrationService.hydrateSourceTone(request);
+      } catch (hydrationError) {
+        record({ databaseTimeMs: elapsedMs(dbLoadStart), aiUsed: true, sourceHydrationUsed: true });
+        this.logger.error("source_tone_hydration_failed", {
+          requestId: request.requestId,
+          song: request.song,
+          artist: request.artist,
+          part: request.part,
+          message: hydrationError instanceof Error ? hydrationError.message : "Unknown hydration error"
+        });
+        throw notFoundError(
+          `We don't have a researched tone for "${request.song ?? "this song"}" yet. Try a different song or part while we add it.`,
+          {
+            song: request.song ?? null,
+            artist: request.artist ?? null,
+            part: request.part ?? null,
+            reason: "hydration_failed"
+          }
+        );
+      }
       record({ databaseTimeMs: elapsedMs(dbLoadStart), aiUsed: true, sourceHydrationUsed: true });
 
       dbLoadStart = nowMs();
       const retryRequest = hydrated?.masterToneId ? { ...request, masterToneId: hydrated.masterToneId } : request;
-      const [masterTone, gear] = await Promise.all([
-        this.dependencies.songService.loadMasterTone(retryRequest),
-        this.dependencies.gearService.loadGear(retryRequest)
-      ]);
-      record({ databaseTimeMs: elapsedMs(dbLoadStart), aiUsed: false, sourceHydrationUsed: false });
+      try {
+        const [masterTone, gear] = await Promise.all([
+          this.dependencies.songService.loadMasterTone(retryRequest),
+          this.dependencies.gearService.loadGear(retryRequest)
+        ]);
+        record({ databaseTimeMs: elapsedMs(dbLoadStart), aiUsed: false, sourceHydrationUsed: false });
 
-      this.logger.info("source_tone_hydrated_and_loaded", {
-        requestId: request.requestId,
-        song: request.song,
-        artist: request.artist,
-        masterToneId: hydrated?.masterToneId || masterTone.source.id
-      });
+        this.logger.info("source_tone_hydrated_and_loaded", {
+          requestId: request.requestId,
+          song: request.song,
+          artist: request.artist,
+          masterToneId: hydrated?.masterToneId || masterTone.source.id
+        });
 
-      return { masterTone, gear };
+        return { masterTone, gear };
+      } catch (retryError) {
+        record({ databaseTimeMs: elapsedMs(dbLoadStart), aiUsed: false, sourceHydrationUsed: false });
+        if (isToneBackendError(retryError) && retryError.code === "NOT_FOUND") {
+          throw notFoundError(
+            `We don't have a researched tone for "${request.song ?? "this song"}" yet. Try a different song or part while we add it.`,
+            {
+              song: request.song ?? null,
+              artist: request.artist ?? null,
+              part: request.part ?? null,
+              reason: "not_found_after_hydration"
+            }
+          );
+        }
+        throw retryError;
+      }
     }
   }
 
