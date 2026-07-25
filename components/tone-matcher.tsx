@@ -38,6 +38,8 @@ import {
   useAnimatedToneControls
 } from "@/components/tone-control-animation";
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
+import { UnlockAccessButton } from "@/components/unlock-access-modal";
+import { FirstToneSavedPopup } from "@/components/first-tone-saved-popup";
 import { OnboardingProgress } from "@/components/onboarding-progress";
 import { trackEvent, trackToneGenerated, trackToneSaved } from "@/lib/analytics";
 import { getAdaptationSummaryProps, getFreeAdaptationBannerCopy, shouldShowFreeOnboardingJourney } from "@/lib/subscription-display";
@@ -283,6 +285,7 @@ export function ToneMatcher() {
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("");
   const [celebrationMessage, setCelebrationMessage] = useState("");
+  const [firstTonePopup, setFirstTonePopup] = useState<{ song: string; artist: string } | null>(null);
   const [gearPresets, setGearPresets] = useState<MatcherGearPreset[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [showAdvancedGear, setShowAdvancedGear] = useState(false);
@@ -293,6 +296,7 @@ export function ToneMatcher() {
   const [highlightedSongIndex, setHighlightedSongIndex] = useState(0);
   const [songSearchTouched, setSongSearchTouched] = useState(false);
   const [subscriptionSnapshot, setSubscriptionSnapshot] = useState<ClientSubscriptionSnapshot | null>(null);
+  const subscriptionSnapshotRef = useRef<ClientSubscriptionSnapshot | null>(null);
   const [guitarCatalog, setGuitarCatalog] = useState<CatalogEntry[]>([]);
   const [bassGuitarCatalog, setBassGuitarCatalog] = useState<CatalogEntry[]>([]);
   const [ampCatalog, setAmpCatalog] = useState<CatalogEntry[]>([]);
@@ -303,6 +307,10 @@ export function ToneMatcher() {
   const [multiFxCatalog, setMultiFxCatalog] = useState<CatalogEntry[]>([]);
   const firstAdaptationOnboarding = shouldShowFreeOnboardingJourney(subscriptionSnapshot, onboardingMode);
   const freeBannerCopy = getFreeAdaptationBannerCopy(subscriptionSnapshot);
+
+  useEffect(() => {
+    subscriptionSnapshotRef.current = subscriptionSnapshot;
+  }, [subscriptionSnapshot]);
 
   const refreshSubscriptionSnapshot = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
@@ -534,6 +542,8 @@ export function ToneMatcher() {
           masterTone: (data as ToneBackendApiResponse).masterTone || null
         });
         setResult(adapted);
+        const priorSnapshot = subscriptionSnapshotRef.current;
+        const wasFirstAdaptation = Boolean(priorSnapshot?.user) && !priorSnapshot?.onboarding.firstAdaptationCompleted;
         const tracking = (data as ToneBackendApiResponse).tracking;
         if (tracking?.accessPath === "free") {
           applyFreeUsageSnapshot({
@@ -546,6 +556,11 @@ export function ToneMatcher() {
         }
         if (tracking?.usageConfirmationRequired !== false && tracking?.toneResultId) {
           await confirmSuccessfulAdaptation(tracking.toneResultId);
+        }
+        if (wasFirstAdaptation) {
+          // Auto-save the user's first tone to their library and show the one-time popup.
+          void autoSaveFirstTone(adapted);
+          setFirstTonePopup({ song: payload.song || "Your tone", artist: payload.artist || "" });
         }
         trackToneGenerated({
           mode: payload.mode,
@@ -1161,6 +1176,28 @@ export function ToneMatcher() {
     localStorage.setItem(`${brand.storagePrefix}_daily_usage`, String(usage + 1));
   }
 
+  async function autoSaveFirstTone(tone: ToneResult) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(`${brand.storagePrefix}_saved_tones`) || "[]") as Array<
+        SavedToneRecord | ToneResult
+      >;
+      const localRecord = toSavedToneRecord(tone);
+      localStorage.setItem(
+        `${brand.storagePrefix}_saved_tones`,
+        JSON.stringify([localRecord, ...saved.filter((entry) => getSavedToneId(entry) !== tone.id)])
+      );
+    } catch {
+      // localStorage may be unavailable in some browsers; the server save below still runs.
+    }
+    await fetch("/api/save-tone", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ result: tone, autoSave: true })
+    }).catch(() => null);
+    trackToneSaved("synced");
+    dispatchSubscriptionRefresh();
+  }
+
   async function saveTone(): Promise<SaveToneOutcome> {
     if (!result) {
       return "local";
@@ -1330,13 +1367,27 @@ export function ToneMatcher() {
           </div>
         ) : null}
 
-        {subscriptionSnapshot?.user ? <div className="mt-10"><FreeAdaptationSummary {...getAdaptationSummaryProps(subscriptionSnapshot)} /></div> : null}
+        {subscriptionSnapshot?.user ? (
+          <div className="mt-10 space-y-4">
+            <FreeAdaptationSummary {...getAdaptationSummaryProps(subscriptionSnapshot)} />
+            {!subscriptionSnapshot.hasAccess ? (
+              <UnlockAccessButton className="button-primary w-full justify-center" label="Unlock Full Access" />
+            ) : null}
+          </div>
+        ) : null}
 
         {celebrationMessage ? (
           <div className="mt-8 rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-900">
             {celebrationMessage}
           </div>
         ) : null}
+
+        <FirstToneSavedPopup
+          open={Boolean(firstTonePopup)}
+          song={firstTonePopup?.song}
+          artist={firstTonePopup?.artist}
+          onClose={() => setFirstTonePopup(null)}
+        />
 
         <StepProgress />
 

@@ -279,7 +279,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (supabase && user) {
       const entitlement = await getEntitlement(supabase, user);
       if (!entitlement.hasAccess) {
-        return NextResponse.json({ error: "This feature requires a Beginner or Expert plan." }, { status: 402 });
+        // Free/trial users get exactly one auto-saved tone (their first adaptation) so it
+        // shows up in the library like ToneAdapt. Any further saves require a paid plan.
+        const { count } = await supabase
+          .from("saved_tones")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id);
+        const isFirstFreeSave = Boolean(body.autoSave) && (count ?? 0) === 0;
+        if (!isFirstFreeSave) {
+          return NextResponse.json({ error: "This feature requires a Beginner or Expert plan." }, { status: 402 });
+        }
       }
 
       const tone = body.result || body;

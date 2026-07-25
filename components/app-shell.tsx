@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { brand } from "@/lib/brand";
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
+import { UnlockAccessButton } from "@/components/unlock-access-modal";
 import {
   loadClientSubscriptionSnapshot,
   type ClientSubscriptionSnapshot
@@ -178,7 +179,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {snapshot?.user ? <FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} className="mb-8" /> : null}
+          {snapshot?.user ? <FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} className="mb-4" /> : null}
+
+          {snapshot?.user && !snapshot.hasAccess ? (
+            <UnlockAccessButton className="button-primary mb-8 w-full justify-center" label="Unlock Full Access" />
+          ) : null}
 
           <NavSection title="My Collection" items={collectionNav} pathname={pathname} onNavigate={navigate} />
           <NavSection title="Discover" items={discoveryNav} pathname={pathname} onNavigate={navigate} />
