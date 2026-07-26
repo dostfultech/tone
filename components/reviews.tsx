@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Star } from "lucide-react";
 import { brand } from "@/lib/brand";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -28,9 +28,10 @@ const starterReviews: Review[] = [
   }
 ];
 
-const showcaseReviewMetrics = {
-  rating: "4.9",
-  totalReviewsLabel: "100,000+ reviews"
+const trustHighlight = {
+  stat: "15,000+",
+  label: "guitar & bass tones",
+  sub: "for the songs you want to play"
 } as const;
 
 export function Reviews() {
@@ -58,8 +59,6 @@ export function Reviews() {
     localStorage.setItem(`${brand.storagePrefix}_reviews`, JSON.stringify(reviews));
   }, [reviews]);
 
-  const featuredReviewCountLabel = useMemo(() => new Intl.NumberFormat("en-US").format(reviews.length), [reviews.length]);
-
   async function submitReview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (body.trim().length < 10) {
@@ -83,13 +82,12 @@ export function Reviews() {
         rating,
         display_name: next.name,
         body: next.body,
-        status: "approved"
+        status: "pending"
       });
-      setMessage("Review published.");
+      setMessage("Thanks! Your review was submitted and will appear once approved.");
     } else {
-      setMessage("Review saved locally.");
+      setMessage("Thanks! Your review was submitted for approval.");
     }
-    setReviews((current) => [next, ...current]);
     setName("");
     setBody("");
     setRating(5);
@@ -104,15 +102,10 @@ export function Reviews() {
           <p className="mt-2 max-w-2xl text-slate-600">Short notes from players using {brand.appName} as a practical starting point.</p>
         </div>
         <div className="compact-card flex w-fit items-center gap-3 p-4">
-          <div className="text-3xl font-bold">{showcaseReviewMetrics.rating}</div>
+          <div className="text-3xl font-bold text-ocean">{trustHighlight.stat}</div>
           <div>
-            <div className="flex text-ocean">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <Star key={index} className="h-4 w-4 fill-current" />
-              ))}
-            </div>
-            <div className="text-xs text-neutral-500">{showcaseReviewMetrics.totalReviewsLabel}</div>
-            <div className="text-[11px] text-neutral-400">{featuredReviewCountLabel} featured reviews shown</div>
+            <div className="text-sm font-semibold text-neutral-700">{trustHighlight.label}</div>
+            <div className="text-xs text-neutral-500">{trustHighlight.sub}</div>
           </div>
         </div>
       </div>

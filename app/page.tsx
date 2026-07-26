@@ -72,7 +72,7 @@ const testimonials = [
 ];
 
 export const metadata: Metadata = buildPageMetadata({
-  title: "Guitar Tone Matching",
+  title: "Tonefex — Nail Any Guitar Tone on the Gear You Own",
   description: "Match iconic guitar and bass tones to the gear you own with AI-assisted settings and adaptation guidance.",
   path: "/",
   keywords: [
@@ -159,12 +159,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <div className="inline-flex items-center gap-3 rounded-full border border-white/80 bg-white/85 px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm">
             <span className="inline-flex items-center gap-1.5">
               <Sparkles className="h-4 w-4 text-ocean" />
-              Trusted by guitarists worldwide
+              15,000+ guitar & bass tones
             </span>
             <span className="h-4 w-px bg-slate-300" />
             <span className="inline-flex items-center gap-1">
               <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-              4.9 rating
+              Trusted by guitarists worldwide
             </span>
           </div>
 

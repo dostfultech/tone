@@ -226,6 +226,17 @@ export class SupabaseSongRepository implements SongRepository {
       score += 15;
     }
 
+    // Quality tiebreak: the match score above ignores data quality, so a duplicate
+    // templated ("starter_estimate") row could tie or outrank the curated
+    // admin_verified profile for the same song. Always prefer verified data, then
+    // community-submitted, then break remaining ties by confidence so the exact,
+    // hand-checked result is served.
+    const verification = stringField(row, "verification_status");
+    if (verification === "admin_verified") score += 200;
+    else if (verification === "community_submitted") score += 20;
+    const confidence = Number(row.confidence);
+    if (Number.isFinite(confidence)) score += Math.max(0, Math.min(confidence, 100)) / 100;
+
     return score;
   }
 

@@ -265,8 +265,12 @@ export async function listCommunityToneProfiles(options: CommunityToneQuery): Pr
           hasMore: page * pageSize < merged.length
         };
       }
-    } catch {
+      // Query returned an error (e.g. transient DB blip or unapplied migration). Log it
+      // so this never silently serves the tiny starter catalog in production unnoticed.
+      console.error("[tonefex] community-tones lookup query error; serving starter fallback:", error?.message);
+    } catch (fallbackError) {
       // Fall through to starter catalog for local development or unapplied migrations.
+      console.error("[tonefex] community-tones lookup threw; serving starter fallback:", fallbackError);
     }
   }
 
