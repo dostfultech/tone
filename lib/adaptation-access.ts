@@ -72,7 +72,10 @@ export function resolveAdaptationAccessState(input: {
     };
   }
 
-  if (entitlement.source === "test" || (entitlement.hasAccess && entitlement.planId === "expert")) {
+  // Expert is unlimited except while trialing — a trialing Expert is capped at
+  // the trial allowance (falls through to the limited branch below), so the UI
+  // shows "5 left in trial" instead of "Unlimited".
+  if (entitlement.source === "test" || (entitlement.hasAccess && entitlement.planId === "expert" && entitlement.status !== "trialing")) {
     return {
       free: freeQuota,
       onboarding,

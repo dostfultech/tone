@@ -38,6 +38,7 @@ import {
   useAnimatedToneControls
 } from "@/components/tone-control-animation";
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
+import { TrialStatusBar } from "@/components/trial-status-bar";
 import { UnlockAccessButton } from "@/components/unlock-access-modal";
 import { FirstToneSavedPopup } from "@/components/first-tone-saved-popup";
 import { OnboardingProgress } from "@/components/onboarding-progress";
@@ -1315,6 +1316,8 @@ export function ToneMatcher() {
           </div>
         </section>
 
+        {subscriptionSnapshot ? <TrialStatusBar snapshot={subscriptionSnapshot} /> : null}
+
         {!firstAdaptationOnboarding ? (
           <section className="mt-14">
           <div className="mb-6 text-center">
@@ -1368,11 +1371,16 @@ export function ToneMatcher() {
           </div>
         ) : null}
 
-        {subscriptionSnapshot?.user ? (
+        {subscriptionSnapshot?.user && !subscriptionSnapshot.isTrialing ? (
           <div className="mt-10 space-y-4">
             <FreeAdaptationSummary {...getAdaptationSummaryProps(subscriptionSnapshot)} />
             {!subscriptionSnapshot.hasAccess ? (
-              <UnlockAccessButton className="button-primary w-full justify-center" label="Unlock Full Access" />
+              <UnlockAccessButton
+                className="button-primary w-full justify-center"
+                label="Unlock Full Access"
+                planId={subscriptionSnapshot.planId}
+                billingInterval={subscriptionSnapshot.billingInterval}
+              />
             ) : null}
           </div>
         ) : null}

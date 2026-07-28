@@ -182,7 +182,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {snapshot?.user ? <FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} className="mb-4" /> : null}
 
           {snapshot?.isTrialing ? (
-            <UnlockAccessButton className="button-primary mb-8 w-full justify-center" label="Unlock Full Access" />
+            <UnlockAccessButton
+              className="button-primary mb-8 w-full justify-center"
+              label="Unlock Full Access"
+              planId={snapshot.planId}
+              billingInterval={snapshot.billingInterval}
+            />
           ) : null}
 
           <NavSection title="My Collection" items={collectionNav} pathname={pathname} onNavigate={navigate} />

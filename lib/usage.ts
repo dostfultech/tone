@@ -49,7 +49,11 @@ export async function assertCanCreateAdaptation(
   await ensureProfileUsageRow(admin, user);
   const profileQuota = await loadProfileUsage(admin, user.id);
 
-  if (entitlement.source === "test" || (entitlement.hasAccess && entitlement.planId === "expert")) {
+  // Expert = unlimited, but NOT during the free trial — a trialing Expert is
+  // capped at trialLimits.expert (5) so someone can't burn unlimited adaptations
+  // and cancel before the first charge. Trialing plans fall through to the
+  // monthly-limit branch below (their monthlyAdaptations is the trial cap).
+  if (entitlement.source === "test" || (entitlement.hasAccess && entitlement.planId === "expert" && entitlement.status !== "trialing")) {
     return {
       ok: true,
       path: "expert",
