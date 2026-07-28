@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { inferBillingIntervalFromProductId, inferPlanIdFromProductId, normalizeDodoStatus, type BillingInterval, type PlanId } from "@/lib/dodo";
+import { syncDodoSubscriptionById } from "@/lib/dodo-webhooks";
 import { getCurrentSession } from "@/lib/server-access";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -22,7 +23,17 @@ export default async function CheckoutSuccessPage({ searchParams }: CheckoutSucc
     redirect("/plans?checkout=not_active");
   }
 
-  const activated = await activateReturnedSubscription(params, user.id, status);
+  // If Dodo handed us a real subscription id, pull the authoritative record now so
+  // the account immediately reflects the customer id + trial window (the webhook
+  // will also arrive and reconcile). Fall back to a provisional row otherwise.
+  const returnedSubscriptionId = stringParam(params.subscription_id) || stringParam(params.subscriptionId);
+  let activated = false;
+  if (returnedSubscriptionId) {
+    activated = await syncDodoSubscriptionById(returnedSubscriptionId, user.id);
+  }
+  if (!activated) {
+    activated = await activateReturnedSubscription(params, user.id, status);
+  }
 
   if (!activated) {
     redirect("/plans?checkout=sync_pending");

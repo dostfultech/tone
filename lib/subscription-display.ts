@@ -3,6 +3,34 @@ import type { ClientSubscriptionSnapshot } from "@/lib/subscription-client";
 const earlyTesterMode = process.env.NEXT_PUBLIC_EARLY_TESTER_MODE === "true";
 
 export function getAdaptationSummaryProps(snapshot: ClientSubscriptionSnapshot) {
+  if (snapshot.isTrialing) {
+    const daysText =
+      typeof snapshot.trialDaysRemaining === "number"
+        ? `${snapshot.trialDaysRemaining} day${snapshot.trialDaysRemaining === 1 ? "" : "s"} left in your free trial`
+        : "Free trial active — cancel anytime";
+
+    if (snapshot.adaptationAccess.isUnlimited) {
+      return {
+        remaining: 0,
+        limit: 0,
+        unlimited: false,
+        label: "Free Trial",
+        helpText: daysText,
+        valueText: "Unlimited adaptations during your trial."
+      };
+    }
+
+    const remaining = snapshot.usage.adaptationsRemaining ?? 0;
+    return {
+      remaining,
+      limit: snapshot.usage.adaptationsUsed + remaining,
+      unlimited: false,
+      label: "Free Trial",
+      helpText: daysText,
+      valueText: `${remaining} trial adaptation${remaining === 1 ? "" : "s"} remaining`
+    };
+  }
+
   if (snapshot.adaptationAccess.isUnlimited) {
     return {
       remaining: 0,

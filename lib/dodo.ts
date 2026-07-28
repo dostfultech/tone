@@ -64,6 +64,32 @@ export function createDodoClient() {
   });
 }
 
+export type DodoSubscription = Awaited<ReturnType<DodoPayments["subscriptions"]["retrieve"]>>;
+
+/**
+ * Fetch the authoritative subscription object straight from Dodo. Webhook payload
+ * shapes vary between events, so we treat the webhook purely as a trigger and read
+ * the canonical customer id, status, trial window, and billing dates from the API.
+ */
+export async function retrieveDodoSubscription(subscriptionId: string | null | undefined): Promise<DodoSubscription | null> {
+  const id = (subscriptionId || "").trim();
+  if (!id) {
+    return null;
+  }
+
+  const client = createDodoClient();
+  if (!client) {
+    return null;
+  }
+
+  try {
+    return await client.subscriptions.retrieve(id);
+  } catch (error) {
+    console.error("[dodo] failed to retrieve subscription", id, error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
 export function resolveDodoEnvironment(): "live_mode" | "test_mode" {
   return normalizeDodoEnvironment(process.env.DODO_PAYMENTS_ENVIRONMENT) ?? "test_mode";
 }

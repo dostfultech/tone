@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Activity, Check, CreditCard, Guitar, Loader2, Music2, ShieldCheck, Trash2, UserCircle } from "lucide-react";
+import { Activity, Check, CreditCard, Guitar, Loader2, Music2, ShieldCheck, Sparkles, Trash2, UserCircle } from "lucide-react";
 import { brand } from "@/lib/brand";
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
+import { plans } from "@/lib/mock-data";
 import { getAdaptationSummaryProps } from "@/lib/subscription-display";
 import { addSubscriptionRefreshListener } from "@/lib/subscription-events";
 import {
@@ -117,7 +118,30 @@ export function AccountView() {
   }
 
   const planLabel = snapshot?.hasAccess ? snapshot.planName || "Active plan" : snapshot?.user ? "Free" : "No active plan";
-  const statusLabel = snapshot?.hasAccess ? formatSubscriptionStatus(snapshot.status) : snapshot?.user ? "Free access" : "Inactive";
+  const statusLabel = snapshot?.isTrialing
+    ? "Free trial"
+    : snapshot?.hasAccess
+      ? formatSubscriptionStatus(snapshot.status)
+      : snapshot?.user
+        ? "Free access"
+        : "Inactive";
+
+  const trialPlan = snapshot?.planId ? plans.find((item) => item.id === snapshot.planId) || null : null;
+  const trialPrice = trialPlan ? (snapshot?.billingInterval === "annual" ? trialPlan.annual : trialPlan.monthly) : null;
+  const trialInterval = snapshot?.billingInterval === "annual" ? "year" : "month";
+  const trialDaysLeft = snapshot?.trialDaysRemaining ?? null;
+  const trialEndsOn = formatSubscriptionDate(snapshot?.trialEnd);
+  const trialAdaptationsValue = snapshot?.isTrialing
+    ? snapshot.adaptationAccess.isUnlimited
+      ? "Unlimited during trial"
+      : `${snapshot.usage.adaptationsRemaining ?? 0} left in trial`
+    : snapshot?.adaptationAccess.isUnlimited
+      ? "Unlimited"
+      : snapshot?.hasAccess
+        ? "Active plan"
+        : snapshot?.usage.freeAdaptationLimit && snapshot.usage.freeAdaptationLimit > 0
+          ? `${snapshot.usage.freeAdaptationsRemaining} / ${snapshot.usage.freeAdaptationLimit}`
+          : "Start a trial";
 
   return (
     <div className="px-4 pb-14 pt-24 sm:px-6 lg:px-8">
@@ -144,6 +168,47 @@ export function AccountView() {
         </section>
 
         {message ? <div className="mt-6 rounded-lg bg-blue-50/80 px-4 py-3 text-sm font-bold text-ink">{message}</div> : null}
+
+        {snapshot?.isTrialing ? (
+          <section className="mt-6 overflow-hidden rounded-2xl border border-moss/60 bg-gradient-to-br from-moss/25 via-white to-blue-50 p-6 shadow-sm">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-start gap-4">
+                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-ink text-moss">
+                  <Sparkles className="h-6 w-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-2xl font-bold text-ink">Free trial active</h2>
+                    <span className="rounded-full bg-ink px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-moss">
+                      {typeof trialDaysLeft === "number" ? `${trialDaysLeft} day${trialDaysLeft === 1 ? "" : "s"} left` : "In progress"}
+                    </span>
+                  </div>
+                  <p className="mt-2 max-w-xl text-sm leading-6 text-slate-700">
+                    You have full {snapshot.planName || "plan"} access. Your trial ends{" "}
+                    <span className="font-bold text-ink">{trialEndsOn}</span>
+                    {trialPrice ? (
+                      <>
+                        , then it continues automatically at{" "}
+                        <span className="font-bold text-ink">${trialPrice}/{trialInterval}</span>
+                      </>
+                    ) : null}
+                    . You won&apos;t be charged until then — cancel anytime.
+                  </p>
+                </div>
+              </div>
+              <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col">
+                <button className="button-primary" onClick={openBillingPortal}>
+                  Manage or cancel trial
+                </button>
+                {snapshot.planId === "beginner" ? (
+                  <Link className="button-secondary" href="/plans">
+                    Upgrade to Expert
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         {snapshot?.user ? <div className="mt-6"><FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} /></div> : null}
 
@@ -198,14 +263,11 @@ export function AccountView() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <MetricCard label="Current plan" value={planLabel} />
                   <MetricCard label="Plan status" value={statusLabel} />
-                  <MetricCard label="Renewal date" value={snapshot?.hasAccess ? formatSubscriptionDate(snapshot.renewalDate) : "Not scheduled"} />
+                  <MetricCard label={snapshot?.isTrialing ? "First charge" : "Renewal date"} value={snapshot?.hasAccess ? formatSubscriptionDate(snapshot.renewalDate) : "Not scheduled"} />
                   <MetricCard label="Billing" value={snapshot?.billingInterval === "annual" ? "Annual" : snapshot?.billingInterval === "monthly" ? "Monthly" : "None"} />
                   <MetricCard label="Adaptations" value={snapshot ? formatRemaining(snapshot.usage.adaptationsUsed, snapshot.usage.adaptationsRemaining) : "0 used"} />
                   <MetricCard label="Saved tones" value={snapshot ? formatRemaining(snapshot.usage.savedTonesUsed, snapshot.usage.savedTonesRemaining) : "0 used"} />
-                  <MetricCard
-                    label="Trial adaptations"
-                    value={snapshot?.adaptationAccess.isUnlimited ? "Unlimited" : snapshot?.hasAccess ? "Active plan" : snapshot?.usage.freeAdaptationLimit && snapshot.usage.freeAdaptationLimit > 0 ? `${snapshot.usage.freeAdaptationsRemaining} / ${snapshot.usage.freeAdaptationLimit}` : "Start a trial"}
-                  />
+                  <MetricCard label="Trial adaptations" value={trialAdaptationsValue} />
                   <MetricCard label="Gear presets" value={snapshot ? formatRemaining(snapshot.usage.gearPresetsUsed, snapshot.usage.gearPresetsRemaining) : "0 used"} />
                 </div>
 

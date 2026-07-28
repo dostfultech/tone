@@ -5,7 +5,7 @@ import {
   resolveAdaptationAccessState
 } from "@/lib/adaptation-access";
 import { EARLY_TESTER_FREE_ADAPTATIONS } from "@/lib/early-tester";
-import { planLimits } from "@/lib/entitlements";
+import { planLimits, trialLimits } from "@/lib/entitlements";
 import { plans } from "@/lib/mock-data";
 
 const earlyTesterMode = process.env.NEXT_PUBLIC_EARLY_TESTER_MODE === "true";
@@ -18,6 +18,7 @@ type RawSubscription = {
   status: string;
   billing_interval: string | null;
   current_period_end: string | null;
+  trial_end: string | null;
 };
 
 type RawProfile = {
@@ -49,6 +50,9 @@ export type ClientSubscriptionSnapshot = {
   billingInterval: BillingInterval | null;
   renewalDate: string | null;
   hasAccess: boolean;
+  isTrialing: boolean;
+  trialEnd: string | null;
+  trialDaysRemaining: number | null;
   features: string[];
   adaptationAccess: ReturnType<typeof resolveAdaptationAccessState>;
   onboarding: ReturnType<typeof createOnboardingProgressState>;
@@ -76,7 +80,7 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
   const [activeResult, latestResult, profileResult] = await Promise.all([
     client
       .from("subscriptions")
-      .select("plan_id, status, billing_interval, current_period_end")
+      .select("plan_id, status, billing_interval, current_period_end, trial_end")
       .eq("user_id", user.id)
       .in("status", ["active", "trialing"])
       .in("plan_id", ["beginner", "expert"])
@@ -85,7 +89,7 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
       .maybeSingle(),
     client
       .from("subscriptions")
-      .select("plan_id, status, billing_interval, current_period_end")
+      .select("plan_id, status, billing_interval, current_period_end, trial_end")
       .eq("user_id", user.id)
       .order("updated_at", { ascending: false })
       .limit(1)
@@ -135,7 +139,10 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
 
   const planId = subscription?.planId || null;
   const plan = planId ? plans.find((item) => item.id === planId) || null : null;
-  const limits = planId ? planLimits[planId] : null;
+  const isTrialing = subscription?.status === "trialing";
+  const limits = planId ? (isTrialing ? trialLimits[planId] : planLimits[planId]) : null;
+  const trialEnd = isTrialing ? subscription?.trialEnd || subscription?.renewalDate || null : null;
+  const trialDaysRemaining = trialEnd ? Math.max(0, Math.ceil((new Date(trialEnd).getTime() - Date.now()) / 86_400_000)) : null;
   const profile = (profileResult.data as RawProfile | null) || null;
   let effectiveFreeLimit = profile?.free_adaptation_limit;
   if (earlyTesterMode && (effectiveFreeLimit === null || effectiveFreeLimit === 0) && (profile?.free_adaptations_used === null || profile?.free_adaptations_used === 0)) {
@@ -172,6 +179,9 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
     billingInterval: subscription?.billingInterval || null,
     renewalDate: subscription?.renewalDate || null,
     hasAccess: hasPaidAccess,
+    isTrialing: isTrialing && hasPaidAccess,
+    trialEnd,
+    trialDaysRemaining,
     features: plan?.perks || [],
     adaptationAccess,
     onboarding,
@@ -241,6 +251,9 @@ function emptySnapshot(): ClientSubscriptionSnapshot {
     billingInterval: null,
     renewalDate: null,
     hasAccess: false,
+    isTrialing: false,
+    trialEnd: null,
+    trialDaysRemaining: null,
     features: [],
     adaptationAccess: resolveAdaptationAccessState({
       entitlement: {
@@ -279,6 +292,7 @@ function normalizeSubscription(subscription: RawSubscription | null): {
   billingInterval: BillingInterval | null;
   status: string | null;
   renewalDate: string | null;
+  trialEnd: string | null;
   isActive: boolean;
 } | null {
   if (!subscription) {
@@ -293,6 +307,7 @@ function normalizeSubscription(subscription: RawSubscription | null): {
     billingInterval,
     status: subscription.status || null,
     renewalDate: subscription.current_period_end || null,
+    trialEnd: subscription.trial_end || null,
     isActive: isActiveSubscriptionStatus(subscription.status)
   };
 }
