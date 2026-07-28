@@ -103,7 +103,7 @@ export async function findLatestDodoSubscriptionIdForUser(userId: string): Promi
   }
 
   try {
-    const since = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    const since = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
     const list = await client.subscriptions.list({ created_at_gte: since } as never);
     let bestId: string | null = null;
     let bestCreated = -1;

@@ -70,24 +70,24 @@ export async function syncDodoSubscription(payload: DodoWebhookPayload) {
  * pull the authoritative record and upsert it so the row carries the customer id
  * and trial window immediately (before the webhook lands).
  */
-export async function syncDodoSubscriptionById(subscriptionId: string, fallbackUserId?: string) {
+export async function syncDodoSubscriptionById(subscriptionId: string, fallbackUserId?: string): Promise<string | null> {
   const admin = createSupabaseAdminClient();
   if (!admin) {
-    return false;
+    return null;
   }
 
   const authoritative = await retrieveDodoSubscription(subscriptionId);
   if (!authoritative) {
-    return false;
+    return null;
   }
 
   const row = buildRowFromSubscription(authoritative, fallbackUserId || "", { source: "checkout_return_api" });
   if (!row.user_id) {
-    return false;
+    return null;
   }
 
   await persistSubscriptionRow(admin, row, { eventType: "checkout_return", source: "api" });
-  return true;
+  return row.status;
 }
 
 function buildRowFromSubscription(

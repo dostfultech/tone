@@ -16,30 +16,30 @@ export default async function CheckoutSuccessPage({ searchParams }: CheckoutSucc
     redirect(`/login?redirect=${encodeURIComponent("/app")}`);
   }
 
-  const rawStatus = stringParam(params.status) || stringParam(params.subscription_status) || "active";
-  const status = normalizeDodoStatus(rawStatus);
-
-  if (status !== "active" && status !== "trialing") {
-    redirect("/plans?checkout=not_active");
-  }
-
-  // Pull the authoritative record now so the account immediately reflects the
-  // customer id + trial window (the webhook also arrives and reconciles). Prefer
-  // the subscription id from the return URL; if Dodo omitted it, look the user's
-  // latest subscription up from the Dodo API; only then fall back to a provisional
-  // row written from the return params.
+  // Never gate on the return-URL status. A $0 trial checkout comes back with a
+  // non-"active" payment status (e.g. processing/pending), so trusting it here
+  // used to bounce healthy trials to /plans?checkout=not_active before anything
+  // synced. The real status lives in Dodo — resolve the subscription (by returned
+  // id, else by our user_id metadata), sync it, and route on the actual status.
   let subscriptionId = stringParam(params.subscription_id) || stringParam(params.subscriptionId);
   if (!subscriptionId) {
     subscriptionId = (await findLatestDodoSubscriptionIdForUser(user.id)) || "";
   }
 
-  let activated = false;
-  if (subscriptionId) {
-    activated = await syncDodoSubscriptionById(subscriptionId, user.id);
+  const syncedStatus = subscriptionId ? await syncDodoSubscriptionById(subscriptionId, user.id) : null;
+
+  if (syncedStatus) {
+    if (syncedStatus === "active" || syncedStatus === "trialing") {
+      redirect("/app?checkout=success");
+    }
+    redirect("/plans?checkout=not_active");
   }
-  if (!activated) {
-    activated = await activateReturnedSubscription(params, user.id, status);
-  }
+
+  // Could not reach Dodo (rare) — write a best-effort provisional row so access
+  // still reflects; the webhook / next account load reconciles the real status.
+  const rawStatus = stringParam(params.status) || stringParam(params.subscription_status) || "active";
+  const provisionalStatus: "active" | "trialing" = normalizeDodoStatus(rawStatus) === "trialing" ? "trialing" : "active";
+  const activated = await activateReturnedSubscription(params, user.id, provisionalStatus);
 
   if (!activated) {
     console.error("[checkout-success] could not sync subscription", {
