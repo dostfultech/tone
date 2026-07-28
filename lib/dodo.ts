@@ -90,6 +90,45 @@ export async function retrieveDodoSubscription(subscriptionId: string | null | u
   }
 }
 
+/**
+ * Find the most recent Dodo subscription that belongs to a given app user, by
+ * matching the `user_id` we stamp into checkout metadata. Used by the checkout
+ * return page so a trial reflects immediately even when Dodo's return URL omits
+ * the subscription id and before the webhook lands.
+ */
+export async function findLatestDodoSubscriptionIdForUser(userId: string): Promise<string | null> {
+  const client = createDodoClient();
+  if (!client || !userId) {
+    return null;
+  }
+
+  try {
+    const since = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    const list = await client.subscriptions.list({ created_at_gte: since } as never);
+    let bestId: string | null = null;
+    let bestCreated = -1;
+    let scanned = 0;
+    for await (const item of list as AsyncIterable<Record<string, unknown>>) {
+      if (++scanned > 200) {
+        break;
+      }
+      const metadata = ((item.metadata || {}) ?? {}) as Record<string, unknown>;
+      if (metadata.user_id !== userId) {
+        continue;
+      }
+      const created = new Date(String(item.created_at || "")).getTime();
+      if (Number.isFinite(created) && created > bestCreated) {
+        bestCreated = created;
+        bestId = typeof item.subscription_id === "string" ? item.subscription_id : null;
+      }
+    }
+    return bestId;
+  } catch (error) {
+    console.error("[dodo] failed to list subscriptions for user", userId, error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
 export function resolveDodoEnvironment(): "live_mode" | "test_mode" {
   return normalizeDodoEnvironment(process.env.DODO_PAYMENTS_ENVIRONMENT) ?? "test_mode";
 }

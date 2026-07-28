@@ -181,7 +181,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           {snapshot?.user ? <FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} className="mb-4" /> : null}
 
-          {snapshot?.user && !snapshot.hasAccess ? (
+          {snapshot?.isTrialing ? (
             <UnlockAccessButton className="button-primary mb-8 w-full justify-center" label="Unlock Full Access" />
           ) : null}
 

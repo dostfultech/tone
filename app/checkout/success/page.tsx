@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { inferBillingIntervalFromProductId, inferPlanIdFromProductId, normalizeDodoStatus, type BillingInterval, type PlanId } from "@/lib/dodo";
+import { findLatestDodoSubscriptionIdForUser, inferBillingIntervalFromProductId, inferPlanIdFromProductId, normalizeDodoStatus, type BillingInterval, type PlanId } from "@/lib/dodo";
 import { syncDodoSubscriptionById } from "@/lib/dodo-webhooks";
 import { getCurrentSession } from "@/lib/server-access";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -23,19 +23,30 @@ export default async function CheckoutSuccessPage({ searchParams }: CheckoutSucc
     redirect("/plans?checkout=not_active");
   }
 
-  // If Dodo handed us a real subscription id, pull the authoritative record now so
-  // the account immediately reflects the customer id + trial window (the webhook
-  // will also arrive and reconcile). Fall back to a provisional row otherwise.
-  const returnedSubscriptionId = stringParam(params.subscription_id) || stringParam(params.subscriptionId);
+  // Pull the authoritative record now so the account immediately reflects the
+  // customer id + trial window (the webhook also arrives and reconciles). Prefer
+  // the subscription id from the return URL; if Dodo omitted it, look the user's
+  // latest subscription up from the Dodo API; only then fall back to a provisional
+  // row written from the return params.
+  let subscriptionId = stringParam(params.subscription_id) || stringParam(params.subscriptionId);
+  if (!subscriptionId) {
+    subscriptionId = (await findLatestDodoSubscriptionIdForUser(user.id)) || "";
+  }
+
   let activated = false;
-  if (returnedSubscriptionId) {
-    activated = await syncDodoSubscriptionById(returnedSubscriptionId, user.id);
+  if (subscriptionId) {
+    activated = await syncDodoSubscriptionById(subscriptionId, user.id);
   }
   if (!activated) {
     activated = await activateReturnedSubscription(params, user.id, status);
   }
 
   if (!activated) {
+    console.error("[checkout-success] could not sync subscription", {
+      userId: user.id,
+      subscriptionId: subscriptionId || null,
+      returnedParams: params
+    });
     redirect("/plans?checkout=sync_pending");
   }
 
