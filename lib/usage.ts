@@ -72,9 +72,12 @@ export async function assertCanCreateAdaptation(
 
     const used = data?.adaptations_used || 0;
     if (used >= entitlement.monthlyAdaptations) {
+      const trialing = entitlement.status === "trialing";
       return {
         ok: false,
-        error: "Monthly adaptation limit reached. Upgrade to Expert for unlimited matching.",
+        error: trialing
+          ? `You've used all ${entitlement.monthlyAdaptations} free trial adaptations. Unlock full access to keep matching.`
+          : "Monthly adaptation limit reached. Upgrade to Expert for unlimited matching.",
         path: "beginner",
         freeAdaptationsRemaining: profileQuota.remaining,
         monthlyAdaptationsRemaining: 0

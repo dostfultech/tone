@@ -119,9 +119,6 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
   const preset = useMemo(() => selectCompatiblePreset(presets, mode), [mode, presets]);
   const readyForGearAdaptation = Boolean(preset && getPresetGuitar(preset) && getPresetAmp(preset));
   const onboardingActive = shouldShowFreeOnboardingJourney(snapshot, true);
-  // During the free trial, adaptations are only available on the Match Tone page,
-  // not from the Tone Database — send trial users there instead of adapting here.
-  const trialLocked = Boolean(snapshot?.isTrialing);
 
   function adaptTone() {
     if (loading) {
@@ -190,40 +187,27 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
   return (
     <>
       <div className="grid gap-3">
-        <button
-          type="button"
-          className="button-primary w-full justify-center"
-          onClick={trialLocked ? () => router.push("/app") : adaptTone}
-          disabled={loading}
-        >
-          {loading ? "Checking My Gear..." : trialLocked ? "Adapt on Match Tone" : readyForGearAdaptation ? "Adapt to My Gear" : "Adapt This Tone"}
+        <button type="button" className="button-primary w-full justify-center" onClick={adaptTone} disabled={loading}>
+          {loading ? "Checking My Gear..." : readyForGearAdaptation ? "Adapt to My Gear" : "Adapt This Tone"}
         </button>
-        {trialLocked ? (
-          <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-xs font-bold text-ink">
-            During your free trial, tone adaptations are done on the Match Tone page. Tap above to open it and adapt with your saved gear.
+        {snapshot?.user && snapshot.hasAccess ? <FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} /> : null}
+        {snapshot?.user && !snapshot.hasAccess ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-900">
+            Tone Database browsing is free. Adapt to My Gear requires a paid plan.
           </p>
-        ) : (
-          <>
-            {snapshot?.user && snapshot.hasAccess ? <FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} /> : null}
-            {snapshot?.user && !snapshot.hasAccess ? (
-              <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-900">
-                Tone Database browsing is free. Adapt to My Gear requires a paid plan.
-              </p>
-            ) : null}
-            {readyForGearAdaptation ? (
-              <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800">
-                Using {preset?.name || "your saved rig"}: {getPresetGuitar(preset)} into {getPresetAmp(preset)}.
-              </p>
-            ) : message ? (
-              <div className="grid gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-                <p className="text-sm font-semibold text-amber-900">{message}</p>
-                <button type="button" className="button-secondary min-h-10 justify-center rounded-lg text-sm" onClick={() => router.push("/gear?onboarding=1")}>
-                  Open My Gear
-                </button>
-              </div>
-            ) : null}
-          </>
-        )}
+        ) : null}
+        {readyForGearAdaptation ? (
+          <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800">
+            Using {preset?.name || "your saved rig"}: {getPresetGuitar(preset)} into {getPresetAmp(preset)}.
+          </p>
+        ) : message ? (
+          <div className="grid gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-sm font-semibold text-amber-900">{message}</p>
+            <button type="button" className="button-secondary min-h-10 justify-center rounded-lg text-sm" onClick={() => router.push("/gear?onboarding=1")}>
+              Open My Gear
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <ExpertUpgradeModal
