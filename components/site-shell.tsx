@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { Menu, Music2, ShieldCheck, X } from "lucide-react";
 import { brand } from "@/lib/brand";
+import { SiteFooter } from "@/components/site-footer";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 export function SiteShell({ children }: { children: React.ReactNode }) {
@@ -132,41 +133,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
 
       <main>{children}</main>
 
-      <footer className="border-t border-neutral-200 bg-white">
-        <div className="section grid gap-8 py-10 md:grid-cols-[1.4fr_1fr_1fr]">
-          <div>
-            <div className="mb-3 flex items-center gap-3 font-semibold">
-              <Image src="/tonefex-logo.svg" alt={brand.appName} width={34} height={34} />
-              {brand.appName}
-            </div>
-            <p className="max-w-md text-sm leading-6 text-neutral-600">
-              Gear-matched guitar and bass settings for players who want a practical starting point fast.
-            </p>
-          </div>
-          <div>
-            <h3 className="mb-3 text-sm font-semibold">Quick Links</h3>
-            <div className="grid gap-2 text-sm text-neutral-600">
-              <Link href="/app">App</Link>
-              <Link href="/songs">Songs</Link>
-              <Link href="/artists">Artists</Link>
-              <Link href="/plans">Plans</Link>
-              {isAuthenticated ? <Link href="/account">Account</Link> : <Link href="/login">Login</Link>}
-            </div>
-          </div>
-          <div>
-            <h3 className="mb-3 text-sm font-semibold">Support</h3>
-            <div className="grid gap-2 text-sm text-neutral-600">
-              <Link href="/contact">Contact</Link>
-              <Link href="/privacy">Privacy Policy</Link>
-              <Link href="/terms">Terms of Use</Link>
-              <span>{brand.supportEmail}</span>
-            </div>
-          </div>
-        </div>
-        <div className="border-t border-neutral-200 px-4 py-4 text-center text-xs text-neutral-500">
-          AI-assisted tone matching for guitar and bass players.
-        </div>
-      </footer>
+      <SiteFooter isAuthenticated={isAuthenticated} />
 
       {cookie === null ? (
         <div className="fixed bottom-4 left-1/2 z-40 w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 rounded-lg border border-neutral-200 bg-white p-4 shadow-soft" role="region" aria-labelledby="cookie-consent-title">

@@ -21,6 +21,7 @@ import {
 import { brand } from "@/lib/brand";
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
 import { UnlockAccessButton } from "@/components/unlock-access-modal";
+import { SiteFooter } from "@/components/site-footer";
 import {
   loadClientSubscriptionSnapshot,
   type ClientSubscriptionSnapshot
@@ -212,8 +213,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className={cn("min-h-screen", open ? "lg:pl-[322px]" : "lg:pl-0")}>
-        {children}
+      <main className={cn("flex min-h-screen flex-col", open ? "lg:pl-[322px]" : "lg:pl-0")}>
+        <div className="flex-1">{children}</div>
+        <SiteFooter isAuthenticated={Boolean(snapshot?.user)} />
       </main>
     </div>
   );

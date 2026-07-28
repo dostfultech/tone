@@ -203,7 +203,9 @@ export async function recordSuccessfulAdaptationUsage(
 
   await markFirstAdaptationCompleted(admin, userId, new Date().toISOString());
 
-  if (entitlement.source === "test" || (entitlement.hasAccess && entitlement.planId === "expert")) {
+  // A trialing Expert is NOT unlimited — fall through so each adaptation is
+  // counted in monthly_usage and the "N remaining" count actually decrements.
+  if (entitlement.source === "test" || (entitlement.hasAccess && entitlement.planId === "expert" && entitlement.status !== "trialing")) {
     const refreshedQuota = await loadProfileUsage(admin, userId);
     return {
       ok: true,
