@@ -156,9 +156,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       {/* Hero */}
       <section className="app-gradient border-b border-white/80">
         <div className="section py-20 text-center sm:py-24 lg:py-28">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/85 px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/85 px-5 py-2.5 text-sm font-semibold leading-none text-slate-700 shadow-sm">
             <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-400" />
-            Trusted by 100,000+ guitarists worldwide
+            <span className="leading-none">Trusted by 100,000+ guitarists worldwide</span>
           </div>
 
           <p className="mt-6 text-sm font-bold uppercase tracking-[0.18em] text-ocean">Meet {brand.appName}</p>
