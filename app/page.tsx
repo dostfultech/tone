@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, Guitar, Headphones, Music2, Search, SlidersHorizontal, Sparkles, Star, Zap } from "lucide-react";
+import { ArrowRight, Guitar, Headphones, Music2, Search, SlidersHorizontal, Star, Zap } from "lucide-react";
 import { brand } from "@/lib/brand";
 import { buildPageMetadata, toAbsoluteUrl } from "@/lib/seo";
 import { SiteShell } from "@/components/site-shell";
@@ -156,16 +156,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       {/* Hero */}
       <section className="app-gradient border-b border-white/80">
         <div className="section py-20 text-center sm:py-24 lg:py-28">
-          <div className="inline-flex items-center gap-3 rounded-full border border-white/80 bg-white/85 px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm">
-            <span className="inline-flex items-center gap-1.5">
-              <Sparkles className="h-4 w-4 text-ocean" />
-              15,000+ guitar & bass tones
-            </span>
-            <span className="h-4 w-px bg-slate-300" />
-            <span className="inline-flex items-center gap-1">
-              <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-              Trusted by 100,000+ guitarists worldwide
-            </span>
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/85 px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm">
+            <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-400" />
+            Trusted by 100,000+ guitarists worldwide
           </div>
 
           <p className="mt-6 text-sm font-bold uppercase tracking-[0.18em] text-ocean">Meet {brand.appName}</p>
