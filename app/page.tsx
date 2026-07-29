@@ -164,7 +164,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             <span className="h-4 w-px bg-slate-300" />
             <span className="inline-flex items-center gap-1">
               <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-              Trusted by guitarists worldwide
+              Trusted by 100,000+ guitarists worldwide
             </span>
           </div>
 
