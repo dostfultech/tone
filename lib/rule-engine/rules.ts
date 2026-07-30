@@ -183,12 +183,20 @@ function amplifierProfileRule(): RuleDefinition {
       const warmth = readNumericProfileValue(amplifier.warmth);
       const headroom = readNumericProfileValue(amplifier.cleanHeadroom);
 
-      if (amplifier.era === "vintage" || /vintage|plexi|tweed|blackface/i.test(amplifier.gainStructure || "")) {
-        deltas.push({ gain: 0.5, middle: 0.5 });
-      }
+      const gainStructure = (amplifier.gainStructure || "").toLowerCase();
 
-      if (amplifier.era === "modern" || /modern|high|rectifier|5150/i.test(amplifier.gainStructure || "")) {
+      if (amplifier.era === "vintage" || /vintage|plexi|tweed|blackface/i.test(gainStructure)) {
+        deltas.push({ gain: 0.5, middle: 0.5 });
+      } else if (/boutique_high_gain/i.test(gainStructure)) {
+        deltas.push({ gain: 0.75, bass: -0.25 });
+      } else if (/boutique_overdrive/i.test(gainStructure)) {
+        deltas.push({ gain: 0.5 });
+      } else if (/modern_high_gain_5150/i.test(gainStructure)) {
+        deltas.push({ gain: -0.75, bass: -0.5 });
+      } else if (/modern|high|rectifier/i.test(gainStructure)) {
         deltas.push({ gain: -0.5, bass: -0.25 });
+      } else if (/digital_modeling/i.test(gainStructure)) {
+        deltas.push({ gain: 0.25 });
       }
 
       if (brightness != null && brightness >= 7) {
