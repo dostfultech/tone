@@ -86,8 +86,8 @@ export async function syncDodoSubscriptionById(subscriptionId: string, fallbackU
     return null;
   }
 
-  await persistSubscriptionRow(admin, row, { eventType: "checkout_return", source: "api" });
-  return row.status;
+  const persisted = await persistSubscriptionRow(admin, row, { eventType: "checkout_return", source: "api" });
+  return persisted ? row.status : null;
 }
 
 function buildRowFromSubscription(
@@ -180,11 +180,18 @@ async function persistSubscriptionRow(
   row: SubscriptionRow,
   audit: { eventType: string; source: string }
 ) {
-  await admin.from("subscriptions").upsert(row, { onConflict: "dodo_subscription_id" });
+  const { error: upsertError } = await admin.from("subscriptions").upsert(row, { onConflict: "dodo_subscription_id" });
+  if (upsertError) {
+    console.error("[dodo] subscription upsert failed", {
+      status: row.status,
+      subscriptionId: row.dodo_subscription_id,
+      message: upsertError.message
+    });
+  }
 
   // Remove any provisional checkout-return placeholder rows now that we have the
   // real Dodo-issued subscription, so the account only ever resolves one row.
-  if (row.dodo_subscription_id && !row.dodo_subscription_id.startsWith("checkout-return-")) {
+  if (!upsertError && row.dodo_subscription_id && !row.dodo_subscription_id.startsWith("checkout-return-")) {
     await admin
       .from("subscriptions")
       .delete()
@@ -204,9 +211,12 @@ async function persistSubscriptionRow(
       planId: row.plan_id,
       billingInterval: row.billing_interval,
       trialEnd: row.trial_end,
-      hasCustomerId: Boolean(row.dodo_customer_id)
+      hasCustomerId: Boolean(row.dodo_customer_id),
+      upsertError: upsertError?.message || null
     }
   });
+
+  return !upsertError;
 }
 
 /**
@@ -217,7 +227,12 @@ async function persistSubscriptionRow(
  */
 function resolveInternalStatus(rawStatus: string, trialEnd: string | null) {
   const base = normalizeDodoStatus(rawStatus);
-  if ((base === "active" || base === "trialing") && trialEnd) {
+  // A subscription inside its trial window is "trialing" for us — even when Dodo
+  // still reports it as pending / "Not Initiated" / active in the seconds right
+  // after checkout, before the mandate finishes initializing. Terminal states
+  // (cancelled/failed/expired) are never overridden.
+  const terminal = base === "cancelled" || base === "failed" || base === "expired";
+  if (!terminal && trialEnd) {
     const endsAt = new Date(trialEnd).getTime();
     if (Number.isFinite(endsAt) && Date.now() < endsAt) {
       return "trialing";

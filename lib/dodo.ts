@@ -134,14 +134,18 @@ export function resolveDodoEnvironment(): "live_mode" | "test_mode" {
 }
 
 export function normalizeDodoStatus(status: string | undefined) {
-  const normalized = (status || "").toLowerCase();
+  const normalized = (status || "").toLowerCase().trim();
   if (["active", "subscription.active", "success", "succeeded", "complete", "completed", "paid"].includes(normalized)) return "active";
   if (["trialing", "trial"].includes(normalized)) return "trialing";
   if (["on_hold", "onhold", "hold"].includes(normalized)) return "on_hold";
   if (["cancelled", "canceled", "subscription.cancelled"].includes(normalized)) return "cancelled";
   if (["failed", "payment_failed", "subscription.failed"].includes(normalized)) return "failed";
   if (["expired", "subscription.expired"].includes(normalized)) return "expired";
-  return normalized || "inactive";
+  // pending / "not initiated" / processing / any unknown value is not one of the
+  // statuses our subscriptions CHECK constraint allows — normalize to "inactive"
+  // (no access) so a row is never silently rejected. A live trial window is
+  // promoted to "trialing" separately (see resolveInternalStatus).
+  return "inactive";
 }
 
 function normalizeDodoEnvironment(value: string | undefined) {
