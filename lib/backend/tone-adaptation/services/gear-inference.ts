@@ -64,6 +64,7 @@ const AMP_KEYWORDS: Array<{ pattern: RegExp; traits: AmpTraits }> = [
   { pattern: /dumble|overdrive special/i, traits: { brightness: 5.5, warmth: 6.5, cleanHeadroom: 6, gainStructure: "boutique_overdrive", era: "vintage", technology: "tube" } },
   { pattern: /katana|champion|mustang gt|mustang lt|spark|thr|code\b|nextone/i, traits: { brightness: 6, warmth: 5, cleanHeadroom: 7, gainStructure: "digital_modeling", era: "neutral", technology: "digital_modeling" } },
   { pattern: /helix|kemper|axe-?fx|quad cortex|pod\b|headrush|amplifi|gt-?1000|gt-?100/i, traits: { brightness: 6, warmth: 5, cleanHeadroom: 8, gainStructure: "digital_modeling", era: "neutral", technology: "digital_modeling" } },
+  { pattern: /amplitube|bias\s?fx|bias\s?amp|guitar rig|neural\s?dsp|nam\b|tone\s?x|s-?gear|th-?u\b|helix native|archetype/i, traits: { brightness: 6, warmth: 5, cleanHeadroom: 8, gainStructure: "digital_modeling", era: "neutral", technology: "digital_modeling" } },
   { pattern: /ampeg|svt/i, traits: { brightness: 5, warmth: 7, cleanHeadroom: 7, gainStructure: "bass_tube_classic", era: "vintage", technology: "tube" } },
   { pattern: /markbass|hartke|gallien|trace elliot/i, traits: { brightness: 6, warmth: 5.5, cleanHeadroom: 8, gainStructure: "bass_solid_state", era: "neutral", technology: "solid_state" } }
 ];

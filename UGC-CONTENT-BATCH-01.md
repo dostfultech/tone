@@ -39,6 +39,7 @@ For each concept below:
 | 3 | Marcus — metal skeptic | Metallica – Enter Sandman | ⬜ | ⬜ | ⬜ |
 | 4 | Jake — hyped beginner | AC/DC – Back in Black | ⬜ | ⬜ | ⬜ |
 | 5 | Sarah — gear reviewer | Guns N' Roses – Sweet Child O' Mine | ⬜ | ⬜ | ⬜ |
+| 6 | Bedroom demo guy | any hero tone (curiosity hook) | ⬜ | ⬜ | ⬜ |  ← ToneAdapt's 5M-view format
 
 ---
 
@@ -178,6 +179,46 @@ Try it free → link in bio
 
 Created with AI
 #gunsnroses #sweetchildomine #slash #guitartone #guitarapp #tonematching #lespaul #guitargear #guitarplayer #guitartok
+```
+
+---
+
+# CONCEPT 6 — "PERFECT guitar tone?!?" bedroom demo  *(ToneAdapt's 5M-view / ~30K format — clone this FIRST)*
+
+**Why it wins:** simple curiosity hook + you *hear* a flawless tone. Their real version had real playing + real audio. Ours: **AI person + REAL dubbed tone audio**, framed as a *reaction* (holding, not playing) so there's no finger-sync to get wrong.
+
+**On-screen text:** `PERFECT guitar tone?!? 🤫👉`
+
+**IMAGE PROMPT**
+```
+Vertical 3:4 portrait photo, authentic UGC, shot handheld on a phone. A young man, early 20s, short curly brown hair, olive-green t-shirt and grey athletic shorts, standing in a real messy bedroom — unmade bed with grey sheets, white desk with a monitor, wood floor, visible cables and a power strip, an AC unit on the wall. He holds a gold-top Les Paul electric guitar on a strap across his body, plugged in with a cable running to the floor. Neutral-to-curious expression, looking at the camera. Natural indoor ceiling light. Natural skin texture with visible pores, candid unposed energy, subtle grain, imperfect framing. Photorealistic, matte skin, not glossy.
+```
+
+**MOTION PROMPT (Flow)**
+```
+The young man holding the gold Les Paul looks at the camera neutrally, then his expression shifts to surprised and impressed — eyebrows lift, small "whoa" smile — as if he just heard a flawless guitar tone. He glances down at the guitar, subtle nod of approval. Slight handheld camera shake, natural indoor light, photorealistic, authentic UGC selfie style, no on-screen text.
+```
+
+**AUDIO — AI-generated (chosen approach):**
+- Tool: **Suno** (suno.com, free tier) — or Higgsfield **Seed Audio** once you have credits.
+- In Suno: toggle **Instrumental ON**, paste this style prompt:
+  ```
+  Solo electric guitar riff, warm lightly overdriven amp tone, close-miked and dry, no drums, no vocals, single guitar, bedroom demo feel
+  ```
+- Generate → trim the best **4–8s** of guitar → lay it under the AI video clip.
+- Keep the AI person in **listen/react** mode (not strumming) so audio and visuals don't need frame-perfect sync.
+- ⚠️ **Honest caveat:** AI audio gives a *good-sounding generic* tone — ideal for this "PERFECT guitar tone?!?" hook because no specific song is claimed. For the **song-specific** concepts (1–5: Nirvana, Van Halen, Metallica…), a *recognizable* riff matters — a royalty-free riff in that song's style will land better than generic AI. Fallback if the AI riff sounds too "produced": use a royalty-free electric-guitar loop.
+
+**CAPTION**
+```
+PERFECT guitar tone in 10 seconds?!? 🤫🎸
+
+Picked the song, typed in my gear, and the app spit out the exact amp + pedal settings for MY setup. no more guessing.
+
+Try it free → link in bio
+
+Created with AI
+#guitartone #guitarapp #tonematching #guitartok #learningguitar #electricguitar #guitarplayer #guitargear #perfecttone #guitar
 ```
 
 ---

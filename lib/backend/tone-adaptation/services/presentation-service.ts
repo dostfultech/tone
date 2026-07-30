@@ -258,6 +258,7 @@ const REVERB_TYPE_FROM_AMP: Array<{ pattern: RegExp; reverbType: string }> = [
   { pattern: /vox|ac30|ac15/i, reverbType: "Spring" },
   { pattern: /marshall|jcm|plexi|super lead|1959|jtm/i, reverbType: "Spring" },
   { pattern: /mesa|rectifier|recto|5150|6505/i, reverbType: "Hall" },
+  { pattern: /soldano|slo/i, reverbType: "Hall" },
   { pattern: /jazz chorus|jc-?120|roland/i, reverbType: "Hall" },
   { pattern: /hiwatt/i, reverbType: "Plate" },
   { pattern: /dumble/i, reverbType: "Spring" }
@@ -429,6 +430,7 @@ const PRESET_KEYWORDS: Array<{ pattern: RegExp; preset: string; channel: string 
   { pattern: /plexi|super lead|1959|jtm/i, preset: "Plexi Crunch", channel: "Lead" },
   { pattern: /jcm|marshall/i, preset: "British Crunch", channel: "Crunch" },
   { pattern: /rectifier|recto|mesa|5150|6505|uberschall|high.?gain/i, preset: "Modern High Gain", channel: "Brown" },
+  { pattern: /soldano|slo.?100/i, preset: "Boutique High Gain", channel: "Lead" },
   { pattern: /hiwatt/i, preset: "Loud Clean", channel: "Clean" },
   { pattern: /jazz chorus|jc-?120/i, preset: "FX Clean", channel: "Clean" },
   { pattern: /dumble/i, preset: "Boutique Overdrive", channel: "Crunch" }
