@@ -9,10 +9,16 @@ import { syncDodoSubscription } from "@/lib/dodo-webhooks";
  * webhook delivery silently fail. Dodo never GETs this; it always POSTs events.
  */
 export async function GET() {
+  const secret = process.env.DODO_PAYMENTS_WEBHOOK_KEY || "";
   return NextResponse.json({
     endpoint: "dodo-payments webhook",
     reachable: true,
-    webhookSecretConfigured: Boolean(process.env.DODO_PAYMENTS_WEBHOOK_KEY),
+    webhookSecretConfigured: Boolean(secret),
+    // Debug fingerprint (not the full secret): compare these against the Signing
+    // Secret shown on your Dodo webhook page. If the first chars or the length
+    // differ, Vercel has the wrong/stale secret — re-copy it and redeploy.
+    webhookSecretStartsWith: secret ? secret.slice(0, 9) : null,
+    webhookSecretLength: secret.length || null,
     apiKeyConfigured: Boolean(process.env.DODO_PAYMENTS_API_KEY),
     environment: resolveDodoEnvironment(),
     note: "Dodo must POST live-mode events here with a signature from the LIVE webhook whose secret matches DODO_PAYMENTS_WEBHOOK_KEY."
