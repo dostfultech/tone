@@ -1,5 +1,23 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { resolveDodoEnvironment } from "@/lib/dodo";
 import { syncDodoSubscription } from "@/lib/dodo-webhooks";
+
+/**
+ * Diagnostic only (no secrets revealed). Open this URL in a browser to confirm the
+ * endpoint is deployed/reachable, that the signing secret env var is present, and
+ * which Dodo environment the app is verifying against — the three things that make
+ * webhook delivery silently fail. Dodo never GETs this; it always POSTs events.
+ */
+export async function GET() {
+  return NextResponse.json({
+    endpoint: "dodo-payments webhook",
+    reachable: true,
+    webhookSecretConfigured: Boolean(process.env.DODO_PAYMENTS_WEBHOOK_KEY),
+    apiKeyConfigured: Boolean(process.env.DODO_PAYMENTS_API_KEY),
+    environment: resolveDodoEnvironment(),
+    note: "Dodo must POST live-mode events here with a signature from the LIVE webhook whose secret matches DODO_PAYMENTS_WEBHOOK_KEY."
+  });
+}
 
 export async function POST(request: NextRequest) {
   const webhookKey = process.env.DODO_PAYMENTS_WEBHOOK_KEY;
