@@ -22,6 +22,7 @@ import { brand } from "@/lib/brand";
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
 import { UnlockAccessButton } from "@/components/unlock-access-modal";
 import { SiteFooter } from "@/components/site-footer";
+import { PaymentFailedBanner } from "@/components/payment-failed-banner";
 import {
   loadClientSubscriptionSnapshot,
   type ClientSubscriptionSnapshot
@@ -215,6 +216,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className={cn("flex min-h-screen flex-col", open ? "lg:pl-[322px]" : "lg:pl-0")}>
+        <PaymentFailedBanner status={snapshot?.status ?? null} />
         <div className="flex-1">{children}</div>
         <SiteFooter isAuthenticated={Boolean(snapshot?.user)} />
       </main>
