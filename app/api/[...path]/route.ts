@@ -129,6 +129,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
       searchDatabaseSongs(supabaseClient, query, resultLimit),
       searchExternalSongs(query)
     ]);
+    // Give verified database songs real album artwork so they look like the real
+    // release in the dropdown (not a colored initial tile).
+    await attachArtworkToDatabaseSongs(dbResults, liveResults);
     const localResults = searchLocalSongs(normalized, resultLimit);
     const merged = mergeSongResults([...dbResults, ...liveResults, ...localResults], [], resultLimit);
     return json({ results: merged });
@@ -670,6 +673,63 @@ async function searchDatabaseSongs(
   }
 
   return results;
+}
+
+const artworkCache = new Map<string, { expiresAt: number; url: string | null }>();
+
+/**
+ * Attach real album artwork to database-sourced songs. First borrows a cover from
+ * the iTunes results we already fetched (free), then does a bounded targeted lookup
+ * (default US store, so even tracks missing from the India catalog still get a cover).
+ */
+async function attachArtworkToDatabaseSongs(dbResults: SongItem[], liveResults: SongItem[]) {
+  if (!dbResults.length) {
+    return;
+  }
+
+  for (const item of dbResults) {
+    if (item.artworkUrl) {
+      continue;
+    }
+    const artist = item.artist.toLowerCase();
+    const title = item.song.toLowerCase();
+    const match = liveResults.find(
+      (track) => track.artworkUrl && track.artist.toLowerCase() === artist && track.song.toLowerCase().includes(title)
+    );
+    if (match?.artworkUrl) {
+      item.artworkUrl = match.artworkUrl;
+    }
+  }
+
+  const pending = dbResults.filter((item) => !item.artworkUrl).slice(0, 8);
+  await Promise.all(
+    pending.map(async (item) => {
+      const url = await lookupSongArtwork(item.song, item.artist);
+      if (url) {
+        item.artworkUrl = url;
+      }
+    })
+  );
+}
+
+async function lookupSongArtwork(song: string, artist: string): Promise<string | null> {
+  const key = `${song}|${artist}`.toLowerCase();
+  const cached = artworkCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.url;
+  }
+
+  const term = `${song} ${artist}`.trim();
+  const params = new URLSearchParams({ term, media: "music", entity: "song", limit: "10" });
+  const payload = await fetchItunesJson(`https://itunes.apple.com/search?${params.toString()}`);
+  const normalizedArtist = artist.toLowerCase();
+  const track = (payload.results || []).find(
+    (item) => item.artworkUrl100 && (item.artistName || "").toLowerCase().includes(normalizedArtist)
+  );
+  const url = track?.artworkUrl100 ? track.artworkUrl100.replace("100x100bb", "160x160bb") : null;
+
+  artworkCache.set(key, { url, expiresAt: Date.now() + MUSIC_SEARCH_CACHE_TTL_MS });
+  return url;
 }
 
 function getMusicSearchLimit() {
