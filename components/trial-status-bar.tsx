@@ -46,6 +46,7 @@ export function TrialStatusBar({ snapshot }: { snapshot: ClientSubscriptionSnaps
           label="Unlock Full Access"
           planId={snapshot.planId}
           billingInterval={snapshot.billingInterval}
+          convert
         />
       </div>
     </div>

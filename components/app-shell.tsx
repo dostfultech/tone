@@ -188,6 +188,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               label="Unlock Full Access"
               planId={snapshot.planId}
               billingInterval={snapshot.billingInterval}
+              convert
             />
           ) : null}
 
