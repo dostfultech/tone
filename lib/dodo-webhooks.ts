@@ -187,6 +187,21 @@ async function persistSubscriptionRow(
   row: SubscriptionRow,
   audit: { eventType: string; source: string }
 ) {
+  // Never downgrade an already-converted (active) subscription back to trialing. A
+  // webhook re-sync in the brief window between "Unlock Full Access" and the actual
+  // charge would otherwise revert it and hand the user another free trial.
+  if (row.status === "trialing" && row.dodo_subscription_id) {
+    const { data: existing } = await admin
+      .from("subscriptions")
+      .select("status")
+      .eq("dodo_subscription_id", row.dodo_subscription_id)
+      .maybeSingle();
+    if (existing?.status === "active") {
+      row.status = "active";
+      row.trial_end = null;
+    }
+  }
+
   const { error: upsertError } = await admin.from("subscriptions").upsert(row, { onConflict: "dodo_subscription_id" });
   if (upsertError) {
     console.error("[dodo] subscription upsert failed", {
