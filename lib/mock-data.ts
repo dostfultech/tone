@@ -61,7 +61,7 @@ export type SongItem = {
   duration: string;
   artworkColor: string;
   artworkUrl?: string;
-  source?: "local" | "itunes";
+  source?: "local" | "itunes" | "database";
 };
 
 export const guitars: GearItem[] = [

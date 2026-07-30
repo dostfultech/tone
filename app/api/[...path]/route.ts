@@ -122,14 +122,16 @@ export async function GET(request: NextRequest, context: RouteContext) {
   if (route === "music/search") {
     const normalized = query.trim().toLowerCase();
     const resultLimit = getMusicSearchLimit();
-    const liveResults = await searchExternalSongs(query);
+    // Our own verified songs first, then the India iTunes catalog, then the curated
+    // list. This guarantees every song in our database is findable here (dropping the
+    // dependency on whether Apple's India store happens to carry the track).
+    const [dbResults, liveResults] = await Promise.all([
+      searchDatabaseSongs(supabaseClient, query, resultLimit),
+      searchExternalSongs(query)
+    ]);
     const localResults = searchLocalSongs(normalized, resultLimit);
-
-    if (liveResults.length) {
-      return json({ results: mergeSongResults(liveResults, localResults, resultLimit) });
-    }
-
-    return json({ results: localResults });
+    const merged = mergeSongResults([...dbResults, ...liveResults, ...localResults], [], resultLimit);
+    return json({ results: merged });
   }
 
   if (route === "trending-tones") {
@@ -592,8 +594,10 @@ function mergeSongResults(primary: SongItem[], fallback: SongItem[], limit: numb
   const seen = new Set<string>();
   const merged: SongItem[] = [];
 
+  // Dedupe by song + artist (ignore album) so a verified database entry and its
+  // iTunes twin collapse into one — the earlier (database) source wins.
   for (const song of [...primary, ...fallback]) {
-    const key = `${song.song}|${song.artist}|${song.album}`.toLowerCase();
+    const key = `${song.song}|${song.artist}`.toLowerCase().trim();
     if (seen.has(key)) continue;
     seen.add(key);
     merged.push(song);
@@ -601,6 +605,71 @@ function mergeSongResults(primary: SongItem[], fallback: SongItem[], limit: numb
   }
 
   return merged;
+}
+
+/**
+ * Search our own verified tone database so every song we have data for is findable
+ * in the Match Tone search — independent of whether Apple's regional store carries it.
+ * Aggregates the per-part profile rows into one suggestion per song (preferring a
+ * guitar part and the highest verification tier).
+ */
+async function searchDatabaseSongs(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  query: string,
+  limit: number
+): Promise<SongItem[]> {
+  const term = query.trim();
+  if (!supabase || term.length < 2) {
+    return [];
+  }
+
+  // Strip characters that would break the PostgREST .or() filter grammar or act as
+  // ilike wildcards, so the term is matched literally.
+  const safe = term.replace(/[%_,()*]/g, " ").trim();
+  if (!safe) {
+    return [];
+  }
+  const pattern = `%${safe}%`;
+  const { data, error } = await supabase
+    .from("song_tone_profiles")
+    .select("song_title, artist_name, mode, part_label, verification_status")
+    .eq("is_public", true)
+    .or(`song_title.ilike.${pattern},artist_name.ilike.${pattern}`)
+    .limit(300);
+
+  if (error || !data) {
+    return [];
+  }
+
+  const tierRank: Record<string, number> = { admin_verified: 4, community_submitted: 3, needs_review: 2, starter_estimate: 1 };
+  const best = new Map<string, { row: (typeof data)[number]; score: number }>();
+
+  for (const row of data) {
+    const key = `${row.song_title}|${row.artist_name}`.toLowerCase().trim();
+    const score = (tierRank[row.verification_status] || 0) * 10 + (row.mode === "guitar" ? 1 : 0);
+    const current = best.get(key);
+    if (!current || score > current.score) {
+      best.set(key, { row, score });
+    }
+  }
+
+  const results: SongItem[] = [];
+  for (const { row } of best.values()) {
+    results.push({
+      id: `db-${`${row.song_title}-${row.artist_name}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`,
+      song: row.song_title,
+      artist: row.artist_name,
+      part: row.part_label || "main part",
+      mode: row.mode === "bass" ? "bass" : "guitar",
+      album: "",
+      duration: "",
+      artworkColor: colorFromText(`${row.artist_name}-${row.song_title}`),
+      source: "database"
+    });
+    if (results.length >= limit) break;
+  }
+
+  return results;
 }
 
 function getMusicSearchLimit() {

@@ -1832,7 +1832,14 @@ export function ToneMatcher() {
                                 <span className="block truncate text-base text-neutral-700">{suggestion.artist}</span>
                                 <span className="block truncate text-sm text-neutral-500">{suggestion.album}</span>
                               </span>
-                              <span className="text-sm text-neutral-500">{suggestion.duration}</span>
+                              {suggestion.source === "database" ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-moss/20 px-2.5 py-1 text-xs font-bold text-ink">
+                                  <BadgeCheck className="h-3.5 w-3.5" />
+                                  Verified
+                                </span>
+                              ) : (
+                                <span className="text-sm text-neutral-500">{suggestion.duration}</span>
+                              )}
                             </button>
                           ))
                         ) : (
