@@ -19,6 +19,7 @@ type RawSubscription = {
   billing_interval: string | null;
   current_period_end: string | null;
   trial_end: string | null;
+  trial_period_days: number | null;
 };
 
 type RawProfile = {
@@ -80,7 +81,7 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
   const [activeResult, latestResult, profileResult] = await Promise.all([
     client
       .from("subscriptions")
-      .select("plan_id, status, billing_interval, current_period_end, trial_end")
+      .select("plan_id, status, billing_interval, current_period_end, trial_end, trial_period_days")
       .eq("user_id", user.id)
       .in("status", ["active", "trialing"])
       .in("plan_id", ["beginner", "expert"])
@@ -89,7 +90,7 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
       .maybeSingle(),
     client
       .from("subscriptions")
-      .select("plan_id, status, billing_interval, current_period_end, trial_end")
+      .select("plan_id, status, billing_interval, current_period_end, trial_end, trial_period_days")
       .eq("user_id", user.id)
       .order("updated_at", { ascending: false })
       .limit(1)
@@ -142,7 +143,12 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
   const isTrialing = subscription?.status === "trialing";
   const limits = planId ? (isTrialing ? trialLimits[planId] : planLimits[planId]) : null;
   const trialEnd = isTrialing ? subscription?.trialEnd || subscription?.renewalDate || null : null;
-  const trialDaysRemaining = trialEnd ? Math.max(0, Math.ceil((new Date(trialEnd).getTime() - Date.now()) / 86_400_000)) : null;
+  // Cap at the trial length so a 3-day trial never displays "4 days" right after
+  // it starts (ceil of a hair-under-3-days would otherwise round up).
+  const trialLengthDays = subscription?.trialPeriodDays && subscription.trialPeriodDays > 0 ? subscription.trialPeriodDays : null;
+  const trialDaysRemaining = trialEnd
+    ? Math.max(0, Math.min(Math.ceil((new Date(trialEnd).getTime() - Date.now()) / 86_400_000), trialLengthDays ?? Number.MAX_SAFE_INTEGER))
+    : null;
   const profile = (profileResult.data as RawProfile | null) || null;
   let effectiveFreeLimit = profile?.free_adaptation_limit;
   if (earlyTesterMode && (effectiveFreeLimit === null || effectiveFreeLimit === 0) && (profile?.free_adaptations_used === null || profile?.free_adaptations_used === 0)) {
@@ -293,6 +299,7 @@ function normalizeSubscription(subscription: RawSubscription | null): {
   status: string | null;
   renewalDate: string | null;
   trialEnd: string | null;
+  trialPeriodDays: number | null;
   isActive: boolean;
 } | null {
   if (!subscription) {
@@ -308,6 +315,7 @@ function normalizeSubscription(subscription: RawSubscription | null): {
     status: subscription.status || null,
     renewalDate: subscription.current_period_end || null,
     trialEnd: subscription.trial_end || null,
+    trialPeriodDays: subscription.trial_period_days ?? null,
     isActive: isActiveSubscriptionStatus(subscription.status)
   };
 }

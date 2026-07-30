@@ -47,9 +47,12 @@ export async function POST() {
   }
 
   try {
-    await client.subscriptions.update(sub.dodo_subscription_id, {
-      next_billing_date: new Date().toISOString()
-    });
+    // Dodo requires next_billing_date to be strictly in the future ("should be
+    // greater than current time"), so we schedule the first charge a couple of
+    // minutes out — that ends the trial and bills the single scheduled charge
+    // shortly, rather than at the original 3-day mark.
+    const billAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+    await client.subscriptions.update(sub.dodo_subscription_id, { next_billing_date: billAt });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not end the trial with the payment provider." },

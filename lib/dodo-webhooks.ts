@@ -122,7 +122,14 @@ function buildRowFromSubscription(
         : nextBillingDate
       : null;
 
-  const status = resolveInternalStatus(stringValue(sub.status), trialEnd);
+  // Once Dodo's next billing has moved more than a day past the trial window, the
+  // trial has already converted to a paid period (manually via "Unlock", or by the
+  // trial expiring). Treat it as active so a later re-sync doesn't flip it back to
+  // trialing.
+  const converted = Boolean(
+    trialEnd && nextBillingDate && new Date(nextBillingDate).getTime() > new Date(trialEnd).getTime() + 86_400_000
+  );
+  const status = resolveInternalStatus(stringValue(sub.status), converted ? null : trialEnd);
 
   return {
     user_id: userId,
@@ -134,7 +141,7 @@ function buildRowFromSubscription(
     dodo_product_id: productId || null,
     current_period_start: previousBillingDate,
     current_period_end: nextBillingDate,
-    trial_end: trialEnd,
+    trial_end: converted ? null : trialEnd,
     trial_period_days: trialPeriodDays,
     cancel_at_period_end: Boolean(sub.cancel_at_next_billing_date),
     metadata: metadataEnvelope
