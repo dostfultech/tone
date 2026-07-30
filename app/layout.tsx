@@ -9,7 +9,7 @@ import { getMetadataBase } from "@/lib/seo";
 import "./globals.css";
 
 const defaultDescription =
-  "AI-assisted guitar and bass tone matching for players who want practical rig settings fast.";
+  "Gear-matched guitar and bass tone settings for players who want practical rig settings fast.";
 const GOOGLE_TAG_ID = "G-C8PQY1H9L8";
 
 export const metadata: Metadata = {

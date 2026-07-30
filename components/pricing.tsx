@@ -233,7 +233,7 @@ export function Pricing() {
           {[
             ["How does access work?", "A successful subscription unlocks the tone features included in your selected plan."],
             ["Can I cancel anytime?", "Dodo Payments handles subscription management through the customer portal."],
-            ["How accurate are recommendations?", "Recommendations combine structured AI output with your selected guitar, amp, pickups, and effects."]
+            ["How accurate are recommendations?", "Recommendations combine researched, verified tone data with your selected guitar, amp, pickups, and effects."]
           ].map(([question, answer]) => (
             <div key={question} className="p-5">
               <h3 className="font-semibold">{question}</h3>

@@ -7,7 +7,7 @@ import { buildPageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildPageMetadata({
   title: "Guitar Tone Matcher",
-  description: "Generate AI-assisted, gear-matched tone settings for guitar and bass.",
+  description: "Generate researched, gear-matched tone settings for guitar and bass.",
   path: "/app",
   noIndex: true
 });

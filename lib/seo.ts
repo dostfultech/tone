@@ -11,7 +11,7 @@ type BuildPageMetadataOptions = {
 };
 
 const defaultDescription =
-  "AI-assisted guitar and bass tone matching with practical, gear-aware settings for real rigs.";
+  "Researched guitar and bass tone settings, adapted to the practical, gear-aware setup of your real rig.";
 
 export function getMetadataBase() {
   return new URL(getSiteUrl());

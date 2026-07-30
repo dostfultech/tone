@@ -40,7 +40,7 @@ export function SiteFooter({ isAuthenticated = false }: { isAuthenticated?: bool
         </div>
       </div>
       <div className="border-t border-neutral-200 px-4 py-4 text-center text-xs text-neutral-500">
-        AI-assisted tone matching for guitar and bass players.
+        Gear-matched tone settings for guitar and bass players.
       </div>
     </footer>
   );

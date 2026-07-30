@@ -1264,7 +1264,7 @@ export function ToneMatcher() {
             ) : (
               <>
                 <span className="block">Shape iconic tones with</span>
-                <span className="mt-2 inline-block max-w-full break-words rounded-md bg-moss px-3 py-1 leading-tight text-ink">AI-matched gear</span>
+                <span className="mt-2 inline-block max-w-full break-words rounded-md bg-moss px-3 py-1 leading-tight text-ink">the gear you own</span>
               </>
             )}
           </h1>

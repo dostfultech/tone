@@ -73,7 +73,7 @@ const testimonials = [
 
 export const metadata: Metadata = buildPageMetadata({
   title: "Tonefex — Nail Any Guitar Tone on the Gear You Own",
-  description: "Match iconic guitar and bass tones to the gear you own with AI-assisted settings and adaptation guidance.",
+  description: "Match iconic guitar and bass tones to the gear you own with researched settings and adaptation guidance.",
   path: "/",
   keywords: [
     "guitar tone matcher",
@@ -125,7 +125,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         price: "0",
         availability: "https://schema.org/InStock"
       },
-      description: "AI-assisted tone matching and gear adaptation for guitar and bass players.",
+      description: "Researched tone matching and gear adaptation for guitar and bass players.",
       url: toAbsoluteUrl("/")
     }
   ];

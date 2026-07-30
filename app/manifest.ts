@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: `${brand.appName} Guitar Tone Matching`,
     short_name: brand.appName,
-    description: "AI-assisted guitar and bass tone matching with gear-aware settings.",
+    description: "Gear-matched guitar and bass tone settings, tuned to the rig you own.",
     start_url: "/",
     display: "standalone",
     background_color: "#f8fafc",
