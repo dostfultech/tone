@@ -43,11 +43,11 @@ type Presentation = {
   adapted: {
     gearSummary: string;
     pickupChoice: { recommendation: string; reason: string } | null;
-    ampConfiguration: { recommendedPreset: string; reason: string } | null;
+    ampConfiguration: { recommendedPreset: string; frontPanelChannel: string; toneStudioPreset: string | null; reason: string; howToAccess: string } | null;
     settings: Record<string, number>;
     guitarControls: { volume: number; tone: number };
     signalChain: string[];
-    ampEffectsSettings: Array<{ effect: string; level: number | null; note: string }>;
+    ampEffectsSettings: Array<{ effect: string; level: number | null; effectType: string | null; note: string }>;
     missingEffects: Array<{ name: string; type: string; importance: string; description: string; substitution: string | null }>;
     playingNotes: string[];
   };
@@ -283,10 +283,13 @@ function FullPresentationView({
         ) : null}
 
         {adapted.ampConfiguration ? (
-          <ResultCard title="Amp Configuration" icon={<SlidersHorizontal className="h-3.5 w-3.5" />}>
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Recommended preset</p>
-            <p className="mt-1 text-sm font-bold text-ocean">{adapted.ampConfiguration.recommendedPreset}</p>
-            <p className="mt-1 text-sm text-slate-600">{adapted.ampConfiguration.reason}</p>
+          <ResultCard title="Amp Mode" icon={<SlidersHorizontal className="h-3.5 w-3.5" />}>
+            <p className="text-sm font-bold text-ocean">
+              {adapted.ampConfiguration.frontPanelChannel} channel
+              {adapted.ampConfiguration.toneStudioPreset ? ` — ${adapted.ampConfiguration.toneStudioPreset} variation` : ""}
+            </p>
+            <p className="mt-1 text-sm text-slate-600">{adapted.ampConfiguration.howToAccess}</p>
+            <p className="mt-1 text-xs text-slate-400 italic">{adapted.ampConfiguration.reason}</p>
           </ResultCard>
         ) : null}
 
@@ -323,7 +326,9 @@ function FullPresentationView({
               {adapted.ampEffectsSettings.map((entry) => (
                 <div key={entry.effect} className="rounded-md border border-slate-200 bg-white px-3 py-2">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-bold text-ink">{entry.effect}</span>
+                    <span className="text-sm font-bold text-ink">
+                      {entry.effectType ? `${entry.effectType} ${entry.effect}` : entry.effect}
+                    </span>
                     {entry.level != null ? <span className="text-sm font-bold text-ocean">{formatDisplayValue(entry.level)}/10</span> : null}
                   </div>
                   <p className="mt-1 text-xs leading-5 text-slate-500">{entry.note}</p>

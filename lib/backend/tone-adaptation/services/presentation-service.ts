@@ -14,6 +14,21 @@ export interface TonePresentationEffectEntry {
   role: string;
 }
 
+export interface AmpConfigurationPresentation {
+  recommendedPreset: string;
+  frontPanelChannel: string;
+  toneStudioPreset: string | null;
+  reason: string;
+  howToAccess: string;
+}
+
+export interface AmpEffectSettingEntry {
+  effect: string;
+  level: number | null;
+  effectType: string | null;
+  note: string;
+}
+
 export interface TonePresentation {
   original: {
     song: string;
@@ -34,11 +49,11 @@ export interface TonePresentation {
   adapted: {
     gearSummary: string;
     pickupChoice: { recommendation: string; reason: string } | null;
-    ampConfiguration: { recommendedPreset: string; reason: string } | null;
+    ampConfiguration: AmpConfigurationPresentation | null;
     settings: Record<string, number>;
     guitarControls: { volume: number; tone: number };
     signalChain: string[];
-    ampEffectsSettings: Array<{ effect: string; level: number | null; note: string }>;
+    ampEffectsSettings: AmpEffectSettingEntry[];
     missingEffects: Array<{ name: string; type: string; importance: string; description: string; substitution: string | null }>;
     playingNotes: string[];
   };
@@ -65,7 +80,7 @@ export function buildTonePresentation(
   const userAmpIsModeler = isModelingAmp(context);
 
   const missingEffects = buildMissingEffects(originalEffects, userPedalCoverage, partLabel, gear.goingDirect, Boolean(gear.multiFx), userAmpIsModeler);
-  const ampEffectsSettings = buildAmpEffectsSettings(originalEffects, originalSettings, adaptedSettings, userPedalCoverage, userAmpIsModeler);
+  const ampEffectsSettings = buildAmpEffectsSettings(originalEffects, originalSettings, adaptedSettings, userPedalCoverage, userAmpIsModeler, original?.amp ?? null, source.toneType);
 
   return {
     original: {
@@ -238,23 +253,67 @@ function buildMissingEffects(
   return missing.sort((left, right) => importanceRank[left.importance as keyof typeof importanceRank] - importanceRank[right.importance as keyof typeof importanceRank]);
 }
 
+const REVERB_TYPE_FROM_AMP: Array<{ pattern: RegExp; reverbType: string }> = [
+  { pattern: /twin|deluxe|princeton|vibrolux|vibroverb|fender|blackface|silverface|bassman/i, reverbType: "Spring" },
+  { pattern: /vox|ac30|ac15/i, reverbType: "Spring" },
+  { pattern: /marshall|jcm|plexi|super lead|1959|jtm/i, reverbType: "Spring" },
+  { pattern: /mesa|rectifier|recto|5150|6505/i, reverbType: "Hall" },
+  { pattern: /jazz chorus|jc-?120|roland/i, reverbType: "Hall" },
+  { pattern: /hiwatt/i, reverbType: "Plate" },
+  { pattern: /dumble/i, reverbType: "Spring" }
+];
+
+const REVERB_TYPE_FROM_EFFECT_NAME: Array<{ pattern: RegExp; reverbType: string }> = [
+  { pattern: /spring/i, reverbType: "Spring" },
+  { pattern: /plate/i, reverbType: "Plate" },
+  { pattern: /hall/i, reverbType: "Hall" },
+  { pattern: /room|chamber/i, reverbType: "Room" },
+  { pattern: /shimmer/i, reverbType: "Shimmer" }
+];
+
+function inferReverbType(
+  originalAmp: string | null,
+  originalEffects: OriginalToneEffect[],
+  toneType: string
+): string {
+  const reverbEffect = originalEffects.find((e) => effectCategory(e.type) === "reverb");
+  if (reverbEffect) {
+    const fromName = REVERB_TYPE_FROM_EFFECT_NAME.find((entry) => entry.pattern.test(reverbEffect.name));
+    if (fromName) return fromName.reverbType;
+  }
+
+  if (originalAmp) {
+    const fromAmp = REVERB_TYPE_FROM_AMP.find((entry) => entry.pattern.test(originalAmp));
+    if (fromAmp) return fromAmp.reverbType;
+  }
+
+  if (toneType === "ambient" || toneType === "post_rock") return "Hall";
+  if (toneType === "clean" || toneType === "classic_rock" || toneType === "crunch") return "Spring";
+
+  return "Spring";
+}
+
 function buildAmpEffectsSettings(
   originalEffects: OriginalToneEffect[],
   originalSettings: Record<string, number>,
   adaptedSettings: Record<string, number>,
   userCoverage: Set<string>,
-  userAmpIsModeler: boolean
-) {
-  const entries: TonePresentation["adapted"]["ampEffectsSettings"] = [];
+  userAmpIsModeler: boolean,
+  originalAmp: string | null,
+  toneType: string
+): AmpEffectSettingEntry[] {
+  const entries: AmpEffectSettingEntry[] = [];
 
   if (typeof adaptedSettings.reverb === "number" && adaptedSettings.reverb > 0) {
+    const reverbType = inferReverbType(originalAmp, originalEffects, toneType);
     entries.push({
       effect: "Reverb",
       level: adaptedSettings.reverb,
+      effectType: reverbType,
       note:
         typeof originalSettings.reverb === "number" && originalSettings.reverb > 0
-          ? "Match the original reverb character."
-          : "Light ambience to glue the tone together."
+          ? `Use ${reverbType} reverb to match the original character.`
+          : `Light ${reverbType.toLowerCase()} ambience to glue the tone together.`
     });
   }
 
@@ -263,6 +322,7 @@ function buildAmpEffectsSettings(
     entries.push({
       effect: "Delay",
       level: typeof adaptedSettings.delay === "number" && adaptedSettings.delay > 0 ? adaptedSettings.delay : null,
+      effectType: null,
       note: `Use your amp's delay instead of the ${originalDelay.name}.`
     });
   }
@@ -273,6 +333,7 @@ function buildAmpEffectsSettings(
       entries.push({
         effect: "Modulation",
         level: null,
+        effectType: null,
         note: `Enable your amp's modulation block to stand in for the ${originalModulation.name}.`
       });
     }
@@ -361,30 +422,43 @@ function buildPickupChoice(originalPickup: string | null, context: LoadedToneReq
   };
 }
 
-const PRESET_KEYWORDS: Array<{ pattern: RegExp; preset: string }> = [
-  { pattern: /tweed|bassman|champ/i, preset: "Tweed" },
-  { pattern: /deluxe reverb|twin|blackface|princeton|vibrolux|vibroverb/i, preset: "Blackface Clean" },
-  { pattern: /ac30|ac15|vox/i, preset: "Class A Chime" },
-  { pattern: /plexi|super lead|1959|jtm/i, preset: "Plexi Crunch" },
-  { pattern: /jcm|marshall/i, preset: "British Crunch" },
-  { pattern: /rectifier|recto|mesa|5150|6505|uberschall|high.?gain/i, preset: "Modern High Gain" },
-  { pattern: /hiwatt/i, preset: "Loud Clean" },
-  { pattern: /jazz chorus|jc-?120/i, preset: "FX Clean" },
-  { pattern: /dumble/i, preset: "Boutique Overdrive" }
+const PRESET_KEYWORDS: Array<{ pattern: RegExp; preset: string; channel: string }> = [
+  { pattern: /tweed|bassman|champ/i, preset: "Tweed", channel: "Crunch" },
+  { pattern: /deluxe reverb|twin|blackface|princeton|vibrolux|vibroverb/i, preset: "Blackface Clean", channel: "Clean" },
+  { pattern: /ac30|ac15|vox/i, preset: "Class A Chime", channel: "Crunch" },
+  { pattern: /plexi|super lead|1959|jtm/i, preset: "Plexi Crunch", channel: "Lead" },
+  { pattern: /jcm|marshall/i, preset: "British Crunch", channel: "Crunch" },
+  { pattern: /rectifier|recto|mesa|5150|6505|uberschall|high.?gain/i, preset: "Modern High Gain", channel: "Brown" },
+  { pattern: /hiwatt/i, preset: "Loud Clean", channel: "Clean" },
+  { pattern: /jazz chorus|jc-?120/i, preset: "FX Clean", channel: "Clean" },
+  { pattern: /dumble/i, preset: "Boutique Overdrive", channel: "Crunch" }
 ];
+
+const TONE_TYPE_CHANNELS: Record<string, string> = {
+  clean: "Clean",
+  acoustic: "Clean",
+  bass_clean: "Clean",
+  crunch: "Crunch",
+  edge_of_breakup: "Crunch",
+  classic_rock: "Crunch",
+  high_gain: "Lead",
+  metal: "Brown",
+  modern_metal: "Brown",
+  heavy: "Brown"
+};
 
 function buildAmpConfiguration(
   originalAmp: string | null,
   toneType: ToneType | string,
   userAmpIsModeler: boolean,
   context: LoadedToneRequestContext
-): { recommendedPreset: string; reason: string } | null {
+): AmpConfigurationPresentation | null {
   if (!userAmpIsModeler) {
     return null;
   }
 
-  const fromOriginal = originalAmp ? PRESET_KEYWORDS.find((entry) => entry.pattern.test(originalAmp))?.preset : undefined;
-  const fallback =
+  const matched = originalAmp ? PRESET_KEYWORDS.find((entry) => entry.pattern.test(originalAmp)) : undefined;
+  const fallbackPreset =
     toneType === "clean" || toneType === "acoustic" || toneType === "bass_clean"
       ? "Clean"
       : toneType === "crunch" || toneType === "edge_of_breakup" || toneType === "classic_rock"
@@ -393,14 +467,21 @@ function buildAmpConfiguration(
           ? "High Gain"
           : "Drive";
 
-  const preset = fromOriginal ?? fallback;
+  const preset = matched?.preset ?? fallbackPreset;
+  const frontPanelChannel = matched?.channel ?? TONE_TYPE_CHANNELS[String(toneType)] ?? "Clean";
   const ampName = context.gear.amplifier?.name ?? context.gear.multiFx?.name ?? "your modeler";
+  const hasToneStudioVariation = matched != null && matched.preset !== frontPanelChannel;
 
   return {
     recommendedPreset: preset,
-    reason: fromOriginal
-      ? `Closest preset family on ${ampName} to the original ${originalAmp}.`
-      : `Best-fit preset family on ${ampName} for a ${String(toneType).replace(/_/g, " ")} tone.`
+    frontPanelChannel,
+    toneStudioPreset: hasToneStudioVariation ? preset : null,
+    reason: matched
+      ? `Matches the original ${originalAmp}.`
+      : `Best-fit for a ${String(toneType).replace(/_/g, " ")} tone.`,
+    howToAccess: hasToneStudioVariation
+      ? `On your ${ampName}, set the amp type to ${frontPanelChannel}. For a closer match, connect to Boss Tone Studio and select the ${preset} variation.`
+      : `On your ${ampName}, set the amp type to ${frontPanelChannel}.`
   };
 }
 
