@@ -559,9 +559,8 @@ export function ToneMatcher() {
         if (tracking?.usageConfirmationRequired !== false && tracking?.toneResultId) {
           await confirmSuccessfulAdaptation(tracking.toneResultId);
         }
+        void autoSaveFirstTone(adapted);
         if (wasFirstAdaptation) {
-          // Auto-save the user's first tone to their library and show the one-time popup.
-          void autoSaveFirstTone(adapted);
           setFirstTonePopup({ song: payload.song || "Your tone", artist: payload.artist || "" });
         }
         trackToneGenerated({
@@ -2552,14 +2551,14 @@ function getSavedToneId(tone: SavedToneRecord | ToneResult) {
 
 function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => Promise<SaveToneOutcome> }) {
   const profile = result.sourceProfile;
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "local">("idle");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "local">("saved");
   const [saveBurstKey, setSaveBurstKey] = useState(0);
   const isSaving = saveState === "saving";
   const isSaved = saveState === "saved" || saveState === "local";
   const saveLabel = saveState === "saving" ? "Saving..." : saveState === "local" ? "Saved locally" : saveState === "saved" ? "Saved in Library" : "Save tone";
 
   useEffect(() => {
-    setSaveState("idle");
+    setSaveState("saved");
     setSaveBurstKey(0);
   }, [result.id]);
 
