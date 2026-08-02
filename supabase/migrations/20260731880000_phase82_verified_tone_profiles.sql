@@ -1,0 +1,276 @@
+-- Phase 82: prog leftovers + J-rock vol. 2 + tone-chaser lead landmarks, verified per-part tone data.
+
+with target(artist_name, artist_slug, song_title, song_slug, album, release_year) as (
+  values
+    ('Queensryche','queensryche','Silent Lucidity','silent-lucidity','Empire',1990),
+    ('Focus','focus','Hocus Pocus','hocus-pocus','Moving Waves',1971),
+    ('Asia','asia','Heat of the Moment','heat-of-the-moment','Asia',1982),
+    ('Genesis','genesis','Land of Confusion','land-of-confusion','Invisible Touch',1986),
+    ('Porcupine Tree','porcupine-tree','The Sound of Muzak','the-sound-of-muzak','In Absentia',2002),
+    ('King Crimson','king-crimson','Frame by Frame','frame-by-frame','Discipline',1981),
+    ('L''Arc-en-Ciel','larc-en-ciel','Ready Steady Go','ready-steady-go','Smile',2004),
+    ('UVERworld','uverworld','D-tecnoLife','d-tecnolife','Timeless',2005),
+    ('Bump of Chicken','bump-of-chicken','Tentai Kansoku','tentai-kansoku','Jupiter',2002),
+    ('Mrs. GREEN APPLE','mrs-green-apple','Inferno','inferno','Attitude',2019),
+    ('Spitz','spitz','Robinson','robinson','Hachimitsu',1995),
+    ('Mr. Children','mr-children','HANABI','hanabi','Supermarket Fantasy',2008),
+    ('Hitsujibungaku','hitsujibungaku','more than words','more-than-words-hitsuji','12 hugs (like butterflies)',2023),
+    ('Muse','muse','New Born','new-born','Origin of Symmetry',2001),
+    ('Rage Against the Machine','rage-against-the-machine','Sleep Now in the Fire','sleep-now-in-the-fire','The Battle of Los Angeles',1999),
+    ('Queens of the Stone Age','queens-of-the-stone-age','Make It Wit Chu','make-it-wit-chu','Era Vulgaris',2007),
+    ('Jack White','jack-white','Lazaretto','lazaretto','Lazaretto',2014),
+    ('Fleetwood Mac','fleetwood-mac','Albatross','albatross','The Pious Bird of Good Omen',1968),
+    ('Rory Gallagher','rory-gallagher','Bad Penny','bad-penny','Top Priority',1979),
+    ('Robin Trower','robin-trower','Bridge of Sighs','bridge-of-sighs','Bridge of Sighs',1974),
+    ('Frank Zappa','frank-zappa','Watermelon in Easter Hay','watermelon-in-easter-hay','Joe''s Garage',1979),
+    ('Wishbone Ash','wishbone-ash','Blowin'' Free','blowin-free','Argus',1972),
+    ('UFO','ufo','Rock Bottom','rock-bottom','Phenomenon',1974),
+    ('Thin Lizzy','thin-lizzy','Emerald','emerald','Jailbreak',1976),
+    ('Peter Frampton','peter-frampton','Do You Feel Like We Do','do-you-feel-like-we-do','Frampton Comes Alive!',1976)
+),
+ins_artists as (
+  insert into public.artists (name, slug, search_text, is_active)
+  select distinct artist_name, artist_slug, artist_name, true from target
+  on conflict (slug) do update set name = excluded.name, is_active = true
+  returning id, slug
+)
+insert into public.songs (artist_id, title, slug, album, release_year, search_text, is_active)
+select a.id, t.song_title, t.song_slug, t.album, t.release_year,
+       concat_ws(' ', t.song_title, t.artist_name, t.album), true
+from target t join ins_artists a on a.slug = t.artist_slug
+on conflict (artist_id, slug) do update set
+  title = excluded.title, album = excluded.album, release_year = excluded.release_year,
+  is_active = true, updated_at = now();
+
+delete from public.tone_profile_effects e where e.profile_id in (
+  select p.id from public.song_tone_profiles p
+  join public.songs s on s.id = p.song_id join public.artists a on a.id = s.artist_id
+  join (values
+    ('queensryche','silent-lucidity'),('focus','hocus-pocus'),('asia','heat-of-the-moment'),
+    ('genesis','land-of-confusion'),('porcupine-tree','the-sound-of-muzak'),('king-crimson','frame-by-frame'),
+    ('larc-en-ciel','ready-steady-go'),('uverworld','d-tecnolife'),('bump-of-chicken','tentai-kansoku'),
+    ('mrs-green-apple','inferno'),('spitz','robinson'),('mr-children','hanabi'),('hitsujibungaku','more-than-words-hitsuji'),
+    ('muse','new-born'),('rage-against-the-machine','sleep-now-in-the-fire'),('queens-of-the-stone-age','make-it-wit-chu'),
+    ('jack-white','lazaretto'),('fleetwood-mac','albatross'),('rory-gallagher','bad-penny'),
+    ('robin-trower','bridge-of-sighs'),('frank-zappa','watermelon-in-easter-hay'),('wishbone-ash','blowin-free'),
+    ('ufo','rock-bottom'),('thin-lizzy','emerald'),('peter-frampton','do-you-feel-like-we-do')
+  ) as t(artist_slug, song_slug) on t.artist_slug = a.slug and t.song_slug = s.slug
+  where p.mode = 'guitar'
+);
+delete from public.tone_profile_sources src where src.profile_id in (
+  select p.id from public.song_tone_profiles p
+  join public.songs s on s.id = p.song_id join public.artists a on a.id = s.artist_id
+  join (values
+    ('queensryche','silent-lucidity'),('focus','hocus-pocus'),('asia','heat-of-the-moment'),
+    ('genesis','land-of-confusion'),('porcupine-tree','the-sound-of-muzak'),('king-crimson','frame-by-frame'),
+    ('larc-en-ciel','ready-steady-go'),('uverworld','d-tecnolife'),('bump-of-chicken','tentai-kansoku'),
+    ('mrs-green-apple','inferno'),('spitz','robinson'),('mr-children','hanabi'),('hitsujibungaku','more-than-words-hitsuji'),
+    ('muse','new-born'),('rage-against-the-machine','sleep-now-in-the-fire'),('queens-of-the-stone-age','make-it-wit-chu'),
+    ('jack-white','lazaretto'),('fleetwood-mac','albatross'),('rory-gallagher','bad-penny'),
+    ('robin-trower','bridge-of-sighs'),('frank-zappa','watermelon-in-easter-hay'),('wishbone-ash','blowin-free'),
+    ('ufo','rock-bottom'),('thin-lizzy','emerald'),('peter-frampton','do-you-feel-like-we-do')
+  ) as t(artist_slug, song_slug) on t.artist_slug = a.slug and t.song_slug = s.slug
+  where p.mode = 'guitar'
+);
+delete from public.song_tone_profiles p where p.mode = 'guitar' and p.id in (
+  select p2.id from public.song_tone_profiles p2
+  join public.songs s on s.id = p2.song_id join public.artists a on a.id = s.artist_id
+  join (values
+    ('queensryche','silent-lucidity'),('focus','hocus-pocus'),('asia','heat-of-the-moment'),
+    ('genesis','land-of-confusion'),('porcupine-tree','the-sound-of-muzak'),('king-crimson','frame-by-frame'),
+    ('larc-en-ciel','ready-steady-go'),('uverworld','d-tecnolife'),('bump-of-chicken','tentai-kansoku'),
+    ('mrs-green-apple','inferno'),('spitz','robinson'),('mr-children','hanabi'),('hitsujibungaku','more-than-words-hitsuji'),
+    ('muse','new-born'),('rage-against-the-machine','sleep-now-in-the-fire'),('queens-of-the-stone-age','make-it-wit-chu'),
+    ('jack-white','lazaretto'),('fleetwood-mac','albatross'),('rory-gallagher','bad-penny'),
+    ('robin-trower','bridge-of-sighs'),('frank-zappa','watermelon-in-easter-hay'),('wishbone-ash','blowin-free'),
+    ('ufo','rock-bottom'),('thin-lizzy','emerald'),('peter-frampton','do-you-feel-like-we-do')
+  ) as t(artist_slug, song_slug) on t.artist_slug = a.slug and t.song_slug = s.slug
+);
+
+insert into public.song_tone_profiles (
+  song_id, song_title, artist_name, mode, part_type, part_label, tone_type,
+  genre, tone_category, difficulty,
+  original_guitar, original_amp, original_cab, original_pickup,
+  original_effects, original_settings, adaptation_notes, playing_notes,
+  source_summary, confidence, verification_status, search_text, is_public
+)
+select
+  s.id, s.title, a.name, c.mode, c.part_type, c.part_label, c.tone_type,
+  c.genre, c.tone_category, c.difficulty,
+  c.original_guitar, c.original_amp, c.original_cab, c.original_pickup,
+  c.original_effects, c.original_settings, c.adaptation_notes, c.playing_notes,
+  c.source_summary, c.confidence, 'admin_verified',
+  concat_ws(' ', s.title, a.name, c.part_label, c.tone_type, c.original_guitar, c.original_amp, 'researched verified tone'),
+  true
+from (
+  values
+    ('silent-lucidity','queensryche','guitar','main','classical-acoustic ballad','acoustic','progressive metal','rhythm','intermediate',
+     'Nylon + steel acoustic (Chris DeGarmo)','Acoustic with orchestra','No cab (acoustic)','n/a (acoustic)',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":5,"treble":6,"presence":4,"reverb":4,"delay":0,"master":6}'::jsonb,
+     array['The prog-metal lullaby — DeGarmo''s classical fingerpicking under the dream-theory whispers.','Warm layered acoustics; Pink Floyd''s ghost approves.'],
+     array['The fingerpicked figure carries the whole ballad.','Hush now — don''t you cry.'],
+     'Studio recording, 1990. DeGarmo''s dream-theory lullaby.',78),
+    ('hocus-pocus','focus','guitar','riff','main riff','distorted','progressive rock','rhythm','intermediate',
+     'Gibson Les Paul (Jan Akkerman)','Marshall stack, driving crunch','Marshall 4x12 cab','bridge humbucker',
+     '[]'::jsonb,'{"gain":6,"bass":5,"mids":7,"treble":6,"presence":6,"reverb":1,"delay":0,"master":8}'::jsonb,
+     array['The yodel-rock monolith — Akkerman''s stomping riff between the flute-and-yodel madness.','Mid-hot Marshall crunch; the riff is dead serious, the rest is not.'],
+     array['The riff stomps in A — precision between chaos.','You don''t have to yodel. But someone should.'],
+     'Studio recording, 1971. Akkerman''s yodel-rock monolith.',78),
+    ('heat-of-the-moment','asia','guitar','riff','main riff','crunch','progressive rock','rhythm','beginner',
+     'Gibson Les Paul (Steve Howe)','Tube stack, polished arena crunch','Closed-back 4x12 cab','bridge humbucker',
+     '[]'::jsonb,'{"gain":5,"bass":5,"mids":6,"treble":6,"presence":6,"reverb":2,"delay":0,"master":8}'::jsonb,
+     array['The supergroup single — Howe trades prog for the cleanest arena hooks of 1982.','Bright polished crunch; the descending hook owns MTV.'],
+     array['The intro chords descend like the title demands.','It was the heat of the moment — punchy, not proggy.'],
+     'Studio recording, 1982. The supergroup arena hook.',77),
+    ('land-of-confusion','genesis','guitar','riff','main riff','crunch','rock','rhythm','beginner',
+     'Fender/steinberger electric (Mike Rutherford)','Tube amp, 80s polished crunch','Closed-back cab','bridge humbucker',
+     '[]'::jsonb,'{"gain":5,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":2,"delay":1,"master":7}'::jsonb,
+     array['The puppet-video stomper — Rutherford''s chunky 80s riff under the politics.','Glossy mid-gain stomp; ooh Superman where are you now.'],
+     array['The riff marches with the drums.','My generation will put it right — steady hands.'],
+     'Studio recording, 1986. The puppet-video stomp.',77),
+    ('the-sound-of-muzak','porcupine-tree','guitar','riff','odd-meter groove','clean','progressive rock','rhythm','advanced',
+     'PRS custom (Steven Wilson)','Clean-to-crunch, modern prog polish','Closed-back cab','bridge humbucker',
+     '[{"effect_type":"compressor","effect_name":"studio compression","placement":"front","settings":{"sustain":5,"level":5}}]'::jsonb,
+     '{"gain":3,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":2,"delay":1,"master":6}'::jsonb,
+     array['The 7/8 lament about music dying — glassy compressed groove (chorus wall at gain 6).','Pristine odd-meter clean; ironically one of the best-produced songs ever.'],
+     array['Count the 7/8 until it grooves.','One of the wonders of the world is going down — in perfect time.'],
+     'Studio recording, 2002. Wilson''s 7/8 lament.',77),
+    ('frame-by-frame','king-crimson','guitar','riff','interlocking picking','clean','progressive rock','lead','expert',
+     'Fender/Roland guitars (Robert Fripp / Adrian Belew)','Clean amps, gamelan-tight interlock','Closed-back cabs','bridge pickup',
+     '[{"effect_type":"chorus","effect_name":"80s rack chorus","placement":"post_gain","settings":{"rate":3,"depth":3,"mix":3}}]'::jsonb,
+     '{"gain":2,"bass":4,"mids":5,"treble":7,"presence":6,"reverb":2,"delay":1,"master":6}'::jsonb,
+     array['The Discipline machine — Fripp and Belew''s interlocking picking phasing in and out like gears.','Bright chorused cleans; two guitars, one clockwork.'],
+     array['The parts phase — one drops a beat and catches up.','Metronome discipline IS the discipline.'],
+     'Studio recording, 1981. The interlocking clockwork.',78),
+    ('ready-steady-go','larc-en-ciel','guitar','riff','main riff','distorted','j-rock','rhythm','intermediate',
+     'ESP custom (Ken)','Driven stack, sprinting J-rock','Closed-back 4x12 cab','bridge humbucker',
+     '[]'::jsonb,'{"gain":6,"bass":5,"mids":6,"treble":7,"presence":6,"reverb":1,"delay":0,"master":8}'::jsonb,
+     array['The FMA sprint — Ken''s bright driving riff at full anime-opening velocity.','Bright saturated drive; readysteadygo at exactly that pace.'],
+     array['The riff sprints; the chorus lifts.','Ken''s melodic fills glitter between lines.'],
+     'Studio recording, 2004. The FMA sprint.',73),
+    ('d-tecnolife','uverworld','guitar','riff','main riff','high_gain','j-rock','rhythm','intermediate',
+     'ESP electric (Katsuya)','Modern high-gain, rap-rock J-pop','Closed-back 4x12 cab','bridge humbucker',
+     '[]'::jsonb,'{"gain":7,"bass":6,"mids":5,"treble":6,"presence":6,"reverb":1,"delay":0,"master":8}'::jsonb,
+     array['The Bleach opener — tight rap-rock wall under Takuya''s double-time flow.','Modern saturated chug; anime urgency incarnate.'],
+     array['Chug the verse tight; open the chorus.','The hook hits like a Getsuga Tensho.'],
+     'Studio recording, 2005. The Bleach rap-rock wall.',72),
+    ('tentai-kansoku','bump-of-chicken','guitar','riff','main riff','crunch','j-rock','rhythm','intermediate',
+     'Fender/Gibson electric (Motoo Fujiwara / Hiroaki Masukawa)','Tube amp, earnest crunch','Closed-back cab','bridge pickup',
+     '[]'::jsonb,'{"gain":5,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['The stargazing anthem — earnest driving crunch every Japanese guitarist''s first band covered.','Warm bright drive; telescope optional, heart mandatory.'],
+     array['The intro riff is the generation''s campfire.','Follow the melody — it watches the sky.'],
+     'Studio recording, 2002. The stargazing anthem.',73),
+    ('inferno','mrs-green-apple','guitar','riff','main riff','distorted','j-rock','rhythm','intermediate',
+     'Fender/ESP electric (Hiroto Wakui era)','Driven amp, bright J-pop rock','Closed-back cab','bridge pickup',
+     '[]'::jsonb,'{"gain":6,"bass":5,"mids":6,"treble":7,"presence":6,"reverb":1,"delay":0,"master":8}'::jsonb,
+     array['The Fire Force blaze — bright leaping riff under Motoki''s acrobatic vocal.','Sparkling saturated drive; joy at combustion temperature.'],
+     array['The riff leaps octaves — light feet.','Burn brightly; resolve cleanly.'],
+     'Studio recording, 2019. The Fire Force blaze.',72),
+    ('robinson','spitz','guitar','riff','arpeggio jangle','clean','j-rock','rhythm','beginner',
+     'Fender Telecaster (Tetsuya Miwa)','Clean amp, gentle jangle','Open-back combo cab','neck pickup',
+     '[{"effect_type":"chorus","effect_name":"soft chorus","placement":"post_gain","settings":{"rate":3,"depth":3,"mix":3}},{"effect_type":"reverb","effect_name":"room reverb","placement":"post_gain","settings":{"mix":3}}]'::jsonb,
+     '{"gain":2,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":3,"delay":0,"master":6}'::jsonb,
+     array['Japan''s gentlest evergreen — the arpeggio intro every JP guitarist learns first.','Soft chorused jangle; a breeze made audible.'],
+     array['The intro arpeggio is national heritage.','Ride the new season'' wind lightly.'],
+     'Studio recording, 1995. The gentle evergreen arpeggio.',74),
+    ('hanabi','mr-children','guitar','main','ballad build','clean','j-rock','rhythm','beginner',
+     'Fender/Gibson electric (Kenichi Tahara)','Clean-to-warm amp, ballad build','Open-back combo cab','neck pickup',
+     '[{"effect_type":"reverb","effect_name":"hall reverb","placement":"post_gain","settings":{"mix":4}}]'::jsonb,
+     '{"gain":2,"bass":5,"mids":5,"treble":6,"presence":4,"reverb":4,"delay":1,"master":6}'::jsonb,
+     array['The Code Blue heart-swell — gentle clean build to a fireworks chorus (gain 5).','Warm wet clean; how much more must I love to touch it once?'],
+     array['Arpeggiate the verses tenderly.','The chorus blooms — light the sky.'],
+     'Studio recording, 2008. The fireworks heart-swell.',73),
+    ('more-than-words-hitsuji','hitsujibungaku','guitar','riff','dream jangle','clean','j-rock','rhythm','beginner',
+     'Fender Jazzmaster (Moeka Shiotsuka)','Clean amp, hazy dream jangle','Open-back combo cab','neck pickup',
+     '[{"effect_type":"reverb","effect_name":"dream reverb","placement":"post_gain","settings":{"mix":5,"decay":5}},{"effect_type":"chorus","effect_name":"soft chorus","placement":"post_gain","settings":{"rate":3,"depth":3,"mix":3}}]'::jsonb,
+     '{"gain":2,"bass":5,"mids":5,"treble":6,"presence":4,"reverb":5,"delay":1,"master":6}'::jsonb,
+     array['The JJK ending drift — Shiotsuka''s hazy dream-jangle under a sighing melody.','Wet soft clean; shoegaze DNA in J-rock form.'],
+     array['Strum-drift the chords; let the reverb blur.','More than words — fewer than notes.'],
+     'Studio recording, 2023. The JJK dream drift.',72),
+    ('new-born','muse','guitar','riff','arpeggio + riff wall','high_gain','alternative rock','rhythm','advanced',
+     'Manson custom (Matt Bellamy)','Driven stack with fuzz, paranoid wall','Closed-back 4x12 cab','bridge humbucker',
+     '[{"effect_type":"fuzz","effect_name":"fuzz stack","placement":"front","settings":{"gain":7,"tone":5,"level":6}}]'::jsonb,
+     '{"gain":7,"bass":5,"mids":6,"treble":6,"presence":6,"reverb":2,"delay":0,"master":8}'::jsonb,
+     array['The Origin detonator — piano arpeggios reborn as a fuzz-riff apocalypse.','Saturated Bellamy wall; the riff eats the arpeggio that born it.'],
+     array['The piano figure becomes the guitar riff — learn both.','Destroy the spineless — at full sprint.'],
+     'Studio recording, 2001. The arpeggio-to-apocalypse detonator.',76),
+    ('sleep-now-in-the-fire','rage-against-the-machine','guitar','riff','main riff','high_gain','funk metal','rhythm','intermediate',
+     '"Arm the Homeless" custom (Tom Morello)','Marshall JCM800 2205','Peavey 4x12 cab','EMG humbuckers',
+     '[{"effect_type":"wah","effect_name":"wah + toggle tricks","placement":"front","settings":{"position":5}}]'::jsonb,
+     '{"gain":6,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":0,"delay":0,"master":7}'::jsonb,
+     array['The Wall Street stomp — swaggering riff with Morello''s solo-as-DJ-scratch.','Static JCM800 rig; the solo is toggle-switch turntablism.'],
+     array['The riff swaggers wide.','The solo scratches — toggle switch and wah, no notes required.'],
+     'Studio recording, 1999. The Wall Street stomp.',78),
+    ('make-it-wit-chu','queens-of-the-stone-age','guitar','riff','desert soul groove','clean','desert rock','rhythm','beginner',
+     'Ovation/Gibson electric (Josh Homme)','Tube amp, warm desert soul','Open-back combo cab','neck pickup',
+     '[]'::jsonb,'{"gain":3,"bass":5,"mids":6,"treble":5,"presence":4,"reverb":3,"delay":0,"master":6}'::jsonb,
+     array['The desert slow-jam — Homme trades crunch for bedroom-soul warmth.','Warm rounded near-clean; anytime, anyplace groove.'],
+     array['Comp the soul changes lazily.','The solo winks — keep it greasy and short.'],
+     'Studio recording, 2007. The desert slow-jam.',77),
+    ('lazaretto','jack-white','guitar','riff','main riff','fuzz','garage rock','rhythm','intermediate',
+     'Custom Telecaster-style (Jack White)','Driven amp with fuzz and octave chaos','Closed-back cab','bridge pickup',
+     '[{"effect_type":"fuzz","effect_name":"gnarly fuzz","placement":"front","settings":{"gain":7,"tone":6,"level":6}},{"effect_type":"pitch","effect_name":"octave chaos (solo)","placement":"front","settings":{"mode":"octave_up","mix":6}}]'::jsonb,
+     '{"gain":6,"bass":6,"mids":6,"treble":6,"presence":5,"reverb":1,"delay":0,"master":8}'::jsonb,
+     array['The solo-era stomper — gnarly fuzz riff with fiddle and octave-squeal solo.','Aggressive spitting fuzz; blue-collar sci-fi.'],
+     array['The riff struts in drop-ish blues.','The solo fights the octave pedal and wins.'],
+     'Studio recording, 2014. The solo-era fuzz stomp.',76),
+    ('albatross','fleetwood-mac','guitar','lead','instrumental lead','clean','blues','lead','intermediate',
+     'Gibson Les Paul (Peter Green)','Fender tube amp, glassy warm clean','Fender combo cab','out-of-phase pickup blend',
+     '[{"effect_type":"reverb","effect_name":"gentle spring reverb","placement":"post_gain","settings":{"mix":4}}]'::jsonb,
+     '{"gain":2,"bass":5,"mids":6,"treble":5,"presence":4,"reverb":4,"delay":0,"master":6}'::jsonb,
+     array['Peter Green''s gliding instrumental — the out-of-phase Les Paul tone BB King said gave him cold sweats.','Glassy hollow warm clean; the bird never flaps, only glides.'],
+     array['Volume-swell the melody like wings.','Slow. Slower. There.'],
+     'Studio recording, 1968. Green''s gliding out-of-phase masterpiece.',79),
+    ('bad-penny','rory-gallagher','guitar','riff','main riff + solo','crunch','blues rock','lead','intermediate',
+     'Battered Fender Stratocaster (Rory Gallagher)','Tube combo cranked, raw Irish blues','Open-back combo cab','bridge single-coil',
+     '[]'::jsonb,'{"gain":5,"bass":5,"mids":6,"treble":7,"presence":6,"reverb":2,"delay":0,"master":8}'::jsonb,
+     array['The Irish stormer — Rory''s stripped-Strat bite on a grinding minor riff.','Raw trebly crunch; sweat included at no charge.'],
+     array['The riff grinds; the solo testifies.','Play it like the paint wore off honestly.'],
+     'Studio recording, 1979. Rory''s stripped-Strat stormer.',78),
+    ('bridge-of-sighs','robin-trower','guitar','riff','main riff + solo','crunch','blues rock','lead','intermediate',
+     'Fender Stratocaster (Robin Trower)','Marshall stack with Uni-Vibe swirl','Marshall 4x12 cab','bridge single-coil',
+     '[{"effect_type":"chorus","effect_name":"Uni-Vibe swirl","placement":"front","settings":{"rate":3,"depth":6,"mix":6}}]'::jsonb,
+     '{"gain":5,"bass":5,"mids":6,"treble":5,"presence":5,"reverb":3,"delay":0,"master":8}'::jsonb,
+     array['The Uni-Vibe cathedral — Trower''s underwater Strat swirl, the tone forums never stop chasing.','Thick vibed crunch; Hendrix''s ghost blessing every bend.'],
+     array['The riff tolls under the swirl.','Bend slow; the vibe does the crying.'],
+     'Studio recording, 1974. Trower''s Uni-Vibe cathedral.',79),
+    ('watermelon-in-easter-hay','frank-zappa','guitar','solo','extended guitar elegy','clean','rock','lead','advanced',
+     'Gibson Les Paul/SG (Frank Zappa)','Tube amp, singing sustain','Closed-back cab','bridge humbucker',
+     '[{"effect_type":"delay","effect_name":"gentle lead delay","placement":"post_gain","settings":{"time":4,"mix":3,"feedback":3}},{"effect_type":"reverb","effect_name":"hall reverb","placement":"post_gain","settings":{"mix":4}}]'::jsonb,
+     '{"gain":5,"bass":5,"mids":7,"treble":5,"presence":5,"reverb":4,"delay":3,"master":7}'::jsonb,
+     array['Zappa''s most beautiful nine minutes — the elegy solo over the 9/4 vamp he called his best.','Warm singing sustain; playing a guitar solo like this is like growing a watermelon in easter hay.'],
+     array['The 9/4 vamp cycles; the solo mourns above it.','His son played it at his memorial. Enough said.'],
+     'Studio recording, 1979. Zappa''s nine-minute elegy.',79),
+    ('blowin-free','wishbone-ash','guitar','riff','twin-lead riff','crunch','rock','lead','intermediate',
+     'Gibson Flying V + Strat (Andy Powell / Ted Turner)','Tube amps, twin-lead warmth','Closed-back cabs','bridge pickup',
+     '[]'::jsonb,'{"gain":5,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['The twin-lead template — the harmonized lines Maiden and Lizzy studied.','Warm dual-lead crunch; two voices, one wind.'],
+     array['Learn both harmony parts — the blueprint demands it.','She was blowin'' free — so are the leads.'],
+     'Studio recording, 1972. The twin-lead template.',78),
+    ('rock-bottom','ufo','guitar','riff','main riff + solo','high_gain','rock','lead','advanced',
+     'Gibson Flying V (Michael Schenker)','Marshall with cocked wah filter','Marshall 4x12 cab','bridge humbucker',
+     '[{"effect_type":"wah","effect_name":"cocked-wah filter","placement":"front","settings":{"position":6}}]'::jsonb,
+     '{"gain":6,"bass":5,"mids":7,"treble":6,"presence":6,"reverb":2,"delay":0,"master":8}'::jsonb,
+     array['Schenker''s calling card — the galloping riff and the extended solo every 80s shredder studied.','Mid-honked Flying V through cocked wah; the German school opens here.'],
+     array['The riff gallops in E.','The live solo runs ten minutes — build your own cathedral.'],
+     'Studio recording, 1974. Schenker''s calling-card gallop.',78),
+    ('emerald','thin-lizzy','guitar','riff','twin-lead battle','high_gain','rock','lead','advanced',
+     'Gibson Les Pauls (Scott Gorham / Brian Robertson)','Marshall stacks, twin-lead attack','Marshall 4x12 cabs','bridge humbuckers',
+     '[]'::jsonb,'{"gain":6,"bass":5,"mids":7,"treble":6,"presence":6,"reverb":1,"delay":0,"master":8}'::jsonb,
+     array['The Celtic war-dance — Lizzy''s fiercest twin-lead battle.','Hot harmonized Marshalls; the duel is the destination.'],
+     array['The harmonized outro trades and collides.','Down from the glen came the marching men — at full charge.'],
+     'Studio recording, 1976. The Celtic twin-lead war-dance.',78),
+    ('do-you-feel-like-we-do','peter-frampton','guitar','riff','riff + talk-box epic','crunch','rock','lead','intermediate',
+     'Gibson Les Paul "Phenix" (Peter Frampton)','Tube stack with talk box','Closed-back 4x12 cab','bridge humbucker',
+     '[{"effect_type":"filter","effect_name":"talk box (the voice)","placement":"post_gain","settings":{"mix":8}}]'::jsonb,
+     '{"gain":5,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":2,"delay":0,"master":8}'::jsonb,
+     array['The Comes Alive centerpiece — fourteen minutes ending in the most famous talk-box conversation ever.','Warm singing crunch; the tube does the talking.'],
+     array['The riff rolls; the talk box asks the question.','Do you feel like we do? The crowd already answered.'],
+     'Live recording, 1976. The talk-box conversation epic.',79)
+) as c(
+  song_slug, artist_slug, mode, part_type, part_label, tone_type, genre, tone_category, difficulty,
+  original_guitar, original_amp, original_cab, original_pickup,
+  original_effects, original_settings, adaptation_notes, playing_notes, source_summary, confidence
+)
+join public.artists a on a.slug = c.artist_slug
+join public.songs s on s.artist_id = a.id and s.slug = c.song_slug;
