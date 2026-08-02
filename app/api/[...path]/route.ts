@@ -134,6 +134,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     await attachArtworkToDatabaseSongs(dbResults, liveResults);
     const localResults = searchLocalSongs(normalized, resultLimit);
     const merged = mergeSongResults([...dbResults, ...liveResults, ...localResults], [], resultLimit);
+    void logSongSearch(query, normalized, dbResults);
     return json({ results: merged });
   }
 
@@ -410,6 +411,31 @@ function json(data: unknown) {
       "Cache-Control": "no-store"
     }
   });
+}
+
+// Fire-and-forget search-gap logging: record what users search for and whether
+// the verified database had a match. Misses tell us which tones to verify next.
+async function logSongSearch(query: string, normalized: string, dbResults: SongItem[]) {
+  try {
+    if (!normalized || normalized.length < 2) {
+      return;
+    }
+    const admin = createSupabaseAdminClient();
+    if (!admin) {
+      return;
+    }
+    const { user } = await getCurrentSession();
+    const top = dbResults[0];
+    await admin.from("search_logs").insert({
+      query: query.slice(0, 200),
+      normalized_query: normalized.slice(0, 200),
+      user_id: user?.id || null,
+      db_match_count: dbResults.length,
+      top_match: top ? `${top.song} — ${top.artist}`.slice(0, 200) : null
+    });
+  } catch {
+    // Logging must never break search.
+  }
 }
 
 function buildAdaptationSourceLog(
