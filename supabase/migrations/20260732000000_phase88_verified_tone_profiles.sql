@@ -1,0 +1,276 @@
+-- Phase 88: US female indie/alt wave + US reggae-rock summer scene.
+
+with target(artist_name, artist_slug, song_title, song_slug, album, release_year) as (
+  values
+    ('Lucy Dacus','lucy-dacus','Night Shift','night-shift','Historian',2018),
+    ('Julien Baker','julien-baker','Appointments','appointments','Turn Out the Lights',2017),
+    ('Snail Mail','snail-mail','Pristine','pristine','Lush',2018),
+    ('Soccer Mommy','soccer-mommy','Circle the Drain','circle-the-drain','Color Theory',2020),
+    ('Japanese Breakfast','japanese-breakfast','Be Sweet','be-sweet','Jubilee',2021),
+    ('Mitski','mitski','Washing Machine Heart','washing-machine-heart','Be the Cowboy',2018),
+    ('Mitski','mitski','I Bet on Losing Dogs','i-bet-on-losing-dogs','Puberty 2',2016),
+    ('Waxahatchee','waxahatchee','Right Back to It','right-back-to-it','Tigers Blood',2024),
+    ('MJ Lenderman','mj-lenderman','She''s Leaving You','shes-leaving-you','Manning Fireworks',2024),
+    ('Wednesday','wednesday-band','Chosen to Deserve','chosen-to-deserve','Rat Saw God',2023),
+    ('Ethel Cain','ethel-cain','American Teenager','american-teenager','Preacher''s Daughter',2022),
+    ('Big Thief','big-thief','Paul','paul','Masterpiece',2016),
+    ('girl in red','girl-in-red','i wanna be your girlfriend','i-wanna-be-your-girlfriend','chapter 1',2018),
+    ('Beabadoobee','beabadoobee','Coffee','coffee','Patched Up',2018),
+    ('Peach Pit','peach-pit','Peach Pit','peach-pit','Sweet FA',2016),
+    ('boygenius','boygenius','Cool About It','cool-about-it','the record',2023),
+    ('Sublime','sublime','Badfish','badfish','40oz. to Freedom',1992),
+    ('311','311','All Mixed Up','all-mixed-up','311',1995),
+    ('Turnstile','turnstile','MYSTERY','mystery','Glow On',2021),
+    ('Dirty Heads','dirty-heads','Vacation','vacation','Swim Team',2017),
+    ('Slightly Stoopid','slightly-stoopid','Closer to the Sun','closer-to-the-sun','Closer to the Sun',2005),
+    ('The Expendables','the-expendables','Bowl for Two','bowl-for-two','Gettin'' Filthy',2004),
+    ('Less Than Jake','less-than-jake','All My Best Friends Are Metalheads','all-my-best-friends-are-metalheads','Borders & Boundaries',2000),
+    ('SOJA','soja','Rest of My Life','rest-of-my-life','Strength to Survive',2012),
+    ('Phoebe Bridgers','phoebe-bridgers','Garden Song','garden-song','Punisher',2020)
+),
+ins_artists as (
+  insert into public.artists (name, slug, search_text, is_active)
+  select distinct artist_name, artist_slug, artist_name, true from target
+  on conflict (slug) do update set name = excluded.name, is_active = true
+  returning id, slug
+)
+insert into public.songs (artist_id, title, slug, album, release_year, search_text, is_active)
+select a.id, t.song_title, t.song_slug, t.album, t.release_year,
+       concat_ws(' ', t.song_title, t.artist_name, t.album), true
+from target t join ins_artists a on a.slug = t.artist_slug
+on conflict (artist_id, slug) do update set
+  title = excluded.title, album = excluded.album, release_year = excluded.release_year,
+  is_active = true, updated_at = now();
+
+delete from public.tone_profile_effects e where e.profile_id in (
+  select p.id from public.song_tone_profiles p
+  join public.songs s on s.id = p.song_id join public.artists a on a.id = s.artist_id
+  join (values
+    ('lucy-dacus','night-shift'),('julien-baker','appointments'),('snail-mail','pristine'),
+    ('soccer-mommy','circle-the-drain'),('japanese-breakfast','be-sweet'),('mitski','washing-machine-heart'),
+    ('mitski','i-bet-on-losing-dogs'),('waxahatchee','right-back-to-it'),('mj-lenderman','shes-leaving-you'),
+    ('wednesday-band','chosen-to-deserve'),('ethel-cain','american-teenager'),('big-thief','paul'),
+    ('girl-in-red','i-wanna-be-your-girlfriend'),('beabadoobee','coffee'),('peach-pit','peach-pit'),
+    ('boygenius','cool-about-it'),('sublime','badfish'),('311','all-mixed-up'),('turnstile','mystery'),
+    ('dirty-heads','vacation'),('slightly-stoopid','closer-to-the-sun'),('the-expendables','bowl-for-two'),
+    ('less-than-jake','all-my-best-friends-are-metalheads'),('soja','rest-of-my-life'),('phoebe-bridgers','garden-song')
+  ) as t(artist_slug, song_slug) on t.artist_slug = a.slug and t.song_slug = s.slug
+  where p.mode = 'guitar'
+);
+delete from public.tone_profile_sources src where src.profile_id in (
+  select p.id from public.song_tone_profiles p
+  join public.songs s on s.id = p.song_id join public.artists a on a.id = s.artist_id
+  join (values
+    ('lucy-dacus','night-shift'),('julien-baker','appointments'),('snail-mail','pristine'),
+    ('soccer-mommy','circle-the-drain'),('japanese-breakfast','be-sweet'),('mitski','washing-machine-heart'),
+    ('mitski','i-bet-on-losing-dogs'),('waxahatchee','right-back-to-it'),('mj-lenderman','shes-leaving-you'),
+    ('wednesday-band','chosen-to-deserve'),('ethel-cain','american-teenager'),('big-thief','paul'),
+    ('girl-in-red','i-wanna-be-your-girlfriend'),('beabadoobee','coffee'),('peach-pit','peach-pit'),
+    ('boygenius','cool-about-it'),('sublime','badfish'),('311','all-mixed-up'),('turnstile','mystery'),
+    ('dirty-heads','vacation'),('slightly-stoopid','closer-to-the-sun'),('the-expendables','bowl-for-two'),
+    ('less-than-jake','all-my-best-friends-are-metalheads'),('soja','rest-of-my-life'),('phoebe-bridgers','garden-song')
+  ) as t(artist_slug, song_slug) on t.artist_slug = a.slug and t.song_slug = s.slug
+  where p.mode = 'guitar'
+);
+delete from public.song_tone_profiles p where p.mode = 'guitar' and p.id in (
+  select p2.id from public.song_tone_profiles p2
+  join public.songs s on s.id = p2.song_id join public.artists a on a.id = s.artist_id
+  join (values
+    ('lucy-dacus','night-shift'),('julien-baker','appointments'),('snail-mail','pristine'),
+    ('soccer-mommy','circle-the-drain'),('japanese-breakfast','be-sweet'),('mitski','washing-machine-heart'),
+    ('mitski','i-bet-on-losing-dogs'),('waxahatchee','right-back-to-it'),('mj-lenderman','shes-leaving-you'),
+    ('wednesday-band','chosen-to-deserve'),('ethel-cain','american-teenager'),('big-thief','paul'),
+    ('girl-in-red','i-wanna-be-your-girlfriend'),('beabadoobee','coffee'),('peach-pit','peach-pit'),
+    ('boygenius','cool-about-it'),('sublime','badfish'),('311','all-mixed-up'),('turnstile','mystery'),
+    ('dirty-heads','vacation'),('slightly-stoopid','closer-to-the-sun'),('the-expendables','bowl-for-two'),
+    ('less-than-jake','all-my-best-friends-are-metalheads'),('soja','rest-of-my-life'),('phoebe-bridgers','garden-song')
+  ) as t(artist_slug, song_slug) on t.artist_slug = a.slug and t.song_slug = s.slug
+);
+
+insert into public.song_tone_profiles (
+  song_id, song_title, artist_name, mode, part_type, part_label, tone_type,
+  genre, tone_category, difficulty,
+  original_guitar, original_amp, original_cab, original_pickup,
+  original_effects, original_settings, adaptation_notes, playing_notes,
+  source_summary, confidence, verification_status, search_text, is_public
+)
+select
+  s.id, s.title, a.name, c.mode, c.part_type, c.part_label, c.tone_type,
+  c.genre, c.tone_category, c.difficulty,
+  c.original_guitar, c.original_amp, c.original_cab, c.original_pickup,
+  c.original_effects, c.original_settings, c.adaptation_notes, c.playing_notes,
+  c.source_summary, c.confidence, 'admin_verified',
+  concat_ws(' ', s.title, a.name, c.part_label, c.tone_type, c.original_guitar, c.original_amp, 'researched verified tone'),
+  true
+from (
+  values
+    ('night-shift','lucy-dacus','guitar','main','slow-burn build','clean','indie rock','rhythm','beginner',
+     'Fender electric (Lucy Dacus / Jacob Blizard)','Clean amp building to roar','Closed-back cab','neck pickup',
+     '[]'::jsonb,'{"gain":3,"bass":5,"mids":6,"treble":5,"presence":4,"reverb":3,"delay":0,"master":7}'::jsonb,
+     array['The breakup slow-burn — five minutes of quiet that detonates (final section gain 7).','Warm patient clean; in five years I hope the songs feel like covers.'],
+     array['Hold the quiet longer than feels safe.','The last two minutes are the payoff — earn them.'],
+     'Studio recording, 2018. The breakup slow-burn.',76),
+    ('appointments','julien-baker','guitar','main','looped sparse picking','clean','indie rock','rhythm','beginner',
+     'Fender Telecaster (Julien Baker)','Clean amp with loops and reverb','Open-back combo cab','neck pickup',
+     '[{"effect_type":"reverb","effect_name":"large reverb","placement":"post_gain","settings":{"mix":5,"decay":7}},{"effect_type":"delay","effect_name":"ambient delay","placement":"post_gain","settings":{"time":4,"mix":3,"feedback":4}}]'::jsonb,
+     '{"gain":1,"bass":4,"mids":5,"treble":6,"presence":4,"reverb":5,"delay":3,"master":6}'::jsonb,
+     array['The maybe-it''s-all-gonna-turn-out-alright prayer — sparse looped Tele in cathedral space.','Glassy wet clean; Baker builds churches out of one guitar.'],
+     array['Pick the sparse figure; let the loop hold it.','The crescendo is emotional, not electric.'],
+     'Studio recording, 2017. The looped prayer.',75),
+    ('pristine','snail-mail','guitar','riff','indie-rock riff','crunch','indie rock','rhythm','beginner',
+     'Fender Jazzmaster (Lindsey Jordan)','Tube amp, jangly indie crunch','Open-back combo cab','bridge pickup',
+     '[]'::jsonb,'{"gain":4,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":3,"delay":0,"master":7}'::jsonb,
+     array['The teenage-guitar-hero statement — jangly open-tuned riff with honest edges.','Bright loose crunch; and if you do find someone better.'],
+     array['Open tuning; strum through the changes.','Jordan wrote it at 18 — play it that fearless.'],
+     'Studio recording, 2018. The teenage statement.',75),
+    ('circle-the-drain','soccer-mommy','guitar','main','90s-haze strums','clean','indie rock','rhythm','beginner',
+     'Fender electric (Sophie Allison)','Clean amp with 90s haze','Open-back combo cab','neck pickup',
+     '[{"effect_type":"chorus","effect_name":"soft chorus","placement":"post_gain","settings":{"rate":3,"depth":3,"mix":3}}]'::jsonb,
+     '{"gain":3,"bass":5,"mids":5,"treble":6,"presence":4,"reverb":3,"delay":1,"master":6}'::jsonb,
+     array['The sunny-sad spiral — 90s alt-radio warmth under the sinking lyric.','Hazy chorused clean; things feel that low sometimes.'],
+     array['Strum bright; the sadness is in the words.','Natalie Imbruglia warmth, Elliott Smith heart.'],
+     'Studio recording, 2020. The sunny-sad spiral.',74),
+    ('be-sweet','japanese-breakfast','guitar','riff','funk-pop chips','clean','indie pop','rhythm','intermediate',
+     'Fender electric (Michelle Zauner / band)','Clean amp, 80s funk-pop snap','Studio direct','bridge pickup',
+     '[{"effect_type":"compressor","effect_name":"tight compression","placement":"front","settings":{"sustain":5,"level":5}}]'::jsonb,
+     '{"gain":2,"bass":4,"mids":5,"treble":7,"presence":6,"reverb":2,"delay":0,"master":6}'::jsonb,
+     array['The joy-turn single — chipping 80s funk guitar under the soaring hook.','Tight bright clean; be sweet to me, baby.'],
+     array['Chip the funk pattern on the off-beats.','It''s Jubilee — play like the title.'],
+     'Studio recording, 2021. The joy-turn single.',74),
+    ('washing-machine-heart','mitski','guitar','riff','staccato drive','crunch','indie rock','rhythm','beginner',
+     'Electric guitar (Mitski / session)','Driven amp, theatrical staccato','Closed-back cab','bridge pickup',
+     '[]'::jsonb,'{"gain":5,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['The toss-your-dirty-shoes anthem — staccato stabs with theatrical drama.','Punchy tight drive; why not me, why not me?'],
+     array['Stab the chords on the marching rhythm.','The drama is choreographed — hit the marks.'],
+     'Studio recording, 2018. The washing-machine anthem.',74),
+    ('i-bet-on-losing-dogs','mitski','guitar','main','slow ache','clean','indie rock','rhythm','beginner',
+     'Electric guitar (Mitski)','Clean amp, underwater ache','Open-back combo cab','neck pickup',
+     '[{"effect_type":"reverb","effect_name":"soft reverb","placement":"post_gain","settings":{"mix":4}}]'::jsonb,
+     '{"gain":2,"bass":5,"mids":5,"treble":5,"presence":3,"reverb":4,"delay":1,"master":6}'::jsonb,
+     array['The losing-dogs lament — slow swaying clean under the saddest bet.','Soft muffled warmth; I always want you when I''m finally fine.'],
+     array['Sway the chords in slow waltz.','Play it half-underwater.'],
+     'Studio recording, 2016. The losing-dogs lament.',74),
+    ('right-back-to-it','waxahatchee','guitar','main','country-indie duet','acoustic','indie folk','rhythm','beginner',
+     'Acoustic + electric (Katie Crutchfield / MJ Lenderman)','Acoustic with warm electric','Open-back combo cab','neck pickup',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":3,"delay":0,"master":6}'::jsonb,
+     array['The Grammy-nominated duet — banjo-rolling Americana with Lenderman''s harmony.','Warm rolling acoustic; I get right back to it.'],
+     array['Roll the pattern steady as a porch swing.','The harmony is the second guitar.'],
+     'Studio recording, 2024. The Americana duet.',75),
+    ('shes-leaving-you','mj-lenderman','guitar','riff','slacker-rock riff','crunch','indie rock','rhythm','beginner',
+     'Fender electric (MJ Lenderman)','Tube amp, loose slacker crunch','Open-back combo cab','bridge pickup',
+     '[]'::jsonb,'{"gain":5,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['The 2024 indie-rock consensus pick — Crazy Horse looseness with deadpan wit.','Ragged warm drive; it falls apart, we all got work to do.'],
+     array['Strum loose; bend the fills lazily.','Neil Young via Asheville — keep the frays showing.'],
+     'Studio recording, 2024. The slacker consensus pick.',75),
+    ('chosen-to-deserve','wednesday-band','guitar','main','country-gaze strums','crunch','indie rock','rhythm','beginner',
+     'Electric + lap steel (Karly Hartzman / Xandy Chelmis)','Tube amp, country-shoegaze blur','Closed-back cab','bridge pickup',
+     '[]'::jsonb,'{"gain":5,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":3,"delay":0,"master":7}'::jsonb,
+     array['The confession catalog — big country-gaze chords with weeping lap steel.','Blurred warm drive; we always started by telling our worst stories.'],
+     array['Strum wide; let the steel cry through.','The ugly details are the love song.'],
+     'Studio recording, 2023. The confession catalog.',74),
+    ('american-teenager','ethel-cain','guitar','main','heartland shimmer','clean','alt pop','rhythm','beginner',
+     'Electric guitar (Ethel Cain / session)','Clean amp, big heartland shimmer','Closed-back cab','bridge pickup',
+     '[{"effect_type":"reverb","effect_name":"stadium reverb","placement":"post_gain","settings":{"mix":5,"decay":6}}]'::jsonb,
+     '{"gain":3,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":5,"delay":2,"master":7}'::jsonb,
+     array['The dark-Americana anthem — Springsteen shimmer haunting a church parking lot.','Huge wet chime; the neighbor''s brother came home in a box.'],
+     array['Chime the chords stadium-wide.','It sounds triumphant; it isn''t. Hold both.'],
+     'Studio recording, 2022. The dark-Americana anthem.',74),
+    ('paul','big-thief','guitar','main','folk-rock pulse','clean','indie folk','rhythm','beginner',
+     'Electric guitar (Adrianne Lenker / Buck Meek)','Clean amp, warm folk-rock pulse','Open-back combo cab','neck pickup',
+     '[]'::jsonb,'{"gain":3,"bass":5,"mids":5,"treble":5,"presence":4,"reverb":3,"delay":0,"master":6}'::jsonb,
+     array['The almost-love elegy — pulsing warm strums under Lenker''s trembling telling.','Round soft clean; I''ll be your real tough cookie.'],
+     array['Pulse the chords steady.','The story swerves — the guitar shouldn''t.'],
+     'Studio recording, 2016. The almost-love elegy.',75),
+    ('i-wanna-be-your-girlfriend','girl-in-red','guitar','riff','bedroom-pop riff','clean','bedroom pop','rhythm','beginner',
+     'Electric guitar (Marie Ulven)','Clean DI, bedroom jangle','Studio direct','bridge pickup',
+     '[{"effect_type":"reverb","effect_name":"small room reverb","placement":"post_gain","settings":{"mix":3}}]'::jsonb,
+     '{"gain":2,"bass":4,"mids":5,"treble":6,"presence":5,"reverb":3,"delay":0,"master":6}'::jsonb,
+     array['The bedroom-pop declaration — jangling home-recorded chords, zero varnish.','Thin honest clean; I don''t wanna be your friend.'],
+     array['Jangle the chords eagerly.','Recorded in a bedroom; keep that intimacy.'],
+     'Studio recording, 2018. The bedroom declaration.',74),
+    ('coffee','beabadoobee','guitar','main','lo-fi fingerpicking','clean','bedroom pop','rhythm','beginner',
+     'Nylon/electric guitar (Bea Laus)','Clean DI, lo-fi warmth','Studio direct','neck pickup',
+     '[]'::jsonb,'{"gain":1,"bass":5,"mids":5,"treble":5,"presence":3,"reverb":2,"delay":0,"master":5}'::jsonb,
+     array['The first-song-ever viral — two chords of lo-fi warmth that launched a career (and a lofi remix empire).','Soft dusty clean; don''t stay awake for too long.'],
+     array['Fingerpick the two-chord sway.','It was her first song — simplicity is the magic.'],
+     'Studio recording, 2018. The first-song viral.',74),
+    ('peach-pit','peach-pit','guitar','riff','chewed-bubblegum riff','clean','indie pop','lead','intermediate',
+     'Fender Telecaster (Christopher Vanderkooy)','Clean amp, rubbery indie lead','Open-back combo cab','neck pickup',
+     '[{"effect_type":"chorus","effect_name":"watery chorus","placement":"post_gain","settings":{"rate":3,"depth":4,"mix":4}}]'::jsonb,
+     '{"gain":3,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":3,"delay":1,"master":6}'::jsonb,
+     array['The chewed-bubblegum title track — rubbery bent lead lines over lazy strums.','Watery warm clean; Vanderkooy''s bends smirk.'],
+     array['The lead line slurs and bends like taffy.','Lazy on purpose; precise underneath.'],
+     'Studio recording, 2016. The chewed-bubblegum lead.',74),
+    ('cool-about-it','boygenius','guitar','main','folk-trio picking','acoustic','indie folk','rhythm','beginner',
+     'Acoustic guitar (Baker/Bridgers/Dacus)','Acoustic — mic''d, banjo-adjacent roll','No cab (acoustic)','n/a (acoustic)',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":5,"treble":6,"presence":4,"reverb":2,"delay":0,"master":6}'::jsonb,
+     array['The trading-verses heartbreak — rolling acoustic pattern under three voices being not fine.','Dry close acoustic; telling you it''s nice to see how good you''re doing.'],
+     array['Roll the travis-adjacent pattern.','Three writers, one wound — keep it steady.'],
+     'Studio recording, 2023. The trading-verses heartbreak.',75),
+    ('badfish','sublime','guitar','riff','reggae skank + arps','clean','ska reggae','rhythm','intermediate',
+     'Ibanez/custom electric (Bradley Nowell)','Clean amp, dubby warmth','Closed-back cab','neck pickup',
+     '[{"effect_type":"reverb","effect_name":"spring reverb","placement":"post_gain","settings":{"mix":3}}]'::jsonb,
+     '{"gain":2,"bass":6,"mids":5,"treble":5,"presence":4,"reverb":3,"delay":1,"master":6}'::jsonb,
+     array['The Long Beach lullaby — dubby arpeggios and upstroke skanks, Nowell''s tenderest.','Warm round clean; ain''t got no quarrels with God.'],
+     array['Arpeggiate the intro; skank the verses.','It floats — never rush a Sublime groove.'],
+     'Studio recording, 1992. The Long Beach lullaby.',76),
+    ('all-mixed-up','311','guitar','riff','funk-rock riff','crunch','funk rock','rhythm','intermediate',
+     'PRS/Music Man electric (Tim Mahoney)','Tube amp, funk-rock bounce','Closed-back cab','bridge humbucker',
+     '[]'::jsonb,'{"gain":5,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['The Omaha bounce — tight funk-rock riffing flipping to reggae skank mid-song.','Springy focused crunch; you''ve got to trust your instinct.'],
+     array['Bounce the riff; clean up for the skank section.','The groove-flip is the trick — practice the switch.'],
+     'Studio recording, 1995. The Omaha bounce.',75),
+    ('mystery','turnstile','guitar','riff','dreamy hardcore riff','distorted','hardcore','rhythm','intermediate',
+     'Electric guitar (Brady Ebert / Pat McCrory)','Tube amp, huge dreamy hardcore','Closed-back 4x12 cab','bridge humbucker',
+     '[]'::jsonb,'{"gain":7,"bass":5,"mids":5,"treble":6,"presence":6,"reverb":3,"delay":0,"master":8}'::jsonb,
+     array['The Glow On opener — hardcore muscle wrapped in dream-pop shimmer.','Wide bright saturation; Turnstile made hardcore feel like summer.'],
+     array['Slam the riff; float the shimmer chords.','Bounce is everything — this is dance music with distortion.'],
+     'Studio recording, 2021. The Glow On opener.',75),
+    ('vacation','dirty-heads','guitar','riff','sun-funk riff','clean','reggae rock','rhythm','beginner',
+     'Electric guitar (Dirty Heads)','Clean amp, sunny funk-reggae','Studio direct','bridge pickup',
+     '[{"effect_type":"compressor","effect_name":"tight compression","placement":"front","settings":{"sustain":5,"level":5}}]'::jsonb,
+     '{"gain":2,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":2,"delay":0,"master":6}'::jsonb,
+     array['The permanent-vacation bounce — clipped sunny funk chords under the horn hook.','Bright clipped clean; I''m on vacation every single day.'],
+     array['Clip the chords tight on the upbeats.','It''s a beach party — play like sunscreen smells.'],
+     'Studio recording, 2017. The permanent-vacation bounce.',73),
+    ('closer-to-the-sun','slightly-stoopid','guitar','riff','beach-reggae groove','clean','reggae rock','rhythm','beginner',
+     'Electric guitar (Miles Doughty / Kyle McDonald)','Clean amp, beach-dub warmth','Closed-back cab','neck pickup',
+     '[{"effect_type":"reverb","effect_name":"spring reverb","placement":"post_gain","settings":{"mix":3}}]'::jsonb,
+     '{"gain":2,"bass":6,"mids":5,"treble":5,"presence":4,"reverb":3,"delay":1,"master":6}'::jsonb,
+     array['The Ocean Beach anthem — laid-back skank and dubby bass-following lines.','Warm dubby clean; getting closer to the sun.'],
+     array['Skank the upstrokes lazy and late.','San Diego tempo: whenever it gets there.'],
+     'Studio recording, 2005. The Ocean Beach anthem.',73),
+    ('bowl-for-two','the-expendables','guitar','riff','surf-reggae groove','clean','reggae rock','rhythm','beginner',
+     'Electric guitar (Kevin Bilella / Raul Bianchi)','Clean amp, Santa Cruz surf-reggae','Closed-back cab','neck pickup',
+     '[{"effect_type":"reverb","effect_name":"spring reverb","placement":"post_gain","settings":{"mix":3}}]'::jsonb,
+     '{"gain":2,"bass":6,"mids":5,"treble":5,"presence":4,"reverb":3,"delay":0,"master":6}'::jsonb,
+     array['The Santa Cruz session anthem — mellow skank with surf-rock lead breaks (gain 5).','Round mellow clean; the boardwalk closes late.'],
+     array['Skank soft; rip the surf leads when they come.','Half lullaby, half shred — that''s the band.'],
+     'Studio recording, 2004. The Santa Cruz session anthem.',72),
+    ('all-my-best-friends-are-metalheads','less-than-jake','guitar','riff','ska-punk drive','distorted','ska punk','rhythm','intermediate',
+     'Electric guitar (Chris DeMakes)','Tube amp, driving ska-punk','Closed-back cab','bridge humbucker',
+     '[]'::jsonb,'{"gain":6,"bass":5,"mids":5,"treble":6,"presence":6,"reverb":1,"delay":0,"master":8}'::jsonb,
+     array['The Gainesville horn-rush — full-speed punk chords flipping to clean upstroke skank.','Tight fast drive; the horns take the hook.'],
+     array['Punk downstrokes, then instant clean skank.','The switch is the whole genre in one song.'],
+     'Studio recording, 2000. The Gainesville horn-rush.',74),
+    ('rest-of-my-life','soja','guitar','main','roots-reggae skank','clean','reggae rock','rhythm','beginner',
+     'Electric guitar (Jacob Hemphill)','Clean amp, roots warmth','Closed-back cab','neck pickup',
+     '[{"effect_type":"reverb","effect_name":"soft reverb","placement":"post_gain","settings":{"mix":3}}]'::jsonb,
+     '{"gain":2,"bass":6,"mids":5,"treble":5,"presence":4,"reverb":3,"delay":1,"master":6}'::jsonb,
+     array['The DC-roots promise — clean one-drop skank under Hemphill''s vow.','Warm roots clean; I wanna spend the rest of my life getting better.'],
+     array['One-drop skank, pocket-deep.','Roots reggae from Virginia — sincerity is the sound.'],
+     'Studio recording, 2012. The DC-roots promise.',72),
+    ('garden-song','phoebe-bridgers','guitar','main','whisper fingerpicking','clean','indie folk','rhythm','beginner',
+     'Electric guitar (Phoebe Bridgers)','Clean DI, whisper-close','Studio direct','neck pickup',
+     '[{"effect_type":"reverb","effect_name":"soft reverb","placement":"post_gain","settings":{"mix":3}}]'::jsonb,
+     '{"gain":1,"bass":5,"mids":5,"treble":5,"presence":3,"reverb":3,"delay":0,"master":5}'::jsonb,
+     array['The Punisher opener — whispered fingerpicked figure blooming like the garden.','Dim soft clean; and when I grow up, I''m gonna look up from my phone and see my life.'],
+     array['Fingerpick barely above silence.','The dread and hope share one dynamic — quiet.'],
+     'Studio recording, 2020. The whispered opener.',75)
+) as c(
+  song_slug, artist_slug, mode, part_type, part_label, tone_type, genre, tone_category, difficulty,
+  original_guitar, original_amp, original_cab, original_pickup,
+  original_effects, original_settings, adaptation_notes, playing_notes, source_summary, confidence
+)
+join public.artists a on a.slug = c.artist_slug
+join public.songs s on s.artist_id = a.id and s.slug = c.song_slug;
