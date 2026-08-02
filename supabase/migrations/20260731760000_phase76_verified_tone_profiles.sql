@@ -1,0 +1,266 @@
+-- Phase 76: 2010s festival-radio pop-rock + stomp-folk completeness, verified per-part tone data.
+
+with target(artist_name, artist_slug, song_title, song_slug, album, release_year) as (
+  values
+    ('Walk the Moon','walk-the-moon','Shut Up and Dance','shut-up-and-dance','Talking Is Hard',2014),
+    ('X Ambassadors','x-ambassadors','Renegades','renegades','VHS',2015),
+    ('American Authors','american-authors','Best Day of My Life','best-day-of-my-life','Oh, What a Life',2013),
+    ('Grouplove','grouplove','Tongue Tied','tongue-tied','Never Trust a Happy Song',2011),
+    ('Phillip Phillips','phillip-phillips','Home','home-phillip','The World from the Side of the Moon',2012),
+    ('Echosmith','echosmith','Cool Kids','cool-kids','Talking Dreams',2013),
+    ('The Lumineers','the-lumineers','Stubborn Love','stubborn-love','The Lumineers',2012),
+    ('The Lumineers','the-lumineers','Cleopatra','cleopatra','Cleopatra',2016),
+    ('Barns Courtney','barns-courtney','Glitter & Gold','glitter-and-gold','The Attractions of Youth',2015),
+    ('The Record Company','the-record-company','Off the Ground','off-the-ground','Give It Back to You',2016),
+    ('Nathaniel Rateliff & The Night Sweats','nathaniel-rateliff','S.O.B.','s-o-b','Nathaniel Rateliff & The Night Sweats',2015),
+    ('The Revivalists','the-revivalists','Wish I Knew You','wish-i-knew-you','Men Amongst Mountains',2015),
+    ('Kaleo','kaleo','Way Down We Go','way-down-we-go','A/B',2015),
+    ('Kaleo','kaleo','No Good','no-good','A/B',2016),
+    ('James Bay','james-bay','Hold Back the River','hold-back-the-river','Chaos and the Calm',2014),
+    ('George Ezra','george-ezra','Shotgun','shotgun','Staying at Tamara''s',2018),
+    ('Matt Maeson','matt-maeson','Cringe','cringe','Bank on the Funeral',2018),
+    ('Caamp','caamp','Peach Fuzz','peach-fuzz','By and By',2019),
+    ('The Oh Hellos','the-oh-hellos','Soldier, Poet, King','soldier-poet-king','Dear Wormwood',2015),
+    ('Shakey Graves','shakey-graves','Dearly Departed','dearly-departed','And the War Came',2014),
+    ('Hozier','hozier','From Eden','from-eden','Hozier',2014),
+    ('Judah & the Lion','judah-and-the-lion','Take It All Back','take-it-all-back','Folk Hop N'' Roll',2016),
+    ('The Strumbellas','the-strumbellas','Spirits','spirits','Hope',2015),
+    ('Lord Huron','lord-huron','Ends of the Earth','ends-of-the-earth','Lonesome Dreams',2012),
+    ('Mumford & Sons','mumford-and-sons','I Will Wait','i-will-wait','Babel',2012)
+),
+ins_artists as (
+  insert into public.artists (name, slug, search_text, is_active)
+  select distinct artist_name, artist_slug, artist_name, true from target
+  on conflict (slug) do update set name = excluded.name, is_active = true
+  returning id, slug
+)
+insert into public.songs (artist_id, title, slug, album, release_year, search_text, is_active)
+select a.id, t.song_title, t.song_slug, t.album, t.release_year,
+       concat_ws(' ', t.song_title, t.artist_name, t.album), true
+from target t join ins_artists a on a.slug = t.artist_slug
+on conflict (artist_id, slug) do update set
+  title = excluded.title, album = excluded.album, release_year = excluded.release_year,
+  is_active = true, updated_at = now();
+
+delete from public.tone_profile_effects e where e.profile_id in (
+  select p.id from public.song_tone_profiles p
+  join public.songs s on s.id = p.song_id join public.artists a on a.id = s.artist_id
+  join (values
+    ('walk-the-moon','shut-up-and-dance'),('x-ambassadors','renegades'),('american-authors','best-day-of-my-life'),
+    ('grouplove','tongue-tied'),('phillip-phillips','home-phillip'),('echosmith','cool-kids'),
+    ('the-lumineers','stubborn-love'),('the-lumineers','cleopatra'),('barns-courtney','glitter-and-gold'),
+    ('the-record-company','off-the-ground'),('nathaniel-rateliff','s-o-b'),('the-revivalists','wish-i-knew-you'),
+    ('kaleo','way-down-we-go'),('kaleo','no-good'),('james-bay','hold-back-the-river'),('george-ezra','shotgun'),
+    ('matt-maeson','cringe'),('caamp','peach-fuzz'),('the-oh-hellos','soldier-poet-king'),
+    ('shakey-graves','dearly-departed'),('hozier','from-eden'),('judah-and-the-lion','take-it-all-back'),
+    ('the-strumbellas','spirits'),('lord-huron','ends-of-the-earth'),('mumford-and-sons','i-will-wait')
+  ) as t(artist_slug, song_slug) on t.artist_slug = a.slug and t.song_slug = s.slug
+);
+delete from public.tone_profile_sources src where src.profile_id in (
+  select p.id from public.song_tone_profiles p
+  join public.songs s on s.id = p.song_id join public.artists a on a.id = s.artist_id
+  join (values
+    ('walk-the-moon','shut-up-and-dance'),('x-ambassadors','renegades'),('american-authors','best-day-of-my-life'),
+    ('grouplove','tongue-tied'),('phillip-phillips','home-phillip'),('echosmith','cool-kids'),
+    ('the-lumineers','stubborn-love'),('the-lumineers','cleopatra'),('barns-courtney','glitter-and-gold'),
+    ('the-record-company','off-the-ground'),('nathaniel-rateliff','s-o-b'),('the-revivalists','wish-i-knew-you'),
+    ('kaleo','way-down-we-go'),('kaleo','no-good'),('james-bay','hold-back-the-river'),('george-ezra','shotgun'),
+    ('matt-maeson','cringe'),('caamp','peach-fuzz'),('the-oh-hellos','soldier-poet-king'),
+    ('shakey-graves','dearly-departed'),('hozier','from-eden'),('judah-and-the-lion','take-it-all-back'),
+    ('the-strumbellas','spirits'),('lord-huron','ends-of-the-earth'),('mumford-and-sons','i-will-wait')
+  ) as t(artist_slug, song_slug) on t.artist_slug = a.slug and t.song_slug = s.slug
+);
+delete from public.song_tone_profiles p where p.id in (
+  select p2.id from public.song_tone_profiles p2
+  join public.songs s on s.id = p2.song_id join public.artists a on a.id = s.artist_id
+  join (values
+    ('walk-the-moon','shut-up-and-dance'),('x-ambassadors','renegades'),('american-authors','best-day-of-my-life'),
+    ('grouplove','tongue-tied'),('phillip-phillips','home-phillip'),('echosmith','cool-kids'),
+    ('the-lumineers','stubborn-love'),('the-lumineers','cleopatra'),('barns-courtney','glitter-and-gold'),
+    ('the-record-company','off-the-ground'),('nathaniel-rateliff','s-o-b'),('the-revivalists','wish-i-knew-you'),
+    ('kaleo','way-down-we-go'),('kaleo','no-good'),('james-bay','hold-back-the-river'),('george-ezra','shotgun'),
+    ('matt-maeson','cringe'),('caamp','peach-fuzz'),('the-oh-hellos','soldier-poet-king'),
+    ('shakey-graves','dearly-departed'),('hozier','from-eden'),('judah-and-the-lion','take-it-all-back'),
+    ('the-strumbellas','spirits'),('lord-huron','ends-of-the-earth'),('mumford-and-sons','i-will-wait')
+  ) as t(artist_slug, song_slug) on t.artist_slug = a.slug and t.song_slug = s.slug
+);
+
+insert into public.song_tone_profiles (
+  song_id, song_title, artist_name, mode, part_type, part_label, tone_type,
+  genre, tone_category, difficulty,
+  original_guitar, original_amp, original_cab, original_pickup,
+  original_effects, original_settings, adaptation_notes, playing_notes,
+  source_summary, confidence, verification_status, search_text, is_public
+)
+select
+  s.id, s.title, a.name, c.mode, c.part_type, c.part_label, c.tone_type,
+  c.genre, c.tone_category, c.difficulty,
+  c.original_guitar, c.original_amp, c.original_cab, c.original_pickup,
+  c.original_effects, c.original_settings, c.adaptation_notes, c.playing_notes,
+  c.source_summary, c.confidence, 'admin_verified',
+  concat_ws(' ', s.title, a.name, c.part_label, c.tone_type, c.original_guitar, c.original_amp, 'researched verified tone'),
+  true
+from (
+  values
+    ('shut-up-and-dance','walk-the-moon','guitar','riff','main riff','crunch','pop rock','rhythm','beginner',
+     'Fender electric (Eli Maiman)','Tube amp, bright 80s-revival crunch','Closed-back cab','bridge pickup',
+     '[]'::jsonb,'{"gain":4,"bass":4,"mids":6,"treble":7,"presence":6,"reverb":2,"delay":1,"master":7}'::jsonb,
+     array['The wedding-dancefloor eternal — bright chiming crunch riff with 80s DNA.','Snappy light drive; the riff bounces like the title demands.'],
+     array['The intro riff hooks in two bars.','This woman is your destiny — play it that certain.'],
+     'Studio recording, 2014. The wedding-dancefloor eternal.',75),
+    ('renegades','x-ambassadors','guitar','main','folk-stomp acoustic','acoustic','pop rock','rhythm','beginner',
+     'Acoustic guitar (Noah Feldshuh / session)','Acoustic — DI with stomp production','No cab (acoustic)','n/a (acoustic)',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":2,"delay":0,"master":6}'::jsonb,
+     array['The Jeep-ad stomper — muted acoustic gallop under the whoa-ohs.','Dry percussive acoustic; engine-idle groove.'],
+     array['Gallop the muted pattern steady.','All hail the underdogs — keep it driving.'],
+     'Studio recording, 2015. The Jeep-ad folk-stomper.',74),
+    ('best-day-of-my-life','american-authors','guitar','main','banjo-pop strums','acoustic','pop rock','rhythm','beginner',
+     'Acoustic + banjo (James Adam Shelley)','Acoustic — DI, bright pop','No cab (acoustic)','n/a (acoustic)',
+     '[]'::jsonb,'{"gain":0,"bass":4,"mids":5,"treble":8,"presence":6,"reverb":2,"delay":1,"master":7}'::jsonb,
+     array['The commercial-break anthem — bright banjo-picked hook over stomping strums.','Ultra-bright acoustic sparkle; caffeine in D major.'],
+     array['The banjo hook translates to bright guitar picking.','Woo-hoo it like you mean it.'],
+     'Studio recording, 2013. The commercial-break anthem.',74),
+    ('tongue-tied','grouplove','guitar','riff','main riff','clean','indie pop','rhythm','beginner',
+     'Fender electric (Andrew Wessen / Christian Zucconi)','Clean amp with synth-pop bounce','Studio direct','bridge pickup',
+     '[{"effect_type":"compressor","effect_name":"studio compression","placement":"front","settings":{"sustain":5,"level":5}}]'::jsonb,
+     '{"gain":2,"bass":4,"mids":5,"treble":7,"presence":6,"reverb":2,"delay":1,"master":6}'::jsonb,
+     array['The sleepover anthem — bright clean stabs around the synth hook.','Crisp poppy clean; sugar-rush energy.'],
+     array['Chip the chords with the synth pulse.','Take me to your best friend''s house — at that exact excitement.'],
+     'Studio recording, 2011. The sleepover anthem.',74),
+    ('home-phillip','phillip-phillips','guitar','main','stomp-folk strums','acoustic','folk pop','rhythm','beginner',
+     'Acoustic guitar (Phillip Phillips)','Acoustic — mic''d with stomp choir','No cab (acoustic)','n/a (acoustic)',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":3,"delay":0,"master":7}'::jsonb,
+     array['The Olympics montage eternal — driving warm strums under the ooh-oohs.','Rich open acoustic; hold on, to me as we go.'],
+     array['Drive the strum pattern with lift.','The mandolin figures decorate — add if you can.'],
+     'Studio recording, 2012. The Olympics-montage stomper.',75),
+    ('cool-kids','echosmith','guitar','riff','main riff','clean','indie pop','rhythm','beginner',
+     'Fender electric (Jamie Sierota)','Clean amp, wistful pop sheen','Studio direct','neck pickup',
+     '[{"effect_type":"chorus","effect_name":"soft chorus","placement":"post_gain","settings":{"rate":3,"depth":3,"mix":3}},{"effect_type":"reverb","effect_name":"room reverb","placement":"post_gain","settings":{"mix":3}}]'::jsonb,
+     '{"gain":2,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":3,"delay":1,"master":6}'::jsonb,
+     array['The outsider lullaby — wistful chorused clean pulse.','Soft glassy clean; longing at mall-radio scale.'],
+     array['Pulse the chords gently on the beat.','I wish that I could be like the cool kids — keep it tender.'],
+     'Studio recording, 2013. The outsider lullaby.',74),
+    ('stubborn-love','the-lumineers','guitar','main','folk strums + builds','acoustic','folk rock','rhythm','beginner',
+     'Acoustic guitar (Wesley Schultz)','Acoustic — mic''d, roomy','No cab (acoustic)','n/a (acoustic)',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":3,"delay":0,"master":6}'::jsonb,
+     array['The head-up-kid builder — patient folk strums swelling to the gallop.','Warm roomy acoustic; the build is the sermon.'],
+     array['Strum sparse until the drums arrive.','Keep your head up, keep your love — louder each time.'],
+     'Studio recording, 2012. The head-up-kid builder.',76),
+    ('cleopatra','the-lumineers','guitar','main','driving folk strums','acoustic','folk rock','rhythm','beginner',
+     'Acoustic guitar (Wesley Schultz)','Acoustic — mic''d','No cab (acoustic)','n/a (acoustic)',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['The late-taxi ballad — driving muted strums with story-song momentum.','Dry percussive acoustic; regret at highway speed.'],
+     array['Mute-strum the verses like wheels turning.','I was late for this, late for that — never for this strum.'],
+     'Studio recording, 2016. The late-taxi story-song.',76),
+    ('glitter-and-gold','barns-courtney','guitar','riff','stomp-blues riff','crunch','blues rock','rhythm','beginner',
+     'Electric guitar (Barns Courtney / session)','Tube amp, stomp-blues grit','Closed-back cab','bridge pickup',
+     '[]'::jsonb,'{"gain":5,"bass":6,"mids":6,"treble":5,"presence":5,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['The trailer-stomp single — swampy grit riff under handclaps.','Dark warm drive; do you walk in the valley? — that swagger.'],
+     array['Stomp the riff on the beat.','Leave space for the claps.'],
+     'Studio recording, 2015. The trailer-stomp single.',73),
+    ('off-the-ground','the-record-company','guitar','riff','slide-blues groove','crunch','blues rock','rhythm','intermediate',
+     'Electric + slide (Chris Vos)','Tube amp, raw garage blues','Small combo cab','bridge pickup',
+     '[]'::jsonb,'{"gain":5,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['The LA garage-blues single — slide-kissed groove riff, raw on purpose.','Gritty warm drive; three guys, one room.'],
+     array['The slide hook answers the vocal.','Keep the groove greasy and live.'],
+     'Studio recording, 2016. The garage-blues single.',73),
+    ('s-o-b','nathaniel-rateliff','guitar','main','gospel-stomp acoustic','acoustic','soul rock','rhythm','beginner',
+     'Acoustic + hollow-body (Nathaniel Rateliff / Luke Mossman)','Acoustic + small tube amp','Small combo cab','neck pickup',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['The clap-stomp testimony — sparse acoustic chops until the band detonates.','Dry percussive strums; the silence before each chorus is the hook.'],
+     array['Chop the off-beats with the claps.','Son of a bitch, give me a drink — then explode.'],
+     'Studio recording, 2015. The clap-stomp testimony.',75),
+    ('wish-i-knew-you','the-revivalists','guitar','riff','soul-rock groove','clean','soul rock','rhythm','intermediate',
+     'Fender electric (Zack Feinberg)','Clean amp, funky NOLA groove','Open-back combo cab','neck pickup',
+     '[{"effect_type":"compressor","effect_name":"light compression","placement":"front","settings":{"sustain":4,"level":5}}]'::jsonb,
+     '{"gain":3,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":2,"delay":0,"master":6}'::jsonb,
+     array['The when-we-were-kids groove — funky New Orleans clean licks.','Warm springy clean; second-line bounce.'],
+     array['The main lick slinks between chords.','Groove first, always.'],
+     'Studio recording, 2015. The NOLA soul-rock groove.',74),
+    ('way-down-we-go','kaleo','guitar','riff','dark blues groove','clean','blues rock','rhythm','beginner',
+     'Hollow-body electric (Rubin Pollock / JJ Julius Son)','Tube amp, dark smoky clean','Small combo cab','neck pickup',
+     '[{"effect_type":"reverb","effect_name":"dark room reverb","placement":"post_gain","settings":{"mix":4}},{"effect_type":"tremolo","effect_name":"light tremolo","placement":"post_gain","settings":{"rate":3,"depth":3}}]'::jsonb,
+     '{"gain":3,"bass":6,"mids":6,"treble":4,"presence":3,"reverb":4,"delay":0,"master":6}'::jsonb,
+     array['The Icelandic gospel-blues smolder — dark sparse clean under the falsetto wail.','Smoky low-lit clean; every trailer used it for a reason.'],
+     array['Sparse stabs; let the drama breathe.','And way down we go — descend with it.'],
+     'Studio recording, 2015. The gospel-blues smolder.',75),
+    ('no-good','kaleo','guitar','riff','main riff','distorted','blues rock','rhythm','intermediate',
+     'Electric guitar (Rubin Pollock)','Tube amp cranked, greasy blues-rock','Closed-back cab','bridge pickup',
+     '[]'::jsonb,'{"gain":6,"bass":5,"mids":6,"treble":6,"presence":6,"reverb":2,"delay":0,"master":8}'::jsonb,
+     array['The Kaleo rocker — greasy stomping blues-rock drive.','Hot warm saturation; swamp-boogie violence.'],
+     array['The riff stomps and slides.','Play it filthy.'],
+     'Studio recording, 2016. The swamp-boogie rocker.',74),
+    ('hold-back-the-river','james-bay','guitar','riff','folk-rock build','acoustic','pop rock','rhythm','intermediate',
+     'Epiphone Century (James Bay)','Acoustic-electric hybrid, driving','Small combo cab','P-90 pickup',
+     '[]'::jsonb,'{"gain":2,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":3,"delay":0,"master":7}'::jsonb,
+     array['The hat-and-hollow-body anthem — driving open-tuned figures building to the gang chorus.','Warm ringing hybrid tone; the riff circles and swells.'],
+     array['The circular riff builds by layers.','Hold back the river so I can stop for a minute — then don''t.'],
+     'Studio recording, 2014. The circling river anthem.',75),
+    ('shotgun','george-ezra','guitar','main','sunny strums','acoustic','pop','rhythm','beginner',
+     'Acoustic guitar (George Ezra)','Acoustic — DI, sunny pop','No cab (acoustic)','n/a (acoustic)',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":2,"delay":0,"master":6}'::jsonb,
+     array['The summer-holiday chart giant — easy sunny strums under the baritone.','Bright relaxed acoustic; vacation in four chords.'],
+     array['Lazy strum pattern; the groove does the work.','Time flies by in the yellow and green — that pace.'],
+     'Studio recording, 2018. The summer-holiday giant.',74),
+    ('cringe','matt-maeson','guitar','main','dark folk picking','acoustic','indie folk','rhythm','beginner',
+     'Acoustic guitar (Matt Maeson)','Acoustic — mic''d, dark and close','No cab (acoustic)','n/a (acoustic)',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":5,"treble":5,"presence":4,"reverb":3,"delay":0,"master":6}'::jsonb,
+     array['The she-said-I''m-a-mess viral — dark picked acoustic confession.','Warm shadowed acoustic; tattoos-and-regret energy.'],
+     array['Pick the verse figure heavy-hearted.','The chorus opens like a held breath released.'],
+     'Studio recording, 2018. The confession viral.',73),
+    ('peach-fuzz','caamp','guitar','main','banjo-folk warmth','acoustic','folk','rhythm','beginner',
+     'Acoustic + banjo (Taylor Meier / Evan Westfall)','Acoustic — mic''d, warm','No cab (acoustic)','n/a (acoustic)',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":2,"delay":0,"master":6}'::jsonb,
+     array['The porch-light favorite — warm strums with rolling banjo answers.','Golden mellow acoustic; Ohio twilight.'],
+     array['Easy rolling strums; banjo fills if you''ve got one.','Young love at porch volume.'],
+     'Studio recording, 2019. The porch-light favorite.',73),
+    ('soldier-poet-king','the-oh-hellos','guitar','main','stomp-folk gallop','acoustic','folk','rhythm','intermediate',
+     'Acoustic guitars (Tyler & Maggie Heath ensemble)','Acoustic — big room ensemble','No cab (acoustic)','n/a (acoustic)',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":6,"treble":7,"presence":5,"reverb":3,"delay":0,"master":7}'::jsonb,
+     array['The TikTok prophecy chant — galloping ensemble strums and gang vocals.','Bright driving acoustic; a medieval march in a barn.'],
+     array['Gallop the strum with the floor-stomp.','There will come a soldier — announce it.'],
+     'Studio recording, 2015. The prophecy chant gallop.',74),
+    ('dearly-departed','shakey-graves','guitar','main','one-man-band riff','acoustic','folk rock','rhythm','intermediate',
+     'Vintage hollow-body (Alejandro Rose-Garcia)','Small amp/acoustic hybrid, suitcase-drum stomp','Small combo cab','neck pickup',
+     '[]'::jsonb,'{"gain":2,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['The suitcase-drum duet — snapping hybrid picking with kick-stomp backbeat.','Warm gritty hollow-body; you and a ghost, apparently.'],
+     array['Hybrid-pick the riff while your foot drums.','You and I both know that the house is haunted — grin anyway.'],
+     'Studio recording, 2014. The suitcase-drum duet.',74),
+    ('from-eden','hozier','guitar','main','jazzy folk-blues','acoustic','indie folk','rhythm','intermediate',
+     'Acoustic/hollow-body (Hozier)','Acoustic with warm electric color','Small combo cab','neck pickup',
+     '[]'::jsonb,'{"gain":1,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":2,"delay":0,"master":6}'::jsonb,
+     array['The serpent''s love song — jazzy sliding chords with blues bends.','Warm rounded tone; charm with fangs.'],
+     array['Slide into the jazz voicings.','I slithered here from Eden — suave, not sinister.'],
+     'Studio recording, 2014. The serpent''s jazzy love song.',76),
+    ('take-it-all-back','judah-and-the-lion','guitar','main','banjo folk-hop','acoustic','folk rock','rhythm','beginner',
+     'Acoustic + banjo + mandolin (Judah Akers band)','Acoustic — DI with hop production','No cab (acoustic)','n/a (acoustic)',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":5,"treble":7,"presence":5,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['The folk-hop hit — bright banjo-mandolin hooks over stomping strums.','Sparkly driving acoustic; bluegrass at the club.'],
+     array['Drive the strums; pick the banjo hook high.','Take it all back just to have you — full sprint.'],
+     'Studio recording, 2016. The folk-hop hit.',73),
+    ('spirits','the-strumbellas','guitar','main','anthem folk strums','acoustic','folk pop','rhythm','beginner',
+     'Acoustic guitar (Simon Ward band)','Acoustic — mic''d with anthem production','No cab (acoustic)','n/a (acoustic)',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":3,"delay":0,"master":7}'::jsonb,
+     array['The guns-in-my-head singalong — big warm strums under the whoa chorus.','Open anthem acoustic; sad words, huge hooks.'],
+     array['Steady build through the verses.','Spirits in my head and they won''t go — sing it out.'],
+     'Studio recording, 2015. The spirits singalong.',73),
+    ('ends-of-the-earth','lord-huron','guitar','riff','frontier jangle','clean','indie folk','rhythm','beginner',
+     'Hollow-body electric (Ben Schneider)','Clean amp with frontier reverb','Open-back combo cab','neck pickup',
+     '[{"effect_type":"reverb","effect_name":"canyon reverb","placement":"post_gain","settings":{"mix":5,"decay":6}},{"effect_type":"tremolo","effect_name":"light tremolo","placement":"post_gain","settings":{"rate":3,"depth":3}}]'::jsonb,
+     '{"gain":2,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":5,"delay":1,"master":6}'::jsonb,
+     array['The wanderlust opener — galloping jangle in canyon reverb.','Wide-open wet clean; maps and campfires.'],
+     array['Gallop the pattern toward the horizon.','Oh, there''s a river that winds on forever — follow it.'],
+     'Studio recording, 2012. The wanderlust opener.',75),
+    ('i-will-wait','mumford-and-sons','guitar','main','banjo-folk sprint','acoustic','folk rock','rhythm','intermediate',
+     'Acoustic + banjo (Mumford & Sons)','Acoustic — mic''d, arena folk','No cab (acoustic)','n/a (acoustic)',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":6,"treble":7,"presence":5,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['The Babel juggernaut — sprinting banjo rolls over driving strums.','Bright galloping acoustic; the festival-headline moment.'],
+     array['Roll the banjo figure (or pick it on guitar) relentlessly.','I will wait, I will wait for you — at 130 BPM.'],
+     'Studio recording, 2012. The Babel juggernaut.',76)
+) as c(
+  song_slug, artist_slug, mode, part_type, part_label, tone_type, genre, tone_category, difficulty,
+  original_guitar, original_amp, original_cab, original_pickup,
+  original_effects, original_settings, adaptation_notes, playing_notes, source_summary, confidence
+)
+join public.artists a on a.slug = c.artist_slug
+join public.songs s on s.artist_id = a.id and s.slug = c.song_slug;
