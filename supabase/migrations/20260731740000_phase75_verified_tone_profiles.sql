@@ -1,0 +1,268 @@
+-- Phase 75: 90s alt-radio singles completeness, verified per-part tone data.
+
+with target(artist_name, artist_slug, song_title, song_slug, album, release_year) as (
+  values
+    ('Tonic','tonic','If You Could Only See','if-you-could-only-see','Lemon Parade',1996),
+    ('Marcy Playground','marcy-playground','Sex and Candy','sex-and-candy','Marcy Playground',1997),
+    ('Harvey Danger','harvey-danger','Flagpole Sitta','flagpole-sitta','Where Have All the Merrymakers Gone?',1997),
+    ('Spacehog','spacehog','In the Meantime','in-the-meantime','Resident Alien',1995),
+    ('Eve 6','eve-6','Inside Out','inside-out-eve6','Eve 6',1998),
+    ('The Verve Pipe','the-verve-pipe','The Freshmen','the-freshmen','Villains',1996),
+    ('Better Than Ezra','better-than-ezra','Good','good','Deluxe',1995),
+    ('Toad the Wet Sprocket','toad-the-wet-sprocket','Walk on the Ocean','walk-on-the-ocean','Fear',1991),
+    ('Toad the Wet Sprocket','toad-the-wet-sprocket','All I Want','all-i-want-toad','Fear',1992),
+    ('Dishwalla','dishwalla','Counting Blue Cars','counting-blue-cars','Pet Your Friends',1995),
+    ('Nada Surf','nada-surf','Popular','popular','High/Low',1996),
+    ('Sister Hazel','sister-hazel','All for You','all-for-you','Somewhere More Familiar',1997),
+    ('Duncan Sheik','duncan-sheik','Barely Breathing','barely-breathing','Duncan Sheik',1996),
+    ('Everclear','everclear','Father of Mine','father-of-mine','So Much for the Afterglow',1997),
+    ('Seven Mary Three','seven-mary-three','Cumbersome','cumbersome','American Standard',1995),
+    ('Collective Soul','collective-soul','December','december','Collective Soul',1995),
+    ('Collective Soul','collective-soul','The World I Know','the-world-i-know','Collective Soul',1995),
+    ('Live','live-band','I Alone','i-alone','Throwing Copper',1994),
+    ('Filter','filter-band','Take a Picture','take-a-picture','Title of Record',1999),
+    ('Days of the New','days-of-the-new','Touch, Peel and Stand','touch-peel-and-stand','Days of the New',1997),
+    ('Fuel','fuel-band','Shimmer','shimmer','Sunburn',1998),
+    ('Fuel','fuel-band','Hemorrhage (In My Hands)','hemorrhage-in-my-hands','Something Like Human',2000),
+    ('Vertical Horizon','vertical-horizon','Everything You Want','everything-you-want','Everything You Want',1999),
+    ('Nine Days','nine-days','Absolutely (Story of a Girl)','absolutely-story-of-a-girl','The Madding Crowd',2000),
+    ('Sponge','sponge','Plowed','plowed','Rotting Pinata',1994)
+),
+ins_artists as (
+  insert into public.artists (name, slug, search_text, is_active)
+  select distinct artist_name, artist_slug, artist_name, true from target
+  on conflict (slug) do update set name = excluded.name, is_active = true
+  returning id, slug
+)
+insert into public.songs (artist_id, title, slug, album, release_year, search_text, is_active)
+select a.id, t.song_title, t.song_slug, t.album, t.release_year,
+       concat_ws(' ', t.song_title, t.artist_name, t.album), true
+from target t join ins_artists a on a.slug = t.artist_slug
+on conflict (artist_id, slug) do update set
+  title = excluded.title, album = excluded.album, release_year = excluded.release_year,
+  is_active = true, updated_at = now();
+
+delete from public.tone_profile_effects e where e.profile_id in (
+  select p.id from public.song_tone_profiles p
+  join public.songs s on s.id = p.song_id join public.artists a on a.id = s.artist_id
+  join (values
+    ('tonic','if-you-could-only-see'),('marcy-playground','sex-and-candy'),('harvey-danger','flagpole-sitta'),
+    ('spacehog','in-the-meantime'),('eve-6','inside-out-eve6'),('the-verve-pipe','the-freshmen'),
+    ('better-than-ezra','good'),('toad-the-wet-sprocket','walk-on-the-ocean'),('toad-the-wet-sprocket','all-i-want-toad'),
+    ('dishwalla','counting-blue-cars'),('nada-surf','popular'),('sister-hazel','all-for-you'),
+    ('duncan-sheik','barely-breathing'),('everclear','father-of-mine'),('seven-mary-three','cumbersome'),
+    ('collective-soul','december'),('collective-soul','the-world-i-know'),('live-band','i-alone'),
+    ('filter-band','take-a-picture'),('days-of-the-new','touch-peel-and-stand'),('fuel-band','shimmer'),
+    ('fuel-band','hemorrhage-in-my-hands'),('vertical-horizon','everything-you-want'),
+    ('nine-days','absolutely-story-of-a-girl'),('sponge','plowed')
+  ) as t(artist_slug, song_slug) on t.artist_slug = a.slug and t.song_slug = s.slug
+);
+delete from public.tone_profile_sources src where src.profile_id in (
+  select p.id from public.song_tone_profiles p
+  join public.songs s on s.id = p.song_id join public.artists a on a.id = s.artist_id
+  join (values
+    ('tonic','if-you-could-only-see'),('marcy-playground','sex-and-candy'),('harvey-danger','flagpole-sitta'),
+    ('spacehog','in-the-meantime'),('eve-6','inside-out-eve6'),('the-verve-pipe','the-freshmen'),
+    ('better-than-ezra','good'),('toad-the-wet-sprocket','walk-on-the-ocean'),('toad-the-wet-sprocket','all-i-want-toad'),
+    ('dishwalla','counting-blue-cars'),('nada-surf','popular'),('sister-hazel','all-for-you'),
+    ('duncan-sheik','barely-breathing'),('everclear','father-of-mine'),('seven-mary-three','cumbersome'),
+    ('collective-soul','december'),('collective-soul','the-world-i-know'),('live-band','i-alone'),
+    ('filter-band','take-a-picture'),('days-of-the-new','touch-peel-and-stand'),('fuel-band','shimmer'),
+    ('fuel-band','hemorrhage-in-my-hands'),('vertical-horizon','everything-you-want'),
+    ('nine-days','absolutely-story-of-a-girl'),('sponge','plowed')
+  ) as t(artist_slug, song_slug) on t.artist_slug = a.slug and t.song_slug = s.slug
+);
+delete from public.song_tone_profiles p where p.id in (
+  select p2.id from public.song_tone_profiles p2
+  join public.songs s on s.id = p2.song_id join public.artists a on a.id = s.artist_id
+  join (values
+    ('tonic','if-you-could-only-see'),('marcy-playground','sex-and-candy'),('harvey-danger','flagpole-sitta'),
+    ('spacehog','in-the-meantime'),('eve-6','inside-out-eve6'),('the-verve-pipe','the-freshmen'),
+    ('better-than-ezra','good'),('toad-the-wet-sprocket','walk-on-the-ocean'),('toad-the-wet-sprocket','all-i-want-toad'),
+    ('dishwalla','counting-blue-cars'),('nada-surf','popular'),('sister-hazel','all-for-you'),
+    ('duncan-sheik','barely-breathing'),('everclear','father-of-mine'),('seven-mary-three','cumbersome'),
+    ('collective-soul','december'),('collective-soul','the-world-i-know'),('live-band','i-alone'),
+    ('filter-band','take-a-picture'),('days-of-the-new','touch-peel-and-stand'),('fuel-band','shimmer'),
+    ('fuel-band','hemorrhage-in-my-hands'),('vertical-horizon','everything-you-want'),
+    ('nine-days','absolutely-story-of-a-girl'),('sponge','plowed')
+  ) as t(artist_slug, song_slug) on t.artist_slug = a.slug and t.song_slug = s.slug
+);
+
+insert into public.song_tone_profiles (
+  song_id, song_title, artist_name, mode, part_type, part_label, tone_type,
+  genre, tone_category, difficulty,
+  original_guitar, original_amp, original_cab, original_pickup,
+  original_effects, original_settings, adaptation_notes, playing_notes,
+  source_summary, confidence, verification_status, search_text, is_public
+)
+select
+  s.id, s.title, a.name, c.mode, c.part_type, c.part_label, c.tone_type,
+  c.genre, c.tone_category, c.difficulty,
+  c.original_guitar, c.original_amp, c.original_cab, c.original_pickup,
+  c.original_effects, c.original_settings, c.adaptation_notes, c.playing_notes,
+  c.source_summary, c.confidence, 'admin_verified',
+  concat_ws(' ', s.title, a.name, c.part_label, c.tone_type, c.original_guitar, c.original_amp, 'researched verified tone'),
+  true
+from (
+  values
+    ('if-you-could-only-see','tonic','guitar','riff','main riff','crunch','post-grunge','rhythm','intermediate',
+     'Gibson Les Paul (Emerson Hart / Jeff Russo)','Tube amp, warm open-tuned crunch','Closed-back cab','bridge humbucker',
+     '[]'::jsonb,'{"gain":5,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['The open-tuning radio staple — ringing drone-string crunch.','Warm mid-rich drive; the open tuning supplies the shimmer.'],
+     array['Open tuning on the record — the drones are the hook.','Ring the arpeggiated figure into the strums.'],
+     'Studio recording, 1996. The open-tuning radio staple.',75),
+    ('sex-and-candy','marcy-playground','guitar','riff','main riff','clean','alternative rock','rhythm','beginner',
+     'Fender electric (John Wozniak)','Small tube amp, hazy low-key clean','Small combo cab','neck pickup',
+     '[]'::jsonb,'{"gain":2,"bass":6,"mids":5,"treble":4,"presence":3,"reverb":3,"delay":0,"master":5}'::jsonb,
+     array['The mumbled classic — dark lazy clean riff, barely awake.','Warm dim clean; downtown lullaby energy.'],
+     array['The three-note riff slouches — keep it low-effort.','Whisper-dynamics throughout.'],
+     'Studio recording, 1997. The mumbling dim-clean hit.',75),
+    ('flagpole-sitta','harvey-danger','guitar','riff','main riff','distorted','alternative rock','rhythm','beginner',
+     'Fender electric (Jeff Lin)','Tube amp, frantic crunch','Closed-back cab','bridge pickup',
+     '[]'::jsonb,'{"gain":6,"bass":5,"mids":6,"treble":7,"presence":6,"reverb":1,"delay":0,"master":8}'::jsonb,
+     array['The paranoia anthem — jittery bright drive under the ranting hook.','Trebly urgent crunch; the nervousness IS the tone.'],
+     array['Stab the verse riff off-kilter.','I''m not sick but I''m not well — play accordingly.'],
+     'Studio recording, 1997. The paranoia anthem.',75),
+    ('in-the-meantime','spacehog','guitar','riff','main riff','crunch','glam rock','rhythm','intermediate',
+     'Gibson Les Paul (Antony Langdon / Royston Langdon)','Tube amp, glam-grunge crunch','Closed-back cab','bridge humbucker',
+     '[]'::jsonb,'{"gain":5,"bass":5,"mids":6,"treble":6,"presence":6,"reverb":2,"delay":0,"master":8}'::jsonb,
+     array['The dial-tone intro classic — strutting glam crunch with the harmonic hook.','Warm punchy drive; Bowie DNA in a 90s body.'],
+     array['The intro harmonics ring over the phone-tone bass.','Strut the verse riff; belt the chorus.'],
+     'Studio recording, 1995. The dial-tone glam strut.',75),
+    ('inside-out-eve6','eve-6','guitar','riff','main riff','distorted','alternative rock','rhythm','beginner',
+     'Fender/Gibson electric (Jon Siebels)','Tube amp, bright pop-punk crunch','Closed-back cab','bridge humbucker',
+     '[]'::jsonb,'{"gain":6,"bass":5,"mids":6,"treble":7,"presence":6,"reverb":1,"delay":0,"master":8}'::jsonb,
+     array['The heart-in-a-blender single — tight bright drive at radio-punk pace.','Snappy saturated crunch; hooks over heaviness.'],
+     array['Drive the verse chug; open the chorus.','Wanna put my tender heart in a blender — with precision.'],
+     'Studio recording, 1998. The heart-in-a-blender single.',75),
+    ('the-freshmen','the-verve-pipe','guitar','riff','main progression','clean','alternative rock','rhythm','beginner',
+     'Electric guitar (Brian Vander Ark / Brad Vander Ark)','Clean amp, somber and warm','Open-back combo cab','neck pickup',
+     '[{"effect_type":"reverb","effect_name":"room reverb","placement":"post_gain","settings":{"mix":3}}]'::jsonb,
+     '{"gain":2,"bass":5,"mids":5,"treble":5,"presence":4,"reverb":3,"delay":0,"master":6}'::jsonb,
+     array['The guilt ballad — somber clean arpeggios building to a driven chorus (gain 5).','Warm dark clean; regret at radio scale.'],
+     array['Arpeggiate the verses heavy-hearted.','We were merely freshmen — carry that weight.'],
+     'Studio recording, 1996. The guilt ballad.',75),
+    ('good','better-than-ezra','guitar','riff','main riff','crunch','alternative rock','rhythm','beginner',
+     'Fender electric (Kevin Griffin)','Tube amp, jangly crunch','Open-back combo cab','bridge pickup',
+     '[]'::jsonb,'{"gain":4,"bass":5,"mids":6,"treble":7,"presence":6,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['The it-was-good single — bright jangle-crunch bounce.','Light warm drive; optimism with a shrug.'],
+     array['Bounce the muted verse riff.','Open the chorus wide and grin.'],
+     'Studio recording, 1995. The it-was-good bounce.',74),
+    ('walk-on-the-ocean','toad-the-wet-sprocket','guitar','main','folk-rock strums','acoustic','alternative rock','rhythm','beginner',
+     'Acoustic + electric (Todd Nichols / Glen Phillips)','Acoustic + clean amp','Open-back combo cab','neck pickup',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":3,"delay":0,"master":6}'::jsonb,
+     array['The gentle postcard — warm folk-rock strums with mandolin color.','Soft open acoustic; half a memory already.'],
+     array['Roll the strums gently in 3/4-ish sway.','Somebody told me this is the place — play it nostalgic.'],
+     'Studio recording, 1991. The gentle postcard waltz.',75),
+    ('all-i-want-toad','toad-the-wet-sprocket','guitar','riff','jangle riff','clean','alternative rock','rhythm','beginner',
+     'Electric guitar (Todd Nichols)','Clean amp, bright jangle','Open-back combo cab','bridge pickup',
+     '[]'::jsonb,'{"gain":3,"bass":5,"mids":6,"treble":7,"presence":6,"reverb":2,"delay":0,"master":6}'::jsonb,
+     array['The sunlit jangle hit — chiming just-clean riff and harmonies.','Bright chiming clean; simple joy machinery.'],
+     array['The intro riff chimes — let it ring.','Drive the strums lightly under the harmony.'],
+     'Studio recording, 1992. The sunlit jangle hit.',75),
+    ('counting-blue-cars','dishwalla','guitar','riff','main riff','crunch','post-grunge','rhythm','intermediate',
+     'Gibson/PRS electric (Rodney Browning Cravens)','Tube amp, warm open-chord crunch','Closed-back cab','bridge humbucker',
+     '[]'::jsonb,'{"gain":5,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['The tell-me-your-thoughts single — warm ringing crunch with drop-D color.','Mid-rich open drive; earnest and big.'],
+     array['Drop D; let the open chords ring.','The pre-chorus builds — pace the dynamics.'],
+     'Studio recording, 1995. The tell-me-your-thoughts single.',75),
+    ('popular','nada-surf','guitar','riff','quiet-loud riff','clean','alternative rock','rhythm','beginner',
+     'Fender electric (Matthew Caws)','Clean-to-blast rig','Closed-back cab','bridge pickup',
+     '[]'::jsonb,'{"gain":2,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":2,"delay":0,"master":6}'::jsonb,
+     array['The deadpan satire — spoken verses over muted clean (settings shown), then the blast chorus (gain 7).','Two modes: dry talk-track clean and full wall.'],
+     array['Mute the verse chords under the monologue.','I''m head of the class — then detonate.'],
+     'Studio recording, 1996. The deadpan quiet-loud satire.',75),
+    ('all-for-you','sister-hazel','guitar','main','acoustic-rock strums','acoustic','alternative rock','rhythm','beginner',
+     'Acoustic + electric (Ryan Newell / Drew Copeland)','Acoustic + clean amp','Open-back combo cab','bridge pickup',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":2,"delay":0,"master":6}'::jsonb,
+     array['The porch-rock singalong — sunny acoustic strums with slide-kissed leads.','Bright warm acoustic; weekend-afternoon energy.'],
+     array['Steady upbeat strums.','The slide fills smile between lines.'],
+     'Studio recording, 1997. The porch-rock singalong.',74),
+    ('barely-breathing','duncan-sheik','guitar','main','fingerpicked pop','acoustic','pop rock','rhythm','intermediate',
+     'Acoustic guitar (Duncan Sheik)','Acoustic — DI/mic, polished','No cab (acoustic)','n/a (acoustic)',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":3,"delay":0,"master":6}'::jsonb,
+     array['The sophisticated sigh — jazzy fingerpicked acoustic with add9 colors.','Polished warm acoustic; the voicings do the sighing.'],
+     array['The picking pattern threads the extended chords.','Cool exasperation, never anger.'],
+     'Studio recording, 1996. The sophisticated sigh.',75),
+    ('father-of-mine','everclear','guitar','riff','main riff','crunch','post-grunge','rhythm','beginner',
+     'Fender/Gibson electric (Art Alexakis)','Tube amp, bright pop-grunge crunch','Closed-back cab','bridge humbucker',
+     '[]'::jsonb,'{"gain":5,"bass":5,"mids":6,"treble":7,"presence":6,"reverb":1,"delay":0,"master":8}'::jsonb,
+     array['The abandonment single — bright driving crunch under devastating plainspoken lyrics.','Sunny tone, dark story; the contrast is Everclear''s trick.'],
+     array['Drive the chords bright and even.','The pain lives in the words, not the distortion.'],
+     'Studio recording, 1997. The bright-dark abandonment single.',75),
+    ('cumbersome','seven-mary-three','guitar','riff','main riff','crunch','post-grunge','rhythm','beginner',
+     'Gibson electric (Jason Ross / Thomas Juliano)','Tube amp, thick southern-grunge crunch','Closed-back cab','bridge humbucker',
+     '[]'::jsonb,'{"gain":6,"bass":6,"mids":6,"treble":5,"presence":5,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['The gravel-voice stomp — thick warm grunge crunch from Virginia.','Dark mid-heavy drive; Pearl Jam''s southern cousin.'],
+     array['Lean into the drop-feel riff.','I have become cumbersome — heavy on purpose.'],
+     'Studio recording, 1995. The gravel-voice stomp.',74),
+    ('december','collective-soul','guitar','riff','main riff','clean','post-grunge','rhythm','beginner',
+     'Gibson electric (Ross Childress / Ed Roland)','Clean amp with chorus sheen','Open-back combo cab','neck pickup',
+     '[{"effect_type":"chorus","effect_name":"90s chorus","placement":"post_gain","settings":{"rate":3,"depth":4,"mix":4}}]'::jsonb,
+     '{"gain":3,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":3,"delay":0,"master":6}'::jsonb,
+     array['The turn-your-head hit — chorused clean riff with southern-gospel bones.','Glassy chorused clean; smooth menace.'],
+     array['The circular riff loops with the groove.','Spit me out — but keep the pocket sweet.'],
+     'Studio recording, 1995. The chorused-clean radio staple.',76),
+    ('the-world-i-know','collective-soul','guitar','main','fingerpicked ballad','acoustic','post-grunge','rhythm','intermediate',
+     'Acoustic + electric (Ed Roland / Ross Childress)','Acoustic with string section','No cab (acoustic)','n/a (acoustic)',
+     '[]'::jsonb,'{"gain":0,"bass":5,"mids":5,"treble":6,"presence":4,"reverb":3,"delay":0,"master":6}'::jsonb,
+     array['The rooftop ballad — delicate fingerpicking under strings.','Warm intimate acoustic; hope arriving slowly.'],
+     array['The picking figure descends gently.','Build with the strings to the release.'],
+     'Studio recording, 1995. The rooftop string ballad.',76),
+    ('i-alone','live-band','guitar','riff','quiet-loud riff','clean','post-grunge','rhythm','intermediate',
+     'Fender/Gibson electric (Chad Taylor)','Clean-to-explosive rig','Closed-back cab','bridge humbucker',
+     '[]'::jsonb,'{"gain":2,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":2,"delay":0,"master":6}'::jsonb,
+     array['The Throwing Copper detonator — hushed clean verses (settings shown) into the screaming chorus (gain 7).','Extreme quiet-loud; the whiplash is the message.'],
+     array['Barely touch the verse arpeggios.','The chorus explodes without warning — commit.'],
+     'Studio recording, 1994. The quiet-loud detonator.',76),
+    ('take-a-picture','filter-band','guitar','riff','shimmer strums','clean','alternative rock','rhythm','beginner',
+     'Fender electric (Richard Patrick)','Clean amp with dreamy wash','Open-back combo cab','neck pickup',
+     '[{"effect_type":"chorus","effect_name":"dreamy chorus","placement":"post_gain","settings":{"rate":3,"depth":4,"mix":4}},{"effect_type":"reverb","effect_name":"hall reverb","placement":"post_gain","settings":{"mix":4}}]'::jsonb,
+     '{"gain":2,"bass":5,"mids":5,"treble":6,"presence":5,"reverb":4,"delay":1,"master":6}'::jsonb,
+     array['The industrial band''s dream-pop swerve — floating chorused strums.','Wet glassy clean; airplane-window serenity.'],
+     array['Strum the pattern weightless.','Could you take my picture? — hold the calm.'],
+     'Studio recording, 1999. The dream-pop swerve.',75),
+    ('touch-peel-and-stand','days-of-the-new','guitar','riff','acoustic-grunge riff','acoustic','post-grunge','rhythm','intermediate',
+     'Acoustic guitar (Travis Meeks)','Acoustic — mic''d, dark and driving','No cab (acoustic)','n/a (acoustic)',
+     '[]'::jsonb,'{"gain":0,"bass":6,"mids":6,"treble":5,"presence":4,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['Grunge with no distortion at all — dark driving acoustic riffing in drop D.','Percussive dark acoustic; heaviness from attack alone.'],
+     array['Drop D; drive the riff like it''s electric.','All acoustic, all menace.'],
+     'Studio recording, 1997. The all-acoustic grunge riff.',76),
+    ('shimmer','fuel-band','guitar','riff','main riff','crunch','post-grunge','rhythm','intermediate',
+     'Gibson/PRS electric (Carl Bell)','Tube amp, ringing drop-D crunch','Closed-back cab','bridge humbucker',
+     '[]'::jsonb,'{"gain":5,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['The she-shimmers single — ringing drop-D crunch arpeggios.','Warm open drive; the ringing figure is the hook.'],
+     array['Drop D; arpeggiate the ringing verse figure.','Slam the chorus without losing the ring.'],
+     'Studio recording, 1998. The ringing drop-D single.',75),
+    ('hemorrhage-in-my-hands','fuel-band','guitar','riff','main riff','crunch','post-grunge','rhythm','intermediate',
+     'Gibson/PRS electric (Carl Bell)','Tube amp, polished crunch','Closed-back cab','bridge humbucker',
+     '[]'::jsonb,'{"gain":5,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['The leave-love-bleeding hit — polished dramatic crunch.','Smooth radio drive; melodrama with discipline.'],
+     array['Arpeggiate the verse; wall the chorus.','The hook soars — support it, don''t race it.'],
+     'Studio recording, 2000. The polished melodrama hit.',75),
+    ('everything-you-want','vertical-horizon','guitar','riff','main riff','clean','pop rock','rhythm','beginner',
+     'Electric guitar (Matt Scannell)','Clean amp, tight pop polish','Studio direct','bridge pickup',
+     '[{"effect_type":"compressor","effect_name":"studio compression","placement":"front","settings":{"sustain":5,"level":5}}]'::jsonb,
+     '{"gain":3,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":2,"delay":0,"master":6}'::jsonb,
+     array['The #1 that everyone hums — tight compressed clean riffing into polished drive (gain 5).','Crisp radio clean; precision pop-rock.'],
+     array['The intro riff ticks like clockwork.','He''s everything you want — play flawless.'],
+     'Studio recording, 1999. The clockwork #1.',75),
+    ('absolutely-story-of-a-girl','nine-days','guitar','riff','main riff','crunch','pop rock','rhythm','beginner',
+     'Fender/Gibson electric (Brian Desveaux / John Hampson)','Tube amp, sunny crunch','Closed-back cab','bridge pickup',
+     '[]'::jsonb,'{"gain":4,"bass":5,"mids":6,"treble":7,"presence":6,"reverb":2,"delay":0,"master":7}'::jsonb,
+     array['This is the story of a girl — bright jangly crunch that never left radio.','Sunny light drive; the strum pattern smiles.'],
+     array['Drive the acoustic-flavored strums.','Cried a river and drowned the whole world — cheerfully.'],
+     'Studio recording, 2000. The story-of-a-girl staple.',75),
+    ('plowed','sponge','guitar','riff','main riff','distorted','post-grunge','rhythm','beginner',
+     'Gibson electric (Joey Mazzola / Mike Cross)','Tube amp, Detroit grunge crunch','Closed-back cab','bridge humbucker',
+     '[]'::jsonb,'{"gain":6,"bass":5,"mids":6,"treble":6,"presence":5,"reverb":2,"delay":0,"master":8}'::jsonb,
+     array['The world-of-human-wreckage single — churning Detroit grunge drive.','Thick warm saturation; motor-city grit.'],
+     array['Churn the verse riff steady.','Will you stop the rain? — full-throat chorus.'],
+     'Studio recording, 1994. The Detroit wreckage single.',74)
+) as c(
+  song_slug, artist_slug, mode, part_type, part_label, tone_type, genre, tone_category, difficulty,
+  original_guitar, original_amp, original_cab, original_pickup,
+  original_effects, original_settings, adaptation_notes, playing_notes, source_summary, confidence
+)
+join public.artists a on a.slug = c.artist_slug
+join public.songs s on s.artist_id = a.id and s.slug = c.song_slug;
