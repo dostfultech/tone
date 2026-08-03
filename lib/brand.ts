@@ -1,6 +1,6 @@
 export const brand = {
   appName: "Tonefex",
-  tagline: "Gear-matched tone settings for serious guitar and bass rigs",
+  tagline: "Sound like any song, on your own amp",
   supportEmail: "support.tonefex@gmail.com",
   storagePrefix: "tonefex"
 } as const;

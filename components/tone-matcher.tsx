@@ -9,6 +9,7 @@ import {
   Bookmark,
   CheckCircle2,
   ChevronRight,
+  ExternalLink,
   Flame,
   Gauge,
   Guitar,
@@ -1245,6 +1246,9 @@ export function ToneMatcher() {
     : toneTypeOptions.filter((option) => option.value === "auto" || option.value === "clean" || option.value === "distorted");
   const selectedSongLabel = songDraft.trim() || song.trim() || "selected song";
   const selectedArtistLabel = artist.trim();
+  const songsterrUrl = `https://www.songsterr.com/a/wa/search?pattern=${encodeURIComponent(`${songDraft || song} ${artist}`)}`;
+  const backingTrackUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`${songDraft || song} ${artist} backing track`)}`;
+  const songLinkLabel = song.trim() ? `"${song.trim()}"` : "this song";
 
   return (
     <div className="px-4 pb-14 pt-24 sm:px-6 lg:px-8">
@@ -1252,7 +1256,7 @@ export function ToneMatcher() {
         <section className="theme-panel theme-blue-panel mx-auto max-w-5xl px-6 py-12 text-center lg:py-14">
           <div className="inline-flex items-center gap-2 rounded-md border border-white/80 bg-white/80 px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-600 shadow-sm">
             <Sparkles className="h-4 w-4" />
-            {firstAdaptationOnboarding ? "Adapt your first tone" : "Gear-matched tone settings"}
+            {firstAdaptationOnboarding ? "Adapt your first tone" : "Built around your rig"}
           </div>
           <h1 className="mx-auto mt-7 max-w-4xl text-4xl font-bold leading-tight tracking-normal text-ink sm:text-5xl">
             {firstAdaptationOnboarding ? (
@@ -1262,15 +1266,15 @@ export function ToneMatcher() {
               </>
             ) : (
               <>
-                <span className="block">Shape iconic tones with</span>
-                <span className="mt-2 inline-block max-w-full break-words rounded-md bg-moss px-3 py-1 leading-tight text-ink">the gear you own</span>
+                <span className="block">What do you want to</span>
+                <span className="mt-2 inline-block max-w-full break-words rounded-md bg-moss px-3 py-1 leading-tight text-ink">sound like tonight?</span>
               </>
             )}
           </h1>
           <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-slate-600">
             {firstAdaptationOnboarding
               ? "We’ll use your saved rig automatically. Search for a song, choose the part you want, and get your first personalized tone in one clean flow."
-              : `${brand.appName} turns song research into clean, playable settings for the guitar, amp, pedals, and modelers you own.`}
+              : `Name the song. ${brand.appName} reads the original rig and writes the settings for your guitar, amp, and pedals — knob by knob.`}
           </p>
           <div className="mx-auto mt-9 grid w-full max-w-md grid-cols-2 rounded-lg border border-white/80 bg-white/80 p-2 shadow-xl">
             {[
@@ -1323,8 +1327,8 @@ export function ToneMatcher() {
             <div className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-ink text-moss shadow-lg">
               <Flame className="h-6 w-6" />
             </div>
-            <h2 className="mt-3 text-3xl font-bold">Trending This Week</h2>
-            <p className="mt-2 text-slate-500">Fast-start ideas from popular tone searches</p>
+            <h2 className="mt-3 text-3xl font-bold">What players are chasing</h2>
+            <p className="mt-2 text-slate-500">The most-dialed tones right now — tap one to load it</p>
           </div>
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
             {trendingTones.map((item) => (
@@ -1400,7 +1404,7 @@ export function ToneMatcher() {
         <StepProgress />
 
         <form onSubmit={submit} className="mt-12 grid gap-10">
-          <WorkflowCard step="1" title="Your Gear">
+          <WorkflowCard step="1" title="Your Rig">
             <div className="grid gap-8">
               <div>
                 <label className="label flex items-center gap-2 uppercase tracking-[0.16em]">
@@ -1742,7 +1746,7 @@ export function ToneMatcher() {
             </div>
           </WorkflowCard>
 
-          <WorkflowCard step="2" title="Song & Part">
+          <WorkflowCard step="2" title="Pick Your Song">
             <div className="grid gap-8">
               {firstAdaptationOnboarding ? (
                 <div className="rounded-lg border border-white/80 bg-neutral-50 px-4 py-4 text-sm text-slate-700">
@@ -1894,21 +1898,32 @@ export function ToneMatcher() {
                 </div>
               </div>
 
-              <div className="grid justify-items-center gap-5 text-center">
-                <button type="submit" className="button-primary min-h-16 w-full max-w-xl rounded-lg px-8 text-lg shadow-xl" disabled={loading}>
-                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
-                  Generate My Tone
-                </button>
-                <p className="max-w-2xl text-sm font-medium text-slate-600">
-                  Generate a gear-matched version of {selectedArtistLabel ? `"${selectedSongLabel}" by ${selectedArtistLabel}` : `"${selectedSongLabel}"`} for your setup.
-                </p>
-              </div>
-              {message ? <div className="rounded-lg bg-ink px-4 py-3 text-sm font-bold text-white">{message}</div> : null}
             </div>
           </WorkflowCard>
 
+          <div className="grid justify-items-center gap-5 text-center">
+            <button type="submit" className="button-primary min-h-16 w-full max-w-xl rounded-lg px-8 text-lg shadow-xl" disabled={loading}>
+              {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
+              Generate My Tone
+            </button>
+            <p className="max-w-2xl text-sm font-medium text-slate-600">
+              Generate a gear-matched version of {selectedArtistLabel ? `"${selectedSongLabel}" by ${selectedArtistLabel}` : `"${selectedSongLabel}"`} for your setup.
+            </p>
+            <div className="grid w-full max-w-3xl gap-3 sm:grid-cols-2">
+              <a className="button-secondary min-h-14 rounded-lg text-base" href={songsterrUrl} target="_blank" rel="noreferrer">
+                <ExternalLink className="h-5 w-5" />
+                Open Songsterr Tab for {songLinkLabel}
+              </a>
+              <a className="button-secondary min-h-14 rounded-lg text-base" href={backingTrackUrl} target="_blank" rel="noreferrer">
+                <ExternalLink className="h-5 w-5" />
+                Find Backing Track for {songLinkLabel}
+              </a>
+            </div>
+            {message ? <div className="w-full rounded-lg bg-ink px-4 py-3 text-sm font-bold text-white">{message}</div> : null}
+          </div>
+
           <div ref={resultRef}>
-            <WorkflowCard step="3" title="Results">
+            <WorkflowCard step="3" title="Your Settings">
               {result ? <ResultPanel result={result} onSave={saveTone} /> : <EmptySplitResult song={songDraft || song} artist={artist} guitar={guitar} amp={amp} />}
             </WorkflowCard>
           </div>
@@ -1921,7 +1936,7 @@ export function ToneMatcher() {
               <div className="mx-auto mb-5 grid h-20 w-20 place-items-center rounded-full border border-white/80 bg-white shadow-sm">
                 <Loader2 className="h-9 w-9 animate-spin text-ink" />
               </div>
-              <div className="text-center text-2xl font-bold">Generating your adapted tone...</div>
+              <div className="text-center text-2xl font-bold">Dialing it into your rig...</div>
               <div className="mt-2 text-center text-sm font-medium text-slate-600">{progressSteps[progress]}</div>
               <div className="mt-5 h-2 overflow-hidden rounded-full bg-blue-100">
                 <motion.div className="h-full rounded-full bg-moss" initial={{ width: "8%" }} animate={{ width: `${((progress + 1) / progressSteps.length) * 100}%` }} />
@@ -2013,9 +2028,9 @@ function readStoredEffectList() {
 
 function StepProgress() {
   const steps = [
-    ["1", "Your Gear"],
-    ["2", "Song & Artist"],
-    ["3", "Results"]
+    ["1", "Your Rig"],
+    ["2", "Pick Your Song"],
+    ["3", "Your Settings"]
   ];
 
   return (
@@ -2039,9 +2054,9 @@ function StepProgress() {
   );
 }
 
-function WorkflowCard({ step, title, children }: { step: string; title: string; children: React.ReactNode }) {
+function WorkflowCard({ step, title, children, className = "" }: { step: string; title: string; children: React.ReactNode; className?: string }) {
   return (
-    <section className="theme-panel overflow-hidden">
+    <section className={`theme-panel overflow-hidden ${className}`}>
       <header className="theme-blue-panel flex min-h-32 items-center gap-5 border-b border-white/80 px-9 py-7">
         <div className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-ink text-2xl font-bold text-white shadow-lg">{step}</div>
         <h2 className="text-4xl font-bold tracking-normal">{title}</h2>
@@ -2514,7 +2529,7 @@ function EmptySplitResult({ song, artist, guitar, amp }: { song: string; artist:
         <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-lg bg-ink text-moss shadow-lg">
           <Gauge className="h-8 w-8" />
         </div>
-        <h3 className="text-3xl font-bold">Your Adapted Tone</h3>
+        <h3 className="text-3xl font-bold">Your Settings Land Here</h3>
         <p className="mt-2 text-xl text-slate-600">
           {song || "Choose a song"} {artist ? `by ${artist}` : ""}
         </p>
@@ -2765,7 +2780,7 @@ function SplitResultBody({ result, presentation }: { result: ToneResult; present
             <Music2 className="h-4 w-4" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-ink">Original Tone</h3>
+            <h3 className="text-lg font-bold text-ink">The Original Rig</h3>
             <p className="text-sm text-slate-600">
               {original.song} by {original.artist}
             </p>
@@ -2861,7 +2876,7 @@ function SplitResultBody({ result, presentation }: { result: ToneResult; present
             <Gauge className="h-4 w-4" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-ink">Your Adapted Tone</h3>
+            <h3 className="text-lg font-bold text-ink">On Your Rig</h3>
             <p className="text-sm text-slate-600">{adapted.gearSummary}</p>
           </div>
         </div>

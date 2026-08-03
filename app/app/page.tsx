@@ -6,8 +6,8 @@ import { ToneMatcher } from "@/components/tone-matcher";
 import { buildPageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildPageMetadata({
-  title: "Guitar Tone Matcher",
-  description: "Generate researched, gear-matched tone settings for guitar and bass.",
+  title: "Dial In a Song",
+  description: "Search a song and get researched settings translated to your guitar, amp, and pedals.",
   path: "/app",
   noIndex: true
 });

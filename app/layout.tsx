@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Sora } from "next/font/google";
 import Script from "next/script";
 import { Suspense } from "react";
 import { Analytics } from "@vercel/analytics/react";
@@ -7,6 +8,13 @@ import { AppEventTracker } from "@/components/app-event-tracker";
 import { brand } from "@/lib/brand";
 import { getMetadataBase } from "@/lib/seo";
 import "./globals.css";
+
+const sora = Sora({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  variable: "--font-display",
+  display: "swap"
+});
 
 const defaultDescription =
   "Gear-matched guitar and bass tone settings for players who want practical rig settings fast.";
@@ -84,7 +92,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={sora.variable}>
       <head>
         <Script
           src={`https://www.googletagmanager.com/gtag/js?id=${GOOGLE_TAG_ID}`}

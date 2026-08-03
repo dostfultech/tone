@@ -15,9 +15,10 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const nav = [
-    { href: "#how-it-works", label: "How it works" },
-    { href: "#trending", label: "Trending" },
-    { href: "/app", label: "Match Tones" },
+    { href: "/#how-it-works", label: "How It Works" },
+    { href: "/#why-tonefex", label: "Why Tonefex" },
+    { href: "/#trending", label: "Hot Tones" },
+    { href: "/app", label: "Dial In" },
     ...(isAuthenticated ? [{ href: "/account", label: "Account" }] : [{ href: "/login", label: "Login" }])
   ];
 
@@ -75,7 +76,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         </div>
       ) : null}
 
-      <header className="sticky top-0 z-30 border-b border-neutral-200 bg-white/95">
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#08071a]/95 text-white backdrop-blur">
         <div className="section flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center gap-3 font-semibold">
             <Image src="/tonefex-logo.svg" alt={brand.appName} width={34} height={34} priority />
@@ -84,22 +85,29 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
 
           <nav className="hidden items-center gap-1 md:flex">
             {nav.map((item) => (
-              <Link key={item.href} href={item.href} className="button-quiet">
+              <Link
+                key={item.href}
+                href={item.href}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white/70 transition hover:bg-white/10 hover:text-white"
+              >
                 {item.label}
               </Link>
             ))}
           </nav>
 
           <div className="hidden items-center gap-2 md:flex">
-            <Link href="/app" className="button-primary">
+            <Link
+              href="/app"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-moss px-4 py-2 text-sm font-bold text-ink transition-colors hover:bg-moss/90"
+            >
               <Music2 className="h-4 w-4" />
-              Start Matching
+              Dial In a Song
             </Link>
           </div>
 
           <button
             aria-label="Open menu"
-            className="button-secondary px-3 md:hidden"
+            className="inline-flex min-h-11 items-center justify-center rounded-md border border-white/20 px-3 py-2 text-white md:hidden"
             onClick={() => setMenuOpen(true)}
           >
             <Menu className="h-5 w-5" />
@@ -124,7 +132,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
                 </Link>
               ))}
               <Link href="/app" className="button-primary mt-2" onClick={() => setMenuOpen(false)}>
-                Start Matching
+                Dial In a Song
               </Link>
             </div>
           </div>

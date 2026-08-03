@@ -38,7 +38,7 @@ const collectionNav = [
 ];
 
 const discoveryNav = [
-  { href: "/app", label: "Match Tones", icon: Music2 },
+  { href: "/app", label: "Dial In", icon: Music2 },
   { href: "/community", label: "Tone Database", icon: Database }
 ];
 
