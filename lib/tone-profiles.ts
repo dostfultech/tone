@@ -182,7 +182,8 @@ export async function listCommunityToneProfiles(options: CommunityToneQuery): Pr
       }
 
       if (normalized) {
-        dbQuery = dbQuery.or(`search_text.ilike.%${escapeLike(normalized)}%,song_title.ilike.%${escapeLike(normalized)}%,artist_name.ilike.%${escapeLike(normalized)}%`);
+        const pattern = quotedIlikePattern(normalized);
+        dbQuery = dbQuery.or(`search_text.ilike.${pattern},song_title.ilike.${pattern},artist_name.ilike.${pattern}`);
       }
 
       // Verified songs surface first as the user scrolls (admin_verified sorts ahead of
@@ -729,4 +730,11 @@ function formatCustomPickupSummary(pickups: ToneRequest["customPickups"]) {
 
 function escapeLike(value: string) {
   return value.replace(/[%_]/g, "\\$&");
+}
+
+// PostgREST .or() parses its argument as a logic tree; double-quote the
+// pattern so `(`, `)`, `,` and `.` in user queries stay literal.
+function quotedIlikePattern(value: string) {
+  const quoted = escapeLike(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+  return `"%${quoted}%"`;
 }

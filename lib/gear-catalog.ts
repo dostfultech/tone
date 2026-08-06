@@ -51,7 +51,8 @@ export async function lookupGearFromSupabase(itemTypes: GearLookupType[], query:
   }
 
   if (normalized) {
-    builder = builder.or(`search_text.ilike.%${escapeIlike(normalized)}%,model.ilike.%${escapeIlike(normalized)}%,brand.ilike.%${escapeIlike(normalized)}%`);
+    const pattern = quotedIlikePattern(normalized);
+    builder = builder.or(`search_text.ilike.${pattern},model.ilike.${pattern},brand.ilike.${pattern}`);
   }
 
   const { data, error } = await builder;
@@ -101,4 +102,11 @@ function formatGearItem(item: {
 
 function escapeIlike(value: string) {
   return value.replaceAll("%", "\\%").replaceAll("_", "\\_");
+}
+
+// PostgREST .or() parses its argument as a logic tree; double-quote the
+// pattern so `(`, `)`, `,` and `.` in user queries stay literal.
+function quotedIlikePattern(value: string) {
+  const quoted = escapeIlike(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+  return `"%${quoted}%"`;
 }

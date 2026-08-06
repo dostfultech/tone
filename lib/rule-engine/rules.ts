@@ -388,6 +388,14 @@ function finalToneRule(): RuleDefinition {
 function pedalContribution(pedal: PedalProfileInput): RuleContribution {
   const deltas: ToneDeltas[] = [pedal.deltas || {}, pedal.eqInfluence || {}];
 
+  // Seeded per-model behavior replaces the generic type defaults below;
+  // without this guard the two would stack and overshoot.
+  const hasSeededBehavior =
+    Object.keys(pedal.deltas || {}).length > 0 ||
+    Object.keys(pedal.eqInfluence || {}).length > 0 ||
+    (typeof pedal.gainChange === "number" && pedal.gainChange !== 0) ||
+    (typeof pedal.compression === "number" && pedal.compression !== 0);
+
   if (typeof pedal.gainChange === "number") {
     deltas.push({ gain: pedal.gainChange });
   }
@@ -404,16 +412,18 @@ function pedalContribution(pedal: PedalProfileInput): RuleContribution {
     deltas.push({ delay: 1 });
   } else if (pedal.type === "reverb") {
     deltas.push({ reverb: 1 });
-  } else if (pedal.type === "boost") {
-    deltas.push({ gain: 0.75 });
-  } else if (pedal.type === "overdrive") {
-    deltas.push({ gain: 0.5, middle: 0.5 });
-  } else if (pedal.type === "distortion" || pedal.type === "fuzz") {
-    deltas.push({ gain: 1, compression: 0.5 });
-  } else if (pedal.type === "compressor") {
-    deltas.push({ compression: 1 });
-  } else if (pedal.type === "noise_gate") {
-    deltas.push({ noiseGate: 1 });
+  } else if (!hasSeededBehavior) {
+    if (pedal.type === "boost") {
+      deltas.push({ gain: 0.75 });
+    } else if (pedal.type === "overdrive") {
+      deltas.push({ gain: 0.5, middle: 0.5 });
+    } else if (pedal.type === "distortion" || pedal.type === "fuzz") {
+      deltas.push({ gain: 1, compression: 0.5 });
+    } else if (pedal.type === "compressor") {
+      deltas.push({ compression: 1 });
+    } else if (pedal.type === "noise_gate") {
+      deltas.push({ noiseGate: 1 });
+    }
   }
 
   return {

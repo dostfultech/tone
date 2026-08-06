@@ -201,7 +201,19 @@ export class SupabaseGearRepository implements GearRepository {
       return bySearchText;
     }
 
-    return this.queryEquipmentName(tableName, selection.name ?? "", "model_name", baseQuery);
+    const byModelName = await this.queryEquipmentName(tableName, selection.name ?? "", "model_name", baseQuery);
+    if (byModelName) {
+      return byModelName;
+    }
+
+    // Display names like "Seymour Duncan JB (SH-4)" carry parentheses that
+    // search_text does not; retry with punctuation stripped.
+    const normalized = (selection.name ?? "").replace(/[()]/g, "").replace(/\s+/g, " ").trim();
+    if (!normalized || normalized === selection.name) {
+      return null;
+    }
+
+    return this.queryEquipmentName(tableName, normalized, "search_text", baseQuery);
   }
 
   private async queryEquipmentName(

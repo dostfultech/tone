@@ -163,8 +163,8 @@ export async function searchPedalModels(
   }
 
   if (query) {
-    const escaped = escapeLike(query);
-    builder = builder.or(`search_text.ilike.%${escaped}%,name.ilike.%${escaped}%,model_name.ilike.%${escaped}%,category.ilike.%${escaped}%`);
+    const pattern = quotedIlikePattern(query);
+    builder = builder.or(`search_text.ilike.${pattern},name.ilike.${pattern},model_name.ilike.${pattern},category.ilike.${pattern}`);
   }
 
   const { data, error } = await builder;
@@ -196,8 +196,8 @@ export async function searchMultiFxModels(
     .limit(limit);
 
   if (query) {
-    const escaped = escapeLike(query);
-    builder = builder.or(`search_text.ilike.%${escaped}%,name.ilike.%${escaped}%,category.ilike.%${escaped}%`);
+    const pattern = quotedIlikePattern(query);
+    builder = builder.or(`search_text.ilike.${pattern},name.ilike.${pattern},category.ilike.${pattern}`);
   }
 
   const { data, error } = await builder;
@@ -228,8 +228,8 @@ export async function searchPickupModels(
     .limit(limit);
 
   if (query) {
-    const escaped = escapeLike(query);
-    builder = builder.or(`search_text.ilike.%${escaped}%,model_name.ilike.%${escaped}%`);
+    const pattern = quotedIlikePattern(query);
+    builder = builder.or(`search_text.ilike.${pattern},model_name.ilike.${pattern}`);
   }
 
   const { data, error } = await builder;
@@ -295,8 +295,8 @@ export async function listEquipmentBrands(
     .limit(Math.min(limit * 10, MAX_LIMIT));
 
   if (query) {
-    const escaped = escapeLike(query);
-    builder = builder.or(`brand.ilike.%${escaped}%,brand_slug.ilike.%${escaped}%`);
+    const pattern = quotedIlikePattern(query);
+    builder = builder.or(`brand.ilike.${pattern},brand_slug.ilike.${pattern}`);
   }
 
   const { data, error } = await builder;
@@ -478,17 +478,17 @@ function toCatalogSearchItem(kind: NormalizedCatalogKind, row: RowRecord): Catal
 }
 
 function buildSearchFilters(columns: string[], rawQuery: string, tokens: string[]) {
-  const escapedRaw = escapeLike(rawQuery);
+  const rawPattern = quotedIlikePattern(rawQuery);
   const filters = new Set<string>();
 
   for (const column of Array.from(new Set(columns))) {
-    filters.add(`${column}.ilike.%${escapedRaw}%`);
+    filters.add(`${column}.ilike.${rawPattern}`);
   }
 
   for (const token of tokens) {
-    const escapedToken = escapeLike(token);
+    const tokenPattern = quotedIlikePattern(token);
     for (const column of Array.from(new Set(columns))) {
-      filters.add(`${column}.ilike.%${escapedToken}%`);
+      filters.add(`${column}.ilike.${tokenPattern}`);
     }
   }
 
@@ -603,6 +603,14 @@ function normalizeLimit(value: number | undefined, fallback = DEFAULT_LIMIT) {
 
 function escapeLike(value: string) {
   return value.replaceAll("%", "\\%").replaceAll("_", "\\_");
+}
+
+// PostgREST .or() parses its argument as a logic tree, so raw `(`, `)`, `,`
+// or `.` in a search query corrupts the filter and the whole request fails.
+// Double-quoting the pattern makes those characters literal.
+function quotedIlikePattern(value: string) {
+  const quoted = escapeLike(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+  return `"%${quoted}%"`;
 }
 
 function slugify(value: string) {
