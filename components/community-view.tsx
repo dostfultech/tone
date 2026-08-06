@@ -27,6 +27,7 @@ type CommunityTone = {
   toneType?: string;
   toneCategory?: string;
   verificationStatus?: string;
+  artworkUrl?: string;
 };
 
 const instrumentFilters = ["all", "guitar", "bass"] as const;
@@ -162,6 +163,40 @@ export function CommunityView() {
     };
   }, [instrument, page, pageSize, part, query, sort, tone]);
 
+  const artworkFetchedRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    const toFetch: { song: string; artist: string }[] = [];
+    for (const t of tones) {
+      const key = `${t.song}|${t.artist}`.toLowerCase();
+      if (!t.artworkUrl && !artworkFetchedRef.current.has(key)) {
+        artworkFetchedRef.current.add(key);
+        toFetch.push({ song: t.song, artist: t.artist });
+      }
+    }
+    if (!toFetch.length) return;
+
+    const items = toFetch.slice(0, 24);
+    const controller = new AbortController();
+
+    fetch(`/api/artwork/batch?items=${encodeURIComponent(JSON.stringify(items))}`, { signal: controller.signal })
+      .then((r) => r.json())
+      .then((data: { artwork?: Record<string, string | null> }) => {
+        if (!data.artwork) return;
+        setTones((prev) =>
+          prev.map((t) => {
+            if (t.artworkUrl) return t;
+            const key = `${t.song}|${t.artist}`.toLowerCase();
+            const url = data.artwork?.[key];
+            return url ? { ...t, artworkUrl: url } : t;
+          })
+        );
+      })
+      .catch(() => undefined);
+
+    return () => controller.abort();
+  }, [tones.length, page]);
+
   const resultsLabel = useMemo(() => {
     if (!total) return "No tones yet";
     return `${total.toLocaleString()} tones`;
@@ -261,14 +296,27 @@ export function CommunityView() {
             <div className="mt-8 grid gap-6 lg:grid-cols-2 2xl:grid-cols-3">
               {tones.map((item) => (
             <article key={item.id} className="compact-card overflow-hidden border border-white/90 bg-white/90 p-5 shadow-lg transition-shadow hover:shadow-xl">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <h2 className="line-clamp-1 text-2xl font-bold leading-tight">{item.song}</h2>
-                  <p className="mt-1.5 text-base font-semibold text-neutral-500">{item.artist}</p>
-                </div>
-                <div className="rounded-md bg-blue-50 px-3 py-2 text-right">
-                  <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Research</div>
-                  <div className="mt-1 text-sm font-bold text-ocean">{Math.max(18, item.score * 4)} entries</div>
+              <div className="flex items-start gap-4">
+                {item.artworkUrl ? (
+                  <img
+                    src={item.artworkUrl}
+                    alt=""
+                    className="h-[72px] w-[72px] flex-shrink-0 rounded-lg object-cover shadow-md"
+                  />
+                ) : (
+                  <div className="flex h-[72px] w-[72px] flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 shadow-md dark:from-slate-700 dark:to-slate-800">
+                    <Guitar className="h-7 w-7 text-slate-400" />
+                  </div>
+                )}
+                <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="line-clamp-1 text-2xl font-bold leading-tight">{item.song}</h2>
+                    <p className="mt-1.5 text-base font-semibold text-neutral-500">{item.artist}</p>
+                  </div>
+                  <div className="rounded-md bg-blue-50 px-3 py-2 text-right">
+                    <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Research</div>
+                    <div className="mt-1 text-sm font-bold text-ocean">{Math.max(18, item.score * 4)} entries</div>
+                  </div>
                 </div>
               </div>
               <div className="mt-5 flex flex-wrap gap-2">

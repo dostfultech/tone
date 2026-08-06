@@ -14,6 +14,7 @@ import { resolveCoreTone, TONE_CORE_MODEL_NAME } from "@/lib/tone-core";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { assertCanCreateAdaptation, recordSuccessfulAdaptationUsage } from "@/lib/usage";
 import { buildResearchPayload, createMissingSongRequest, findToneProfile, listCommunityToneProfiles, type CommunityToneQuery } from "@/lib/tone-profiles";
+import { lookupBatchArtwork } from "@/lib/itunes";
 import { normalizeMyGearProfile } from "@/lib/my-gear";
 
 export const runtime = "nodejs";
@@ -144,6 +145,19 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   if (route === "community-tones/lookup") {
     return json(await listCommunityToneProfiles(parseCommunityToneQuery(request)));
+  }
+
+  if (route === "artwork/batch") {
+    const raw = request.nextUrl.searchParams.get("items");
+    if (!raw) return json({ artwork: {} });
+    try {
+      const items = JSON.parse(raw) as { song: string; artist: string }[];
+      if (!Array.isArray(items) || items.length > 24) return json({ artwork: {} });
+      const artwork = await lookupBatchArtwork(items);
+      return json({ artwork });
+    } catch {
+      return json({ artwork: {} });
+    }
   }
 
   if (route === "promo-credit/usage") {
