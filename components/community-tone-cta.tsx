@@ -136,7 +136,10 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
       return;
     }
 
-    if (snapshot?.user && !snapshot.hasAccess) {
+    // Free users can adapt from the database while they still hold their free
+    // credit — that first adaptation is the taste. Only block once it's spent
+    // (canAdapt is true for paid users and for free users with credit remaining).
+    if (snapshot?.user && !snapshot.adaptationAccess.canAdapt) {
       setUpgradeModalOpen(true);
       return;
     }
@@ -191,9 +194,14 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
           {loading ? "Checking My Gear..." : readyForGearAdaptation ? "Adapt to My Gear" : "Adapt This Tone"}
         </button>
         {snapshot?.user && snapshot.hasAccess ? <FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} /> : null}
-        {snapshot?.user && !snapshot.hasAccess ? (
+        {snapshot?.user && !snapshot.hasAccess && snapshot.adaptationAccess.canAdapt ? (
+          <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-xs font-bold text-blue-900">
+            Adapting this tone to your gear uses your free adaptation.
+          </p>
+        ) : null}
+        {snapshot?.user && !snapshot.hasAccess && !snapshot.adaptationAccess.canAdapt ? (
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-900">
-            Tone Database browsing is free. Adapt to My Gear requires a paid plan.
+            You&apos;ve used your free adaptation. Upgrade to adapt more tones to your rig.
           </p>
         ) : null}
         {readyForGearAdaptation ? (
@@ -214,8 +222,8 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
         open={upgradeModalOpen}
         onClose={() => setUpgradeModalOpen(false)}
         redirect={pathname || "/community"}
-        title="Adapt to My Gear is a premium feature."
-        body="Tone Database browsing is free. Upgrade to adapt database tones to your saved rig."
+        title="Upgrade to keep matching"
+        body="You've used your free adaptation. Upgrade to adapt more database tones to your saved rig."
       />
     </>
   );
