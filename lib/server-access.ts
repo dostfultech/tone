@@ -35,7 +35,7 @@ export async function getEntitlement(supabase: SupabaseClient | null, user: User
     .from("subscriptions")
     .select("status, plan_id")
     .eq("user_id", user.id)
-    .in("status", ["active", "trialing"])
+    .eq("status", "active")
     .in("plan_id", ["beginner", "expert"])
     .order("updated_at", { ascending: false })
     .limit(1)

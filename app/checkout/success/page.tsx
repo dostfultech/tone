@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { findLatestDodoSubscriptionIdForUser, inferBillingIntervalFromProductId, inferPlanIdFromProductId, normalizeDodoStatus, type BillingInterval, type PlanId } from "@/lib/dodo";
+import { findLatestDodoSubscriptionIdForUser, inferBillingIntervalFromProductId, inferPlanIdFromProductId, type BillingInterval, type PlanId } from "@/lib/dodo";
 import { syncDodoSubscriptionById } from "@/lib/dodo-webhooks";
 import { getCurrentSession } from "@/lib/server-access";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -16,11 +16,10 @@ export default async function CheckoutSuccessPage({ searchParams }: CheckoutSucc
     redirect(`/login?redirect=${encodeURIComponent("/app")}`);
   }
 
-  // Never gate on the return-URL status. A $0 trial checkout comes back with a
-  // non-"active" payment status (e.g. processing/pending), so trusting it here
-  // used to bounce healthy trials to /plans?checkout=not_active before anything
-  // synced. The real status lives in Dodo — resolve the subscription (by returned
-  // id, else by our user_id metadata), sync it, and route on the actual status.
+  // Never gate on the return-URL status — the return often carries a transient
+  // payment status (processing/pending) before the mandate settles. The real
+  // status lives in Dodo — resolve the subscription (by returned id, else by our
+  // user_id metadata), sync it, and route on the actual status.
   let subscriptionId = stringParam(params.subscription_id) || stringParam(params.subscriptionId);
   if (!subscriptionId) {
     subscriptionId = (await findLatestDodoSubscriptionIdForUser(user.id)) || "";
@@ -29,17 +28,15 @@ export default async function CheckoutSuccessPage({ searchParams }: CheckoutSucc
   const syncedStatus = subscriptionId ? await syncDodoSubscriptionById(subscriptionId, user.id) : null;
 
   if (syncedStatus) {
-    if (syncedStatus === "active" || syncedStatus === "trialing") {
+    if (syncedStatus === "active") {
       redirect("/app?checkout=success");
     }
     redirect("/plans?checkout=not_active");
   }
 
-  // Could not reach Dodo (rare) — write a best-effort provisional row so access
-  // still reflects; the webhook / next account load reconciles the real status.
-  const rawStatus = stringParam(params.status) || stringParam(params.subscription_status) || "active";
-  const provisionalStatus: "active" | "trialing" = normalizeDodoStatus(rawStatus) === "trialing" ? "trialing" : "active";
-  const activated = await activateReturnedSubscription(params, user.id, provisionalStatus);
+  // Could not reach Dodo (rare) — write a best-effort provisional active row so
+  // access still reflects; the webhook / next account load reconciles the real status.
+  const activated = await activateReturnedSubscription(params, user.id, "active");
 
   if (!activated) {
     console.error("[checkout-success] could not sync subscription", {
@@ -56,7 +53,7 @@ export default async function CheckoutSuccessPage({ searchParams }: CheckoutSucc
 async function activateReturnedSubscription(
   params: Record<string, string | string[] | undefined>,
   userId: string,
-  status: "active" | "trialing"
+  status: "active"
 ) {
   const admin = createSupabaseAdminClient();
   if (!admin) {

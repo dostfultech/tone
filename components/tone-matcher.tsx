@@ -39,7 +39,6 @@ import {
   useAnimatedToneControls
 } from "@/components/tone-control-animation";
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
-import { TrialStatusBar } from "@/components/trial-status-bar";
 import { UnlockAccessButton } from "@/components/unlock-access-modal";
 import { FirstToneSavedPopup } from "@/components/first-tone-saved-popup";
 import { OnboardingProgress } from "@/components/onboarding-progress";
@@ -512,9 +511,9 @@ export function ToneMatcher() {
             trackEvent("feedback_redirect", { source: "tone_adaptation_api" });
             router.push("/feedback");
           } else {
-            setMessage(data.error?.message || "Start a free trial to unlock tone adaptations.");
-            trackEvent("paywall_shown", { source: "tone_adaptation_api", reason: "trial_prompt" });
-            router.push(`/plans?required=subscription&redirect=${encodeURIComponent(matcherRedirectTarget)}&source=trial-prompt`);
+            setMessage(data.error?.message || "You've used your free adaptation. Upgrade to keep matching tones.");
+            trackEvent("paywall_shown", { source: "tone_adaptation_api", reason: "upgrade_prompt" });
+            router.push(`/plans?required=subscription&redirect=${encodeURIComponent(matcherRedirectTarget)}&source=upgrade-prompt`);
           }
           return;
         }
@@ -1127,8 +1126,8 @@ export function ToneMatcher() {
         trackEvent("feedback_redirect", { source: "tone_matcher_submit" });
         router.push("/feedback");
       } else {
-        trackEvent("paywall_shown", { source: "tone_matcher_submit", reason: "trial_prompt" });
-        router.push(`/plans?required=subscription&redirect=${encodeURIComponent(matcherRedirectTarget)}&source=trial-prompt`);
+        trackEvent("paywall_shown", { source: "tone_matcher_submit", reason: "upgrade_prompt" });
+        router.push(`/plans?required=subscription&redirect=${encodeURIComponent(matcherRedirectTarget)}&source=upgrade-prompt`);
       }
       return;
     }
@@ -1318,8 +1317,6 @@ export function ToneMatcher() {
             })}
           </div>
         </section>
-
-        {subscriptionSnapshot ? <TrialStatusBar snapshot={subscriptionSnapshot} /> : null}
 
         {!firstAdaptationOnboarding ? (
           <section className="mt-14">

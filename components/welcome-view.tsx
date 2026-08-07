@@ -91,16 +91,16 @@ export function WelcomeView() {
                 <>
                   <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Try before you buy</div>
                   <div className="mt-4 flex items-end gap-3">
-                    <div className="text-5xl font-bold text-ink">3</div>
-                    <div className="pb-1 text-lg font-semibold text-slate-600">Day Free Trial</div>
+                    <div className="text-5xl font-bold text-ink">1</div>
+                    <div className="pb-1 text-lg font-semibold text-slate-600">Free Adaptation</div>
                   </div>
                   <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
-                    Cancel anytime — no hidden fees.
+                    No card required to start.
                   </div>
                   <div className="mt-6 grid gap-3 text-sm text-slate-600">
                     <div className="rounded-lg bg-slate-50 px-4 py-3">Unlimited song search and browsing</div>
                     <div className="rounded-lg bg-slate-50 px-4 py-3">My Gear setup and editing included</div>
-                    <div className="rounded-lg bg-slate-50 px-4 py-3">Pick a plan to start your free trial</div>
+                    <div className="rounded-lg bg-slate-50 px-4 py-3">Match your first tone free, then upgrade</div>
                   </div>
                 </>
               )}

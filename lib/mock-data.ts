@@ -282,8 +282,6 @@ export const plans = [
     name: "Beginner",
     monthly: 6.99,
     annual: 39.99,
-    trialDays: 3,
-    trialAdaptations: 3,
     adaptations: "20 custom tone adaptations per month",
     saved: "15 saved tones per month",
     perks: ["Gear preset creation", "Guitar and bass mode", "Community tone lookup"]
@@ -293,8 +291,6 @@ export const plans = [
     name: "Expert",
     monthly: 10.99,
     annual: 49.99,
-    trialDays: 3,
-    trialAdaptations: 5,
     adaptations: "Unlimited custom tone adaptations",
     saved: "Unlimited saved tones",
     perks: ["Gear preset creation", "Priority support", "Multi-FX preset translation", "Tone database access"]

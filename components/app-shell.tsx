@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 import { brand } from "@/lib/brand";
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
-import { UnlockAccessButton } from "@/components/unlock-access-modal";
 import { SiteFooter } from "@/components/site-footer";
 import { PaymentFailedBanner } from "@/components/payment-failed-banner";
 import {
@@ -182,16 +181,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           {snapshot?.user ? <FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} className="mb-4" /> : null}
-
-          {snapshot?.isTrialing ? (
-            <UnlockAccessButton
-              className="button-primary mb-8 w-full justify-center"
-              label="Unlock Full Access"
-              planId={snapshot.planId}
-              billingInterval={snapshot.billingInterval}
-              convert
-            />
-          ) : null}
 
           <NavSection title="My Collection" items={collectionNav} pathname={pathname} onNavigate={navigate} />
           <NavSection title="Discover" items={discoveryNav} pathname={pathname} onNavigate={navigate} />

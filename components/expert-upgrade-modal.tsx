@@ -7,8 +7,8 @@ export function ExpertUpgradeModal({
   open,
   onClose,
   redirect = "/app",
-  title = "Start Your Free Trial",
-  body = "Try Tonefex free for 3 days — Beginner gets 3 adaptations, Expert gets 5."
+  title = "Upgrade to keep matching",
+  body = "You've used your free adaptation. Unlock unlimited tone matching with a plan."
 }: {
   open: boolean;
   onClose: () => void;
@@ -49,10 +49,10 @@ export function ExpertUpgradeModal({
             </div>
           ))}
           <Link
-            href={`/plans?required=subscription&redirect=${encodeURIComponent(redirect)}&source=trial-prompt`}
+            href={`/plans?required=subscription&redirect=${encodeURIComponent(redirect)}&source=upgrade-prompt`}
             className="button-primary mt-2 min-h-12 justify-center"
           >
-            Start 3-Day Free Trial
+            See Plans
           </Link>
         </div>
       </div>

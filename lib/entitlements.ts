@@ -23,19 +23,6 @@ export const planLimits = {
   }
 } as const;
 
-export const trialLimits = {
-  beginner: {
-    monthlyAdaptations: 3,
-    savedTonesLimit: 15,
-    gearPresetsLimit: 10
-  },
-  expert: {
-    monthlyAdaptations: 5,
-    savedTonesLimit: null,
-    gearPresetsLimit: null
-  }
-} as const;
-
 export function getBypassEntitlement(user: User | null): Entitlement | null {
   if (!isTestAccessEnabled()) {
     return null;
@@ -66,9 +53,9 @@ export function mapSubscriptionEntitlement(subscription: {
 } | null): Entitlement {
   const status = subscription?.status || null;
   const planId = subscription?.plan_id === "expert" ? "expert" : subscription?.plan_id === "beginner" ? "beginner" : null;
-  const active = status === "active" || status === "trialing";
-  const isTrialing = status === "trialing";
-  const limits = planId ? (isTrialing ? trialLimits[planId] : planLimits[planId]) : null;
+  // No trial tier: a subscription grants access only once it is fully active.
+  const active = status === "active";
+  const limits = planId ? planLimits[planId] : null;
 
   return {
     hasAccess: Boolean(active && planId),

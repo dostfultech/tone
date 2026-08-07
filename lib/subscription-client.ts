@@ -5,7 +5,7 @@ import {
   resolveAdaptationAccessState
 } from "@/lib/adaptation-access";
 import { EARLY_TESTER_FREE_ADAPTATIONS } from "@/lib/early-tester";
-import { planLimits, trialLimits } from "@/lib/entitlements";
+import { planLimits } from "@/lib/entitlements";
 import { plans } from "@/lib/mock-data";
 
 const earlyTesterMode = process.env.NEXT_PUBLIC_EARLY_TESTER_MODE === "true";
@@ -140,15 +140,10 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
 
   const planId = subscription?.planId || null;
   const plan = planId ? plans.find((item) => item.id === planId) || null : null;
-  const isTrialing = subscription?.status === "trialing";
-  const limits = planId ? (isTrialing ? trialLimits[planId] : planLimits[planId]) : null;
-  const trialEnd = isTrialing ? subscription?.trialEnd || subscription?.renewalDate || null : null;
-  // Cap at the trial length so a 3-day trial never displays "4 days" right after
-  // it starts (ceil of a hair-under-3-days would otherwise round up).
-  const trialLengthDays = subscription?.trialPeriodDays && subscription.trialPeriodDays > 0 ? subscription.trialPeriodDays : null;
-  const trialDaysRemaining = trialEnd
-    ? Math.max(0, Math.min(Math.ceil((new Date(trialEnd).getTime() - Date.now()) / 86_400_000), trialLengthDays ?? Number.MAX_SAFE_INTEGER))
-    : null;
+  // Trials are retired — paid plans use their full limits, no trial window.
+  const limits = planId ? planLimits[planId] : null;
+  const trialEnd = null;
+  const trialDaysRemaining = null;
   const profile = (profileResult.data as RawProfile | null) || null;
   let effectiveFreeLimit = profile?.free_adaptation_limit;
   if (earlyTesterMode && (effectiveFreeLimit === null || effectiveFreeLimit === 0) && (profile?.free_adaptations_used === null || profile?.free_adaptations_used === 0)) {
@@ -185,7 +180,7 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
     billingInterval: subscription?.billingInterval || null,
     renewalDate: subscription?.renewalDate || null,
     hasAccess: hasPaidAccess,
-    isTrialing: isTrialing && hasPaidAccess,
+    isTrialing: false,
     trialEnd,
     trialDaysRemaining,
     features: plan?.perks || [],
@@ -210,7 +205,7 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
 }
 
 export function isActiveSubscriptionStatus(status: string | null | undefined) {
-  return status === "active" || status === "trialing";
+  return status === "active";
 }
 
 export function formatSubscriptionStatus(status: string | null | undefined) {

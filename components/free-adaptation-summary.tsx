@@ -7,7 +7,7 @@ export function FreeAdaptationSummary({
   remaining,
   limit,
   unlimited = false,
-  showTrialCta = false,
+  showUpgradeCta = false,
   showFeedbackCta = false,
   label,
   helpText,
@@ -17,7 +17,7 @@ export function FreeAdaptationSummary({
   remaining: number;
   limit: number;
   unlimited?: boolean;
-  showTrialCta?: boolean;
+  showUpgradeCta?: boolean;
   showFeedbackCta?: boolean;
   label?: string;
   helpText?: string;
@@ -44,7 +44,7 @@ export function FreeAdaptationSummary({
     );
   }
 
-  if (showTrialCta) {
+  if (showUpgradeCta) {
     return (
       <Link href="/plans" className={`block rounded-lg border border-ink/20 bg-ink px-4 py-3 shadow-sm transition-colors hover:bg-ink/90 ${className}`.trim()}>
         <div className="flex items-center gap-3">
@@ -56,7 +56,7 @@ export function FreeAdaptationSummary({
               No Active Plan
             </div>
             <div className="mt-1 text-sm font-semibold text-white">
-              Start 3-Day Free Trial
+              Upgrade to keep matching
             </div>
           </div>
         </div>

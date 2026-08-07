@@ -24,6 +24,11 @@ export type AdaptationEligibility = {
 
 export type AdaptationRequestSource = "manual_generate" | "tone_database_adapt_to_my_gear" | "saved_tone_readapt";
 
+// A free user's single lifetime credit covers their first song-to-gear match,
+// whether they start it from the Match page or the Tone Database. Re-adapting a
+// saved tone is excluded — that flow is paid-only.
+const FREE_ELIGIBLE_SOURCES = new Set<AdaptationRequestSource>(["manual_generate", "tone_database_adapt_to_my_gear"]);
+
 export type AdaptationConfirmationResult = {
   ok: boolean;
   confirmed: boolean;
@@ -49,11 +54,8 @@ export async function assertCanCreateAdaptation(
   await ensureProfileUsageRow(admin, user);
   const profileQuota = await loadProfileUsage(admin, user.id);
 
-  // Expert = unlimited, but NOT during the free trial — a trialing Expert is
-  // capped at trialLimits.expert (5) so someone can't burn unlimited adaptations
-  // and cancel before the first charge. Trialing plans fall through to the
-  // monthly-limit branch below (their monthlyAdaptations is the trial cap).
-  if (entitlement.source === "test" || (entitlement.hasAccess && entitlement.planId === "expert" && entitlement.status !== "trialing")) {
+  // Expert = unlimited. (No trial tier exists.)
+  if (entitlement.source === "test" || (entitlement.hasAccess && entitlement.planId === "expert")) {
     return {
       ok: true,
       path: "expert",
@@ -72,12 +74,9 @@ export async function assertCanCreateAdaptation(
 
     const used = data?.adaptations_used || 0;
     if (used >= entitlement.monthlyAdaptations) {
-      const trialing = entitlement.status === "trialing";
       return {
         ok: false,
-        error: trialing
-          ? `You've used all ${entitlement.monthlyAdaptations} free trial adaptations. Unlock full access to keep matching.`
-          : "Monthly adaptation limit reached. Upgrade to Expert for unlimited matching.",
+        error: "Monthly adaptation limit reached. Upgrade to Expert for unlimited matching.",
         path: "beginner",
         freeAdaptationsRemaining: profileQuota.remaining,
         monthlyAdaptationsRemaining: 0
@@ -92,10 +91,14 @@ export async function assertCanCreateAdaptation(
     };
   }
 
-  if (requestSource !== "manual_generate") {
+  // The one free credit covers a user's first adaptation of a song to their gear,
+  // reached from either the Match page (manual_generate) or the Tone Database
+  // "adapt to my gear" flow. Re-adapting an already-generated saved tone stays
+  // paid-only.
+  if (!FREE_ELIGIBLE_SOURCES.has(requestSource)) {
     return {
       ok: false,
-      error: "This adaptation workflow requires a paid subscription. Start a free trial or upgrade for full access.",
+      error: "Re-adapting saved tones requires a plan. Upgrade to keep matching tones.",
       path: "free",
       freeAdaptationsRemaining: profileQuota.remaining,
       monthlyAdaptationsRemaining: null
@@ -105,7 +108,7 @@ export async function assertCanCreateAdaptation(
   if (profileQuota.remaining <= 0) {
     return {
       ok: false,
-      error: "Start a free trial to unlock tone adaptations, or upgrade to Expert for unlimited access.",
+      error: "You've used your free adaptation. Upgrade to keep matching tones, or go Expert for unlimited access.",
       path: "free",
       freeAdaptationsRemaining: 0,
       monthlyAdaptationsRemaining: null
@@ -206,9 +209,8 @@ export async function recordSuccessfulAdaptationUsage(
 
   await markFirstAdaptationCompleted(admin, userId, new Date().toISOString());
 
-  // A trialing Expert is NOT unlimited — fall through so each adaptation is
-  // counted in monthly_usage and the "N remaining" count actually decrements.
-  if (entitlement.source === "test" || (entitlement.hasAccess && entitlement.planId === "expert" && entitlement.status !== "trialing")) {
+  // Expert is unlimited — usage is not metered for this tier.
+  if (entitlement.source === "test" || (entitlement.hasAccess && entitlement.planId === "expert")) {
     const refreshedQuota = await loadProfileUsage(admin, userId);
     return {
       ok: true,
@@ -292,7 +294,7 @@ export async function recordSuccessfulAdaptationUsage(
       freeAdaptationLimit: profileQuota.limit,
       monthlyAdaptationsRemaining: null,
       firstAdaptationCompleted: Boolean(profileQuota.firstAdaptationCompletedAt),
-      error: "You've used your 3 free adaptations. Upgrade to Expert for unlimited tone adaptations."
+      error: "You've used your free adaptation. Upgrade to keep matching tones, or go Expert for unlimited access."
     };
   }
 

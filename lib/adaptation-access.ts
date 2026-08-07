@@ -1,6 +1,6 @@
 import type { Entitlement } from "@/lib/entitlements";
 
-export const DEFAULT_FREE_ADAPTATION_LIMIT = 0;
+export const DEFAULT_FREE_ADAPTATION_LIMIT = 1;
 
 export type ProfileAccessRow = {
   free_adaptation_limit?: number | null;
@@ -72,10 +72,8 @@ export function resolveAdaptationAccessState(input: {
     };
   }
 
-  // Expert is unlimited except while trialing — a trialing Expert is capped at
-  // the trial allowance (falls through to the limited branch below), so the UI
-  // shows "5 left in trial" instead of "Unlimited".
-  if (entitlement.source === "test" || (entitlement.hasAccess && entitlement.planId === "expert" && entitlement.status !== "trialing")) {
+  // Expert is unlimited. (No trial tier exists — a paid Expert is always uncapped.)
+  if (entitlement.source === "test" || (entitlement.hasAccess && entitlement.planId === "expert")) {
     return {
       free: freeQuota,
       onboarding,
