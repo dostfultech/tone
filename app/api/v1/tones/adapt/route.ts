@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { ToneAdaptationErrorResponseDto, ToneAdaptationResponseDto } from "@/lib/backend/tone-adaptation";
 import { createToneAdaptationService } from "@/lib/backend/tone-adaptation";
 import { configurationError, isToneBackendError } from "@/lib/backend/tone-adaptation/errors";
+import { recordToneAdaptation } from "@/lib/backend/tone-adaptation/history";
 import { validateToneAdaptationRequest } from "@/lib/backend/tone-adaptation/validation";
 import { getEntitlement, getCurrentSession } from "@/lib/server-access";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -70,13 +71,34 @@ export async function POST(request: NextRequest) {
     }
 
     const toneService = createToneAdaptationService(admin);
-    const response = await toneService.adaptTone(dto);
+
+    let response: ToneAdaptationResponseDto;
+    try {
+      response = await toneService.adaptTone(dto);
+    } catch (adaptError) {
+      // The adaptation attempt itself failed — record a failed history row (never a
+      // misleading success). Validation/auth/limit rejections above are NOT recorded,
+      // because they are not adaptation attempts.
+      await recordToneAdaptation(admin, {
+        user,
+        dto,
+        status: "failed",
+        errorMessage: adaptError instanceof Error ? adaptError.message : "Tone adaptation failed."
+      });
+      throw adaptError;
+    }
+
     const toneJobId = await createToneJob(admin, user.id, dto);
     const toneResultId = await createToneResult(admin, {
       toneJobId,
       userId: user.id,
       response
     });
+
+    // Exactly one permanent analytics row per successful adaptation. Best-effort:
+    // recordToneAdaptation never throws, so it can't break the adaptation response.
+    await recordToneAdaptation(admin, { user, dto, response, status: "success", toneResultId });
+
     const usage = await recordSuccessfulAdaptationUsage(admin, user, toneResultId, entitlement);
 
     if (!usage.ok) {
