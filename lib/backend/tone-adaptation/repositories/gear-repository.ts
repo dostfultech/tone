@@ -14,6 +14,11 @@ import { mapAmpRow, mapCabinetRow, mapGuitarRow, mapMultiFxRow, mapPedalRow, map
 
 type SupabaseQuery = any;
 
+// Behavior tables whose match phrases live in a `tags` text[] column (folded into
+// search_text by a trigger). For these, an exact tag-array match is preferred over
+// a search_text substring so a base model doesn't lose to a longer variant's tag.
+const TAG_MATCH_TABLES = new Set(["guitar_models", "amp_models"]);
+
 export interface GearRepository {
   findGuitar(selection: NormalizedSelection | undefined, mode: ToneAdaptationMode): Promise<GuitarProfileInput | null>;
   findPickups(selections: NormalizedSelection[], guitarId?: string): Promise<PickupProfileInput[]>;
@@ -196,6 +201,18 @@ export class SupabaseGearRepository implements GearRepository {
       return (data ?? null) as Record<string, unknown> | null;
     }
 
+    // Prefer an exact tag match on the tags-based behavior tables (guitar_models,
+    // amp_models): a family whose `tags` array contains the picker display name as
+    // a whole element is a precise hit, so a base model ("Harley Benton ST-20")
+    // no longer loses a substring race to a longer variant's tag in another family
+    // ("...st-20 hss"). Falls through to the substring search when no exact tag.
+    if (TAG_MATCH_TABLES.has(tableName)) {
+      const byExactTag = await this.queryEquipmentExactTag(tableName, selection.name ?? "", baseQuery);
+      if (byExactTag) {
+        return byExactTag;
+      }
+    }
+
     const bySearchText = await this.queryEquipmentName(tableName, selection.name ?? "", "search_text", baseQuery);
     if (bySearchText) {
       return bySearchText;
@@ -214,6 +231,31 @@ export class SupabaseGearRepository implements GearRepository {
     }
 
     return this.queryEquipmentName(tableName, normalized, "search_text", baseQuery);
+  }
+
+  private async queryEquipmentExactTag(
+    tableName: string,
+    name: string,
+    baseQuery: (query: SupabaseQuery) => SupabaseQuery
+  ) {
+    const phrase = name.trim().toLowerCase();
+    if (!phrase) {
+      return null;
+    }
+
+    // `tags` holds each match phrase as a discrete array element, so containment
+    // (`tags @> {phrase}`) is a true whole-phrase match — unlike a search_text
+    // substring, which also fires on a longer tag that merely starts with `phrase`.
+    const query = baseQuery(this.supabase.from(tableName));
+    const { data, error } = await query.contains("tags", [phrase]).order("model_name", { ascending: true }).limit(1).maybeSingle();
+
+    if (error) {
+      // A table without a `tags` column (or any query issue) must not break gear
+      // resolution — fall through to the substring lookup.
+      return null;
+    }
+
+    return (data ?? null) as Record<string, unknown> | null;
   }
 
   private async queryEquipmentName(
