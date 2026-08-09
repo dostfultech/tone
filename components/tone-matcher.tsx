@@ -80,11 +80,21 @@ type TonePresentationDto = {
     gearSummary: string;
     pickupChoice: { recommendation: string; reason: string } | null;
     ampConfiguration: { recommendedPreset: string; frontPanelChannel: string; toneStudioPreset: string | null; reason: string; howToAccess: string } | null;
+    cabinet: { recommendation: string; reason: string } | null;
+    ampControls: { title: string; controls: Array<{ key: string; label: string; value: string; note?: string }> } | null;
     settings: Record<string, number>;
     guitarControls: { volume: number; tone: number };
     signalChain: string[];
     ampEffectsSettings: Array<{ effect: string; level: number | null; effectType: string | null; note: string }>;
-    missingEffects: Array<{ name: string; type: string; importance: string; description: string; substitution: string | null }>;
+    missingEffects: Array<{
+      name: string;
+      type: string;
+      importance: string;
+      description: string;
+      substitution: string | null;
+      alternatives: Array<{ name: string; price: string; tier: "budget" | "mid" | "premium" }>;
+    }>;
+    keepOff: Array<{ name: string; reason: string }>;
     playingNotes: string[];
   };
   confidence: { score: number; factors: string[] };
@@ -2593,11 +2603,7 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => Pro
       <div className="border-b border-white/80 bg-white/70 p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-md bg-moss px-3 py-1 text-xs font-bold text-ink">
-              <BadgeCheck className="h-4 w-4" />
-              {Math.round(result.accuracy)}% tone match
-            </div>
-            <h2 className="mt-3 text-2xl font-semibold">{result.request.song}</h2>
+            <h2 className="text-2xl font-semibold">{result.request.song}</h2>
             <p className="text-sm text-slate-600">
               {result.request.artist} - {result.request.part}
             </p>
@@ -2619,8 +2625,8 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => Pro
             {profile ? (
               <p className="mt-3 text-xs font-semibold text-slate-500">
                 {profile.verificationStatus === "admin_verified"
-                  ? `Verified research · ${Math.round(profile.confidence)}% source confidence`
-                  : `Estimated starting point · ${Math.round(profile.confidence)}% confidence — a solid baseline to refine by ear`}
+                  ? "Verified research — documented gear and settings."
+                  : "Estimated starting point — a solid baseline to refine by ear."}
               </p>
             ) : null}
           </div>
@@ -2896,6 +2902,29 @@ function SplitResultBody({ result, presentation }: { result: ToneResult; present
           </ResultCard>
         ) : null}
 
+        {adapted.cabinet ? (
+          <ResultCard title="Cabinet" icon={<Volume2 className="h-3.5 w-3.5" />}>
+            <p className="text-sm font-bold text-ink">{adapted.cabinet.recommendation}</p>
+            <p className="mt-1 text-sm text-slate-600">{adapted.cabinet.reason}</p>
+          </ResultCard>
+        ) : null}
+
+        {adapted.ampControls && adapted.ampControls.controls.length ? (
+          <ResultCard title={adapted.ampControls.title} icon={<SlidersHorizontal className="h-3.5 w-3.5" />}>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {adapted.ampControls.controls.map((control) => (
+                <div key={control.key} className="rounded-md border border-slate-200 bg-white px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-ink">{control.label}</span>
+                    <span className="text-sm font-bold text-ocean">{control.value}</span>
+                  </div>
+                  {control.note ? <p className="mt-1 text-xs leading-5 text-slate-500">{control.note}</p> : null}
+                </div>
+              ))}
+            </div>
+          </ResultCard>
+        ) : null}
+
         <SettingsBlock title="Amp settings — adapted" icon={<Gauge className="h-4 w-4 text-ocean" />} settings={result.targetSettings} empty="No target settings returned" />
 
         <ResultCard title="Guitar Controls" icon={<SlidersHorizontal className="h-3.5 w-3.5" />}>
@@ -2946,6 +2975,22 @@ function SplitResultBody({ result, presentation }: { result: ToneResult; present
                   </div>
                   <p className="mt-1 text-sm leading-6 text-slate-600">{effect.description}</p>
                   {effect.substitution ? <p className="mt-1 text-xs font-semibold text-ocean">{effect.substitution}</p> : null}
+                  {effect.alternatives.length ? (
+                    <div className="mt-2">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Consider these alternatives</p>
+                      <div className="mt-1.5 grid gap-1.5 sm:grid-cols-3">
+                        {effect.alternatives.map((alt) => (
+                          <div key={alt.name} className="rounded-md border border-slate-200 bg-white px-2 py-1.5">
+                            <p className="text-xs font-semibold leading-4 text-ink">{alt.name}</p>
+                            <p className="mt-0.5 flex items-center justify-between text-[11px]">
+                              <span className="capitalize text-slate-400">{alt.tier}</span>
+                              <span className="font-bold text-slate-600">{alt.price}</span>
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -2964,13 +3009,17 @@ function SplitResultBody({ result, presentation }: { result: ToneResult; present
           </ResultCard>
         ) : null}
 
-        {presentation.confidence.factors.length ? (
-          <ResultCard title="Confidence Notes" icon={<Info className="h-3.5 w-3.5" />}>
-            <div className="grid gap-1.5">
-              {presentation.confidence.factors.map((factor) => (
-                <p key={factor} className="text-xs leading-5 text-slate-500">
-                  {factor}
-                </p>
+        {adapted.keepOff.length ? (
+          <ResultCard title="Keep These Off" icon={<X className="h-3.5 w-3.5" />}>
+            <div className="grid gap-2">
+              {adapted.keepOff.map((entry) => (
+                <div key={entry.name} className="rounded-md border border-slate-200 bg-slate-50/80 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">Off</span>
+                    <span className="text-sm font-bold text-ink">{entry.name}</span>
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">{entry.reason}</p>
+                </div>
               ))}
             </div>
           </ResultCard>

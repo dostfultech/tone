@@ -2,6 +2,7 @@ import type { FinalToneOutput, ToneType } from "../../../rule-engine";
 import type { NormalizedToneAdaptationRequest } from "../dtos";
 import type { LoadedToneRequestContext, OriginalToneEffect } from "../types";
 import { inferPedalType } from "./gear-inference";
+import { buildAmpPanelControls, type AmpPanelControls } from "./amp-panel-controls";
 
 // Deterministic presentation builder: turns the loaded context + rule-engine output
 // into the split Original / Adapted result the UI renders. No AI, no randomness —
@@ -50,11 +51,21 @@ export interface TonePresentation {
     gearSummary: string;
     pickupChoice: { recommendation: string; reason: string } | null;
     ampConfiguration: AmpConfigurationPresentation | null;
+    cabinet: { recommendation: string; reason: string } | null;
+    ampControls: AmpPanelControls | null;
     settings: Record<string, number>;
     guitarControls: { volume: number; tone: number };
     signalChain: string[];
     ampEffectsSettings: AmpEffectSettingEntry[];
-    missingEffects: Array<{ name: string; type: string; importance: string; description: string; substitution: string | null }>;
+    missingEffects: Array<{
+      name: string;
+      type: string;
+      importance: string;
+      description: string;
+      substitution: string | null;
+      alternatives: Array<{ name: string; price: string; tier: "budget" | "mid" | "premium" }>;
+    }>;
+    keepOff: Array<{ name: string; reason: string }>;
     playingNotes: string[];
   };
   confidence: { score: number; factors: string[] };
@@ -80,6 +91,15 @@ export function buildTonePresentation(
   const userAmpIsModeler = isModelingAmp(context);
 
   const missingEffects = buildMissingEffects(originalEffects, userPedalCoverage, partLabel, gear.goingDirect, Boolean(gear.multiFx), userAmpIsModeler);
+  const keepOff = buildKeepOff(request, context, originalEffects, source.toneType, partLabel);
+  const adaptedCabinet = buildAdaptedCabinet(original?.cab ?? null, original?.amp ?? null, context);
+  const ampControls = buildAmpPanelControls({
+    ampName: context.gear.amplifier?.name ?? context.gear.multiFx?.name ?? request.amp?.name ?? "",
+    originalAmp: original?.amp ?? null,
+    toneType: String(source.toneType),
+    partType: source.partType,
+    goingDirect: gear.goingDirect
+  });
   const ampEffectsSettings = buildAmpEffectsSettings(originalEffects, originalSettings, adaptedSettings, userPedalCoverage, userAmpIsModeler, original?.amp ?? null, source.toneType);
 
   return {
@@ -113,11 +133,14 @@ export function buildTonePresentation(
       gearSummary: buildGearSummary(request, context),
       pickupChoice: buildPickupChoice(original?.pickup ?? null, context),
       ampConfiguration: buildAmpConfiguration(original?.amp ?? null, source.toneType, userAmpIsModeler, context),
+      cabinet: adaptedCabinet,
+      ampControls,
       settings: adaptedSettings,
       guitarControls: guitarControlsFor(request.toneType, source.partType),
       signalChain: buildAdaptedChain(request, context),
       ampEffectsSettings,
       missingEffects,
+      keepOff,
       playingNotes: buildPlayingNotes(original?.playingNotes ?? [], original?.adaptationNotes ?? [], missingEffects)
     },
     confidence: computeConfidence(source.confidence, context)
@@ -192,6 +215,62 @@ const CATEGORY_LABELS: Record<string, string> = {
   effect: "similar effect"
 };
 
+// Curated real-world buy recommendations per effect category (budget / mid / premium).
+// Prices are approximate USD street prices — refreshed periodically; treated as guidance, not live pricing.
+type PedalAlternative = { name: string; price: string; tier: "budget" | "mid" | "premium" };
+const PEDAL_ALTERNATIVES: Record<string, PedalAlternative[]> = {
+  drive: [
+    { name: "Boss SD-1 Super Overdrive", price: "$59", tier: "budget" },
+    { name: "Ibanez TS9 Tube Screamer", price: "$109", tier: "mid" },
+    { name: "Fulltone OCD", price: "$129", tier: "premium" }
+  ],
+  delay: [
+    { name: "TC Electronic Flashback 2", price: "$139", tier: "budget" },
+    { name: "MXR Carbon Copy", price: "$149", tier: "mid" },
+    { name: "Strymon Timeline", price: "$449", tier: "premium" }
+  ],
+  reverb: [
+    { name: "TC Electronic Hall of Fame 2", price: "$149", tier: "budget" },
+    { name: "Boss RV-6", price: "$169", tier: "mid" },
+    { name: "Strymon BigSky", price: "$479", tier: "premium" }
+  ],
+  modulation: [
+    { name: "MXR Phase 90", price: "$99", tier: "budget" },
+    { name: "Boss CE-5 Chorus", price: "$119", tier: "mid" },
+    { name: "EHX Small Clone", price: "$99", tier: "premium" }
+  ],
+  compressor: [
+    { name: "Donner Ultimate Comp", price: "$45", tier: "budget" },
+    { name: "Boss CS-3", price: "$109", tier: "mid" },
+    { name: "Keeley Compressor Plus", price: "$179", tier: "premium" }
+  ],
+  eq: [
+    { name: "Caline 10-Band EQ", price: "$45", tier: "budget" },
+    { name: "Boss GE-7", price: "$109", tier: "mid" },
+    { name: "MXR 10-Band M108S", price: "$149", tier: "premium" }
+  ],
+  wah: [
+    { name: "Donner Wah", price: "$45", tier: "budget" },
+    { name: "Dunlop Cry Baby GCB95", price: "$99", tier: "mid" },
+    { name: "Vox V847-A", price: "$119", tier: "premium" }
+  ],
+  pitch: [
+    { name: "Mooer Pitch Box", price: "$79", tier: "budget" },
+    { name: "EHX Pitch Fork", price: "$153", tier: "mid" },
+    { name: "DigiTech Whammy 5", price: "$199", tier: "premium" }
+  ],
+  gate: [
+    { name: "Donner Noise Killer", price: "$39", tier: "budget" },
+    { name: "Boss NS-2", price: "$119", tier: "mid" },
+    { name: "ISP Decimator II", price: "$199", tier: "premium" }
+  ]
+};
+
+// Effect categories the app will flag on the user's board to turn OFF when the tone doesn't use them.
+// Drive is only flagged for genuinely clean tones (a distorted tone may legitimately want the user's drive).
+const KEEP_OFF_CATEGORIES = new Set(["modulation", "delay", "reverb", "pitch", "wah"]);
+const CLEAN_TONE_TYPES = new Set(["clean", "acoustic", "bass_clean"]);
+
 function effectRole(effect: OriginalToneEffect, partLabel: string): string {
   const placement = effect.placement === "front" ? "in front of the amp" : effect.placement === "loop" ? "in the FX loop" : "after the gain stage";
   return `Used ${placement} on the ${partLabel}.`;
@@ -245,12 +324,122 @@ function buildMissingEffects(
       type: category,
       importance: effectImportance(category, partLabel),
       description: `${effect.name} was used on the original ${partLabel}. Your ${partLabel} may lose some of its character without a ${CATEGORY_LABELS[category] ?? category}.`,
-      substitution: substitutable ? `Use your amp's ${CATEGORY_LABELS[category] ?? category} if it has one.` : null
+      substitution: substitutable ? `Use your amp's ${CATEGORY_LABELS[category] ?? category} if it has one.` : null,
+      alternatives: PEDAL_ALTERNATIVES[category] ?? []
     });
   }
 
   const importanceRank = { important: 0, recommended: 1, "nice-to-have": 2 } as const;
   return missing.sort((left, right) => importanceRank[left.importance as keyof typeof importanceRank] - importanceRank[right.importance as keyof typeof importanceRank]);
+}
+
+// "Keep these off" — the user's own pedals whose effect the original tone did NOT use.
+function buildKeepOff(
+  request: NormalizedToneAdaptationRequest,
+  context: LoadedToneRequestContext,
+  originalEffects: OriginalToneEffect[],
+  toneType: string,
+  partLabel: string
+): Array<{ name: string; reason: string }> {
+  const originalCategories = new Set(originalEffects.map((effect) => effectCategory(effect.type)));
+  const toneIsClean = CLEAN_TONE_TYPES.has(String(toneType));
+
+  const userPedals: Array<{ name: string; category: string }> = [];
+  for (const pedal of context.gear.pedals) {
+    if (pedal.name) userPedals.push({ name: pedal.name, category: effectCategory(pedal.type) });
+  }
+  for (const pedal of request.pedals) {
+    if (pedal.name && !userPedals.some((entry) => entry.name === pedal.name)) {
+      userPedals.push({ name: pedal.name, category: effectCategory(inferPedalType(pedal.name)) });
+    }
+  }
+
+  const seen = new Set<string>();
+  const keepOff: Array<{ name: string; reason: string }> = [];
+  for (const pedal of userPedals) {
+    const shouldFlag = KEEP_OFF_CATEGORIES.has(pedal.category) || (pedal.category === "drive" && toneIsClean);
+    if (!shouldFlag || originalCategories.has(pedal.category)) continue;
+    const key = pedal.name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    keepOff.push({
+      name: pedal.name,
+      reason: `The original ${partLabel} didn't use ${CATEGORY_LABELS[pedal.category] ?? pedal.category} — keep it off for an accurate match.`
+    });
+  }
+  return keepOff;
+}
+
+// Adapted cabinet recommendation — the original result never surfaced a cab on the user's side.
+function buildAdaptedCabinet(
+  originalCab: string | null,
+  originalAmp: string | null,
+  context: LoadedToneRequestContext
+): { recommendation: string; reason: string } | null {
+  const character = describeCabCharacter(originalCab, originalAmp);
+  if (!character && !originalCab) {
+    return null;
+  }
+
+  const recommendation = character ?? (originalCab ? humanize(originalCab) : "Matched cab voicing");
+  const originalRef = originalCab ? ` The original used ${originalCab}.` : "";
+  const technology = context.gear.amplifier?.technology ?? null;
+
+  if (context.gear.goingDirect || technology === "digital_modeling" || technology === "plugin") {
+    const unit = context.gear.multiFx?.name ?? context.gear.amplifier?.name ?? "your modeler";
+    return {
+      recommendation,
+      reason: `Load a ${recommendation.toLowerCase()} cab IR in ${unit}.${originalRef}`
+    };
+  }
+
+  const userCab = context.gear.cabinet?.name ?? null;
+  if (userCab) {
+    return {
+      recommendation: userCab,
+      reason: `Run your ${userCab} and aim for a ${recommendation.toLowerCase()} voicing.${originalRef}`
+    };
+  }
+
+  const amp = context.gear.amplifier?.name ?? "your amp";
+  return {
+    recommendation,
+    reason: `Pair ${amp} with a ${recommendation.toLowerCase()}.${originalRef}`
+  };
+}
+
+function describeCabCharacter(originalCab: string | null, originalAmp: string | null): string | null {
+  const text = `${originalCab ?? ""} ${originalAmp ?? ""}`.toLowerCase();
+  if (!text.trim()) return null;
+
+  const size = /4\s*x\s*12/.test(text)
+    ? "4×12"
+    : /2\s*x\s*12/.test(text)
+      ? "2×12"
+      : /1\s*x\s*12/.test(text)
+        ? "1×12"
+        : /1\s*x\s*10/.test(text)
+          ? "1×10"
+          : null;
+
+  let speaker: string | null = null;
+  if (/v30|vintage\s*30/.test(text)) speaker = "V30-style";
+  else if (/greenback|g12m/.test(text)) speaker = "Greenback-style";
+  else if (/creamback|g12h/.test(text)) speaker = "Creamback-style";
+  else if (/celestion\s*blue|alnico\s*blue/.test(text)) speaker = "Celestion Blue-style";
+  else if (/jensen/.test(text)) speaker = "Jensen-style";
+  else if (/eminence/.test(text)) speaker = "Eminence-style";
+
+  const back = /closed[\s-]*back/.test(text) || (size === "4×12" && !/open/.test(text))
+    ? "closed-back"
+    : /open[\s-]*back|combo|deluxe|twin|princeton|vibro|champ|ac30|ac15|tweed/.test(text)
+      ? "open-back"
+      : null;
+
+  const parts = [back, size, speaker ? `with ${speaker} speakers` : null].filter(Boolean);
+  if (!parts.length) return null;
+  const label = parts.join(" ");
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 const REVERB_TYPE_FROM_AMP: Array<{ pattern: RegExp; reverbType: string }> = [
