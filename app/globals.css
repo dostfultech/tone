@@ -47,6 +47,21 @@ textarea {
   font: inherit;
 }
 
+/*
+ * Mobile: keep every text-entry control at >=16px so iOS Safari does not
+ * auto-zoom (and jerk the layout around) the moment a field gains focus — the
+ * single biggest friction point on the song-search and gear pickers, which are
+ * 14px (.field) on desktop. Desktop keeps its compact size; checkbox / radio /
+ * range / color are exempt so their box sizing is untouched.
+ */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 a {
   color: inherit;
   text-decoration: none;

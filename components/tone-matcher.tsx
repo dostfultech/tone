@@ -1262,13 +1262,13 @@ export function ToneMatcher() {
 
   return (
     <div className="px-4 pb-14 pt-24 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1440px]">
-        <section className="theme-panel theme-blue-panel mx-auto max-w-5xl px-6 py-12 text-center lg:py-14">
+      <div className="mx-auto flex max-w-[1440px] flex-col">
+        <section className="order-1 theme-panel theme-blue-panel mx-auto w-full max-w-5xl px-5 py-7 text-center sm:px-6 sm:py-10 lg:py-14">
           <div className="inline-flex items-center gap-2 rounded-md border border-white/80 bg-white/80 px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-600 shadow-sm">
             <Sparkles className="h-4 w-4" />
             {firstAdaptationOnboarding ? "Adapt your first tone" : "Built around your rig"}
           </div>
-          <h1 className="mx-auto mt-7 max-w-4xl text-4xl font-bold leading-tight tracking-normal text-ink sm:text-5xl">
+          <h1 className="mx-auto mt-5 max-w-4xl text-3xl font-bold leading-tight tracking-normal text-ink sm:mt-7 sm:text-5xl">
             {firstAdaptationOnboarding ? (
               <>
                 <span className="block">Your gear is ready.</span>
@@ -1281,12 +1281,12 @@ export function ToneMatcher() {
               </>
             )}
           </h1>
-          <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-slate-600">
+          <p className="mx-auto mt-4 max-w-3xl text-base leading-7 text-slate-600 sm:mt-5 sm:text-lg sm:leading-8">
             {firstAdaptationOnboarding
               ? "We’ll use your saved rig automatically. Search for a song, choose the part you want, and get your first personalized tone in one clean flow."
               : `Name the song. ${brand.appName} reads the original rig and writes the settings for your guitar, amp, and pedals — knob by knob.`}
           </p>
-          <div className="mx-auto mt-9 grid w-full max-w-md grid-cols-2 rounded-lg border border-white/80 bg-white/80 p-2 shadow-xl">
+          <div className="mx-auto mt-6 grid w-full max-w-md grid-cols-2 rounded-lg border border-white/80 bg-white/80 p-2 shadow-xl sm:mt-9">
             {[
               { value: "guitar", label: "Guitar", icon: Guitar },
               { value: "bass", label: "Bass", icon: Volume2 }
@@ -1330,7 +1330,7 @@ export function ToneMatcher() {
         </section>
 
         {!firstAdaptationOnboarding ? (
-          <section className="mt-14">
+          <section className="order-8 mt-12 lg:order-2 lg:mt-14">
           <div className="mb-6 text-center">
             <div className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-ink text-moss shadow-lg">
               <Flame className="h-6 w-6" />
@@ -1370,20 +1370,20 @@ export function ToneMatcher() {
           </div>
           </section>
         ) : (
-          <div className="mt-10 rounded-lg border border-moss/50 bg-moss/10 px-5 py-4 text-sm text-ink">
+          <div className="order-2 mt-10 rounded-lg border border-moss/50 bg-moss/10 px-5 py-4 text-sm text-ink">
             <div className="font-bold">{freeBannerCopy?.title || "You can adapt this tone with your saved gear."}</div>
             <div className="mt-1 text-slate-700">{freeBannerCopy?.body || "Only a successful adapted tone uses a credit. Searching, browsing, and changing your gear do not."}</div>
           </div>
         )}
 
         {firstAdaptationOnboarding ? (
-          <div className="mt-10">
+          <div className="order-3 mt-10">
             <OnboardingProgress currentStep={3} />
           </div>
         ) : null}
 
         {subscriptionSnapshot?.user && !subscriptionSnapshot.isTrialing ? (
-          <div className="mt-10 space-y-4">
+          <div className="order-7 mt-10 space-y-4 lg:order-4">
             <FreeAdaptationSummary {...getAdaptationSummaryProps(subscriptionSnapshot)} />
             {!subscriptionSnapshot.hasAccess ? (
               <UnlockAccessButton
@@ -1397,21 +1397,25 @@ export function ToneMatcher() {
         ) : null}
 
         {celebrationMessage ? (
-          <div className="mt-8 rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-900">
+          <div className="order-5 mt-8 rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-900">
             {celebrationMessage}
           </div>
         ) : null}
 
-        <FirstToneSavedPopup
-          open={Boolean(firstTonePopup)}
-          song={firstTonePopup?.song}
-          artist={firstTonePopup?.artist}
-          onClose={() => setFirstTonePopup(null)}
-        />
+        <div className="order-9">
+          <FirstToneSavedPopup
+            open={Boolean(firstTonePopup)}
+            song={firstTonePopup?.song}
+            artist={firstTonePopup?.artist}
+            onClose={() => setFirstTonePopup(null)}
+          />
+        </div>
 
-        <StepProgress />
+        <div className="order-2 lg:order-6">
+          <StepProgress />
+        </div>
 
-        <form onSubmit={submit} className="mt-12 grid gap-10">
+        <form onSubmit={submit} className="order-4 mt-8 grid gap-10 lg:order-7 lg:mt-12">
           <WorkflowCard step="1" title="Your Rig">
             <div className="grid gap-8">
               <div>
@@ -2042,7 +2046,7 @@ function StepProgress() {
   ];
 
   return (
-    <div className="mx-auto mt-16 grid max-w-4xl grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-5">
+    <div className="mx-auto mt-8 grid max-w-4xl grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-5 sm:mt-16">
       {steps.map(([number, label], index) => (
         <div key={number} className="contents">
           <div className="text-center">

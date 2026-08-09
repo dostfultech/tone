@@ -86,7 +86,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  // No maximumScale lock — let players pinch-zoom knob values / fine print
+  // (locking zoom is an accessibility anti-pattern and doesn't stop iOS's
+  //  focus-zoom anyway; the >=16px rule in globals.css handles that).
   viewportFit: "cover"
 };
 
