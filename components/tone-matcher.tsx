@@ -96,6 +96,7 @@ type TonePresentationDto = {
       alternatives?: Array<{ name: string; price: string; tier: "budget" | "mid" | "premium" }>;
     }>;
     keepOff?: Array<{ name: string; reason: string }>;
+    pedalSettings?: Array<{ name: string; setting: string; role: string }>;
     playingNotes: string[];
   };
   confidence: { score: number; factors: string[] };
@@ -3027,6 +3028,23 @@ function SplitResultBody({ result, presentation }: { result: ToneResult; present
               {adapted.playingNotes.map((note) => (
                 <div key={note} className="rounded-md border border-white/80 bg-blue-50/70 px-3 py-2 text-sm leading-6 text-slate-700">
                   {note}
+                </div>
+              ))}
+            </div>
+          </ResultCard>
+        ) : null}
+
+        {adapted.pedalSettings?.length ? (
+          <ResultCard title="Dial In Your Pedals" icon={<SlidersHorizontal className="h-3.5 w-3.5" />}>
+            <div className="grid gap-2">
+              {adapted.pedalSettings.map((pedal) => (
+                <div key={pedal.name} className="rounded-md border border-slate-200 bg-white px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-bold text-ink">{pedal.name}</span>
+                    <span className="rounded bg-moss/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink">On</span>
+                  </div>
+                  <p className="mt-1 text-sm font-semibold text-ocean">{pedal.setting}</p>
+                  <p className="mt-0.5 text-xs leading-5 text-slate-500">{pedal.role}</p>
                 </div>
               ))}
             </div>

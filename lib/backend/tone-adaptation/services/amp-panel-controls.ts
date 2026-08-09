@@ -247,6 +247,16 @@ function modelerAmpControl(ctx: AmpPanelContext): AmpPanelControl {
   const modelerLabel = modeler === "helix" ? "Helix/HX" : "AmpliTube";
 
   if (exactModel) {
+    // AmpliTube sells amp models à la carte, so the user may not own the exact one.
+    // Lead with the specific model but make clear a similar owned model is fine.
+    if (modeler === "amplitube") {
+      return {
+        key: "amp_model",
+        label: "Amp Model",
+        value: `"${exactModel}" or similar`,
+        note: `AmpliTube models are sold separately — load "${exactModel}" if you own it, otherwise any similar ${ctx.originalAmp}-style model works.`
+      };
+    }
     return {
       key: "amp_model",
       label: "Amp Model",

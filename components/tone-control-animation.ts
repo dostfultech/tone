@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+// Real amp-panel EQ controls only. Reverb / delay / compression are EFFECTS, not amp
+// knobs (most amps don't have them) — they're surfaced in the effects section instead,
+// so we never show a knob the user's amp doesn't physically have.
 const toneControlOrder = [
   "gain",
   "bass",
@@ -9,12 +12,9 @@ const toneControlOrder = [
   "mid",
   "treble",
   "presence",
-  "reverb",
-  "delay",
   "master",
   "volume",
-  "tone",
-  "compression"
+  "tone"
 ] as const;
 
 type ToneControlKey = (typeof toneControlOrder)[number];
@@ -27,7 +27,7 @@ const fallbackControls: Array<readonly [string, number]> = [
   ["mids", 0],
   ["treble", 0],
   ["presence", 0],
-  ["reverb", 0]
+  ["master", 0]
 ];
 
 export function formatToneControlName(name: string) {

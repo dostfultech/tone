@@ -67,6 +67,7 @@ export interface TonePresentation {
       alternatives: Array<{ name: string; price: string; tier: "budget" | "mid" | "premium" }>;
     }>;
     keepOff: Array<{ name: string; reason: string }>;
+    pedalSettings: Array<{ name: string; setting: string; role: string }>;
     playingNotes: string[];
   };
   confidence: { score: number; factors: string[] };
@@ -93,6 +94,14 @@ export function buildTonePresentation(
 
   const missingEffects = buildMissingEffects(originalEffects, userPedalCoverage, partLabel, gear.goingDirect, Boolean(gear.multiFx), userAmpIsModeler);
   const keepOff = buildKeepOff(request, context, originalEffects, source.toneType, partLabel);
+  const pedalSettings = buildPedalSettings(
+    request,
+    context,
+    originalEffects,
+    source.toneType,
+    source.partType,
+    new Set(keepOff.map((entry) => entry.name))
+  );
   const adaptedCabinet = buildAdaptedCabinet(original?.cab ?? null, original?.amp ?? null, context);
   const ampControls = buildAmpPanelControls({
     ampName: context.gear.amplifier?.name ?? context.gear.multiFx?.name ?? request.amp?.name ?? "",
@@ -145,6 +154,7 @@ export function buildTonePresentation(
       ampEffectsSettings,
       missingEffects,
       keepOff,
+      pedalSettings,
       playingNotes: buildPlayingNotes(original?.playingNotes ?? [], original?.adaptationNotes ?? [], missingEffects)
     },
     confidence: computeConfidence(source.confidence, context)
@@ -274,6 +284,8 @@ const PEDAL_ALTERNATIVES: Record<string, PedalAlternative[]> = {
 // Drive is only flagged for genuinely clean tones (a distorted tone may legitimately want the user's drive).
 const KEEP_OFF_CATEGORIES = new Set(["modulation", "delay", "reverb", "pitch", "wah"]);
 const CLEAN_TONE_TYPES = new Set(["clean", "acoustic", "bass_clean"]);
+const HEAVY_TONE_TYPES = new Set(["high_gain", "metal", "modern_metal", "heavy", "djent"]);
+const CRUNCH_TONE_TYPES = new Set(["crunch", "edge_of_breakup", "classic_rock"]);
 
 function effectRole(effect: OriginalToneEffect, partLabel: string): string {
   const placement = effect.placement === "front" ? "in front of the amp" : effect.placement === "loop" ? "in the FX loop" : "after the gain stage";
@@ -397,6 +409,90 @@ function buildKeepOff(
     });
   }
   return keepOff;
+}
+
+// Per-pedal "how to dial it" for the pedals the user selected and should keep ON. Pedals the
+// tone doesn't use are handled by buildKeepOff (the OFF list); every other selected pedal gets
+// a concrete setting + role here — so a user's pedal is never silently ignored (tester feedback).
+function buildPedalSettings(
+  request: NormalizedToneAdaptationRequest,
+  context: LoadedToneRequestContext,
+  originalEffects: OriginalToneEffect[],
+  toneType: string,
+  partType: string,
+  keepOffNames: Set<string>
+): Array<{ name: string; setting: string; role: string }> {
+  const originalCategories = new Set(originalEffects.map((effect) => effectCategory(effect.type)));
+  const flags = {
+    heavy: HEAVY_TONE_TYPES.has(String(toneType)),
+    crunch: CRUNCH_TONE_TYPES.has(String(toneType)),
+    clean: CLEAN_TONE_TYPES.has(String(toneType)),
+    lead: partType === "solo" || partType === "lead"
+  };
+
+  // Same fuzzy dedup as buildKeepOff so a name-drift twin isn't listed twice.
+  const pedals: Array<{ name: string; category: string }> = [];
+  const addPedal = (name: string | null | undefined, category: string) => {
+    if (!name) return;
+    if (pedals.some((entry) => sameGear(entry.name, name))) return;
+    pedals.push({ name, category });
+  };
+  for (const pedal of context.gear.pedals) addPedal(pedal.name, effectCategory(pedal.type));
+  for (const pedal of request.pedals) addPedal(pedal.name, effectCategory(inferPedalType(pedal.name ?? "")));
+
+  const out: Array<{ name: string; setting: string; role: string }> = [];
+  for (const pedal of pedals) {
+    if (keepOffNames.has(pedal.name)) continue; // already on the OFF list
+    const guidance = pedalGuidanceFor(pedal.category, { ...flags, originalUses: originalCategories.has(pedal.category) });
+    if (guidance) out.push({ name: pedal.name, setting: guidance.setting, role: guidance.role });
+  }
+  return out;
+}
+
+function pedalGuidanceFor(
+  category: string,
+  ctx: { heavy: boolean; crunch: boolean; clean: boolean; lead: boolean; originalUses: boolean }
+): { setting: string; role: string } | null {
+  switch (category) {
+    case "drive":
+      if (ctx.heavy) {
+        return {
+          setting: "Drive 0 · Level 7–8 · Tone ~6",
+          role: "Run it as a clean boost in front of the amp — tightens the low end and pushes the gain without adding its own dirt."
+        };
+      }
+      if (ctx.crunch) {
+        return ctx.originalUses
+          ? { setting: "Drive 5–6 · Level ~6 · Tone 5–6", role: "This is the main dirt — dial the grit here and keep the amp itself cleaner." }
+          : { setting: "Drive 2–3 · Level 7 · Tone 6", role: "Light boost to push the amp into breakup and add mids." };
+      }
+      return { setting: "Drive 3–4 · Level 6–7 · Tone 5–6", role: "Adds gain and mids in front of the amp." };
+    case "delay":
+      return {
+        setting: ctx.lead ? "¼-note time · 3–4 repeats · Mix 25–30%" : "Dotted-⅛ or ¼ time · 2–3 repeats · Mix 15–20%",
+        role: "Matches the original's delay — set the time to the song's tempo."
+      };
+    case "reverb":
+      return {
+        setting: ctx.clean ? "Spring/Room · Mix 20–30%" : "Room · Mix 10–20%",
+        role: "Adds the original's ambience — keep it subtle so riffs stay defined."
+      };
+    case "modulation":
+      return { setting: "Rate & Depth low (subtle)", role: "Matches the original's modulation movement." };
+    case "compressor":
+      return ctx.clean
+        ? { setting: "Ratio low · light squish · Level unity", role: "Evens out clean picking and adds a little sustain." }
+        : { setting: "Light · Level unity", role: "Optional — a touch of compression for consistency." };
+    case "wah":
+      return { setting: "Sweep by ear", role: "For the wah passages — or park it for a fixed cocked-wah tone." };
+    case "gate":
+      return {
+        setting: ctx.heavy ? "Threshold just enough to kill hum · fast release" : "Light / off",
+        role: "Tightens string and amp noise on high-gain patches."
+      };
+    default:
+      return null;
+  }
 }
 
 // Adapted cabinet recommendation — the original result never surfaced a cab on the user's side.
@@ -718,6 +814,15 @@ function buildAmpConfiguration(
     return null;
   }
 
+  // The "set the amp type + Boss Tone Studio variation" workflow is specific to Boss
+  // Katana / Nextone. Other modelers (AmpliTube, Helix, Neural, Fractal…) get their
+  // amp-model guidance from buildAmpPanelControls instead — never show them Boss-only
+  // instructions like "connect to Boss Tone Studio".
+  const ampName = context.gear.amplifier?.name ?? context.gear.multiFx?.name ?? "your modeler";
+  if (!/katana|nextone/i.test(ampName)) {
+    return null;
+  }
+
   const matched = originalAmp ? PRESET_KEYWORDS.find((entry) => entry.pattern.test(originalAmp)) : undefined;
   const fallbackPreset =
     toneType === "clean" || toneType === "acoustic" || toneType === "bass_clean"
@@ -730,7 +835,6 @@ function buildAmpConfiguration(
 
   const preset = matched?.preset ?? fallbackPreset;
   const frontPanelChannel = matched?.channel ?? TONE_TYPE_CHANNELS[String(toneType)] ?? "Clean";
-  const ampName = context.gear.amplifier?.name ?? context.gear.multiFx?.name ?? "your modeler";
   const hasToneStudioVariation = matched != null && matched.preset !== frontPanelChannel;
 
   return {

@@ -50,7 +50,12 @@ test("cache hit returns cached result without running the rule engine", async ()
   assert.equal(response.source.cacheWrite, "not_attempted");
   assert.equal(harness.ruleEngineCalls, 0);
   assert.equal(harness.cacheTouches, 1);
-  assert.deepEqual(response.result, cachedResult);
+  // The rule-engine output is served straight from cache, but the PRESENTATION layer is
+  // rebuilt on every hit (deterministic, no rule engine) so improvements reach already-cached
+  // tones. So the cached result is returned verbatim aside from a freshly attached presentation.
+  const { presentation, ...cachedResultFields } = response.result as unknown as Record<string, unknown>;
+  assert.deepEqual(cachedResultFields, cachedResult);
+  assert.ok(presentation, "cache hit should attach a freshly rebuilt presentation");
 });
 
 test("cache miss runs the deterministic rule engine once and writes cache", async () => {
