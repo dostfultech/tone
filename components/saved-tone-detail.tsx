@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import {
   ChevronRight,
+  ExternalLink,
   Gauge,
   Guitar,
   Info,
@@ -40,6 +41,7 @@ type Presentation = {
     pedalsUsed: Array<{ name: string; type: string; importance: string; role: string }>;
     ampEffects: Array<{ effect: string; level: number }>;
     sources: Array<{ type: string; title: string; url: string | null }>;
+    researchLinks?: Array<{ label: string; url: string }>;
   };
   adapted: {
     gearSummary: string;
@@ -261,6 +263,25 @@ function FullPresentationView({
                   )}
                   <span className="ml-2 text-xs capitalize text-slate-400">{source.type.replace(/_/g, " ")}</span>
                 </div>
+              ))}
+            </div>
+          </ResultCard>
+        ) : null}
+
+        {original.researchLinks?.length ? (
+          <ResultCard title="Research the Tone" icon={<ExternalLink className="h-3.5 w-3.5" />}>
+            <div className="grid gap-2">
+              {original.researchLinks.map((link) => (
+                <a
+                  key={link.url}
+                  href={link.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm font-semibold text-ocean transition-colors hover:bg-ocean/5"
+                >
+                  {link.label}
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                </a>
               ))}
             </div>
           </ResultCard>

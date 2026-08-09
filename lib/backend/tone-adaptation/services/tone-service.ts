@@ -88,7 +88,17 @@ export class ToneService {
         sourceHydrationUsed
       });
       this.logger.info("cache_hit", source);
-      return this.createResponse(request.requestId, context, cached.result, source);
+      // The rule-engine output is cached, but the PRESENTATION layer (cabinet, amp panel
+      // controls, keep-off, priced alternatives, research links, copy) is deterministic and
+      // cheap to rebuild — no AI, no extra DB reads. Rebuild it on every hit so improvements
+      // and fixes to the presentation reach ALL tones immediately, not only ones computed
+      // after the change. Without this, thousands of already-cached song+gear combos would
+      // keep serving the presentation format frozen at their original write time.
+      const refreshedResult = {
+        ...cached.result,
+        presentation: buildTonePresentation(request, context, cached.result)
+      };
+      return this.createResponse(request.requestId, context, refreshedResult, source);
     }
 
     this.logger.info("cache_miss", {

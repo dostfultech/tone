@@ -46,6 +46,7 @@ export interface TonePresentation {
     pedalsUsed: TonePresentationEffectEntry[];
     ampEffects: Array<{ effect: string; level: number }>;
     sources: Array<{ type: string; title: string; url: string | null }>;
+    researchLinks: Array<{ label: string; url: string }>;
   };
   adapted: {
     gearSummary: string;
@@ -127,7 +128,10 @@ export function buildTonePresentation(
         role: effectRole(effect, partLabel)
       })),
       ampEffects: buildOriginalAmpEffects(originalSettings),
-      sources: (original?.sources ?? []).map((entry) => ({ type: entry.type, title: entry.title, url: entry.url ?? null }))
+      sources: (original?.sources ?? [])
+        .filter((entry) => Boolean(entry.url))
+        .map((entry) => ({ type: entry.type, title: entry.title, url: entry.url ?? null })),
+      researchLinks: buildResearchLinks(source.songTitle, source.artistName)
     },
     adapted: {
       gearSummary: buildGearSummary(request, context),
@@ -334,6 +338,29 @@ function buildMissingEffects(
 }
 
 // "Keep these off" — the user's own pedals whose effect the original tone did NOT use.
+// Two gear names refer to the SAME physical unit when one is a substring of the other
+// (after stripping punctuation/spacing) or they share an alphanumeric model token like
+// "ds1" / "dd7" / "ts9". This collapses a raw request name ("Boss DS-1 Distortion") and
+// its catalog-resolved twin ("Keeley Andy Timmons Mod Boss DS-1") into one entry so the
+// user never sees the same pedal listed twice. Pure-number tokens (e.g. "90") are ignored
+// to avoid false merges between unrelated pedals.
+function sameGear(a: string, b: string): boolean {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const na = norm(a);
+  const nb = norm(b);
+  if (!na || !nb) return false;
+  if (na.includes(nb) || nb.includes(na)) return true;
+  // Model designators like "DS-1", "DD-7", "TS9", "GCB95", "M108S" — a short letter run
+  // immediately followed by digits (an optional single separator between them). The
+  // separator is stripped so "DS-1" and "DS1" compare equal. A space breaks the run, so
+  // "Phase 90" yields no model token and never false-merges with another "…90" pedal.
+  const modelTokens = (s: string) =>
+    (s.toLowerCase().match(/[a-z]{1,4}-?\d{1,4}[a-z]?/g) ?? []).map((token) => token.replace(/-/g, ""));
+  const ma = modelTokens(a);
+  const mb = modelTokens(b);
+  return ma.length > 0 && ma.some((token) => mb.includes(token));
+}
+
 function buildKeepOff(
   request: NormalizedToneAdaptationRequest,
   context: LoadedToneRequestContext,
@@ -344,24 +371,26 @@ function buildKeepOff(
   const originalCategories = new Set(originalEffects.map((effect) => effectCategory(effect.type)));
   const toneIsClean = CLEAN_TONE_TYPES.has(String(toneType));
 
+  // Resolved gear first (the units the rule engine reasoned about), then any raw request
+  // pedals that failed to resolve — deduped by fuzzy identity so a name-drift twin of an
+  // already-listed pedal is not added a second time.
   const userPedals: Array<{ name: string; category: string }> = [];
+  const addPedal = (name: string | null | undefined, category: string) => {
+    if (!name) return;
+    if (userPedals.some((entry) => sameGear(entry.name, name))) return;
+    userPedals.push({ name, category });
+  };
   for (const pedal of context.gear.pedals) {
-    if (pedal.name) userPedals.push({ name: pedal.name, category: effectCategory(pedal.type) });
+    addPedal(pedal.name, effectCategory(pedal.type));
   }
   for (const pedal of request.pedals) {
-    if (pedal.name && !userPedals.some((entry) => entry.name === pedal.name)) {
-      userPedals.push({ name: pedal.name, category: effectCategory(inferPedalType(pedal.name)) });
-    }
+    addPedal(pedal.name, effectCategory(inferPedalType(pedal.name ?? "")));
   }
 
-  const seen = new Set<string>();
   const keepOff: Array<{ name: string; reason: string }> = [];
   for (const pedal of userPedals) {
     const shouldFlag = KEEP_OFF_CATEGORIES.has(pedal.category) || (pedal.category === "drive" && toneIsClean);
     if (!shouldFlag || originalCategories.has(pedal.category)) continue;
-    const key = pedal.name.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
     keepOff.push({
       name: pedal.name,
       reason: `The original ${partLabel} didn't use ${CATEGORY_LABELS[pedal.category] ?? pedal.category} — keep it off for an accurate match.`
@@ -385,11 +414,17 @@ function buildAdaptedCabinet(
   const originalRef = originalCab ? ` The original used ${originalCab}.` : "";
   const technology = context.gear.amplifier?.technology ?? null;
 
+  // A generic descriptor ("Closed-back 4×12") reads naturally lowercased; a proper cab
+  // name ("Ampeg SVT 8×10") must keep its casing. Pick the article from the first sound so
+  // we never emit "a ampeg…".
+  const phrase = character ? recommendation.toLowerCase() : recommendation;
+  const article = /^[aeiou]/i.test(phrase) ? "an" : "a";
+
   if (context.gear.goingDirect || technology === "digital_modeling" || technology === "plugin") {
     const unit = context.gear.multiFx?.name ?? context.gear.amplifier?.name ?? "your modeler";
     return {
       recommendation,
-      reason: `Load a ${recommendation.toLowerCase()} cab IR in ${unit}.${originalRef}`
+      reason: `Load ${article} ${phrase} cab IR in ${unit}.${originalRef}`
     };
   }
 
@@ -397,14 +432,14 @@ function buildAdaptedCabinet(
   if (userCab) {
     return {
       recommendation: userCab,
-      reason: `Run your ${userCab} and aim for a ${recommendation.toLowerCase()} voicing.${originalRef}`
+      reason: `Run your ${userCab} and aim for ${article} ${phrase} voicing.${originalRef}`
     };
   }
 
   const amp = context.gear.amplifier?.name ?? "your amp";
   return {
     recommendation,
-    reason: `Pair ${amp} with a ${recommendation.toLowerCase()}.${originalRef}`
+    reason: `Pair ${amp} with ${article} ${phrase}.${originalRef}`
   };
 }
 
@@ -412,15 +447,27 @@ function describeCabCharacter(originalCab: string | null, originalAmp: string | 
   const text = `${originalCab ?? ""} ${originalAmp ?? ""}`.toLowerCase();
   if (!text.trim()) return null;
 
-  const size = /4\s*x\s*12/.test(text)
-    ? "4×12"
-    : /2\s*x\s*12/.test(text)
-      ? "2×12"
-      : /1\s*x\s*12/.test(text)
-        ? "1×12"
-        : /1\s*x\s*10/.test(text)
-          ? "1×10"
-          : null;
+  const size = /8\s*x\s*10/.test(text)
+    ? "8×10"
+    : /6\s*x\s*10/.test(text)
+      ? "6×10"
+      : /4\s*x\s*10/.test(text)
+        ? "4×10"
+        : /2\s*x\s*10/.test(text)
+          ? "2×10"
+          : /1\s*x\s*15/.test(text)
+            ? "1×15"
+            : /1\s*x\s*18/.test(text)
+              ? "1×18"
+              : /4\s*x\s*12/.test(text)
+                ? "4×12"
+                : /2\s*x\s*12/.test(text)
+                  ? "2×12"
+                  : /1\s*x\s*12/.test(text)
+                    ? "1×12"
+                    : /1\s*x\s*10/.test(text)
+                      ? "1×10"
+                      : null;
 
   let speaker: string | null = null;
   if (/v30|vintage\s*30/.test(text)) speaker = "V30-style";
@@ -430,11 +477,14 @@ function describeCabCharacter(originalCab: string | null, originalAmp: string | 
   else if (/jensen/.test(text)) speaker = "Jensen-style";
   else if (/eminence/.test(text)) speaker = "Eminence-style";
 
-  const back = /closed[\s-]*back/.test(text) || (size === "4×12" && !/open/.test(text))
-    ? "closed-back"
-    : /open[\s-]*back|combo|deluxe|twin|princeton|vibro|champ|ac30|ac15|tweed/.test(text)
-      ? "open-back"
-      : null;
+  const sealedBassCab = size === "8×10" || size === "6×10";
+  const back = sealedBassCab || /\bsealed\b/.test(text)
+    ? "sealed"
+    : /closed[\s-]*back/.test(text) || (size === "4×12" && !/open/.test(text))
+      ? "closed-back"
+      : /open[\s-]*back|combo|deluxe|twin|princeton|vibro|champ|ac30|ac15|tweed/.test(text)
+        ? "open-back"
+        : null;
 
   const parts = [back, size, speaker ? `with ${speaker} speakers` : null].filter(Boolean);
   if (!parts.length) return null;
@@ -530,6 +580,26 @@ function buildAmpEffectsSettings(
   }
 
   return entries;
+}
+
+// Deterministic, always-valid outbound research destinations for the original tone.
+// These are real working search/reference endpoints — NOT fabricated "sources we analyzed".
+function buildResearchLinks(song: string, artist: string): Array<{ label: string; url: string }> {
+  const songArtist = `${song} ${artist}`.trim();
+  if (!songArtist) {
+    return [];
+  }
+  const q = (value: string) => encodeURIComponent(value);
+  const links: Array<{ label: string; url: string }> = [];
+
+  if (artist) {
+    links.push({ label: `${artist}'s gear on Equipboard`, url: `https://equipboard.com/search?q=${q(artist)}` });
+  }
+  links.push({ label: "Amp settings & tone breakdown", url: `https://www.google.com/search?q=${q(`${songArtist} guitar tone amp settings`)}` });
+  links.push({ label: "Tab on Ultimate Guitar", url: `https://www.ultimate-guitar.com/search.php?search_type=title&value=${q(songArtist)}` });
+  links.push({ label: "Rig rundown on YouTube", url: `https://www.youtube.com/results?search_query=${q(`${artist || song} guitar rig rundown gear`)}` });
+
+  return links;
 }
 
 function buildOriginalAmpEffects(originalSettings: Record<string, number>) {

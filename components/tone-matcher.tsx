@@ -75,6 +75,7 @@ type TonePresentationDto = {
     pedalsUsed: Array<{ name: string; type: string; importance: string; role: string }>;
     ampEffects: Array<{ effect: string; level: number }>;
     sources: Array<{ type: string; title: string; url: string | null }>;
+    researchLinks?: Array<{ label: string; url: string }>;
   };
   adapted: {
     gearSummary: string;
@@ -92,9 +93,9 @@ type TonePresentationDto = {
       importance: string;
       description: string;
       substitution: string | null;
-      alternatives: Array<{ name: string; price: string; tier: "budget" | "mid" | "premium" }>;
+      alternatives?: Array<{ name: string; price: string; tier: "budget" | "mid" | "premium" }>;
     }>;
-    keepOff: Array<{ name: string; reason: string }>;
+    keepOff?: Array<{ name: string; reason: string }>;
     playingNotes: string[];
   };
   confidence: { score: number; factors: string[] };
@@ -2870,6 +2871,25 @@ function SplitResultBody({ result, presentation }: { result: ToneResult; present
             </div>
           </ResultCard>
         ) : null}
+
+        {original.researchLinks?.length ? (
+          <ResultCard title="Research the Tone" icon={<ExternalLink className="h-3.5 w-3.5" />}>
+            <div className="grid gap-2">
+              {original.researchLinks.map((link) => (
+                <a
+                  key={link.url}
+                  href={link.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm font-semibold text-ocean transition-colors hover:bg-ocean/5"
+                >
+                  {link.label}
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                </a>
+              ))}
+            </div>
+          </ResultCard>
+        ) : null}
       </motion.section>
 
       {/* YOUR ADAPTED TONE — right column */}
@@ -2975,7 +2995,7 @@ function SplitResultBody({ result, presentation }: { result: ToneResult; present
                   </div>
                   <p className="mt-1 text-sm leading-6 text-slate-600">{effect.description}</p>
                   {effect.substitution ? <p className="mt-1 text-xs font-semibold text-ocean">{effect.substitution}</p> : null}
-                  {effect.alternatives.length ? (
+                  {effect.alternatives?.length ? (
                     <div className="mt-2">
                       <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Consider these alternatives</p>
                       <div className="mt-1.5 grid gap-1.5 sm:grid-cols-3">
@@ -3009,7 +3029,7 @@ function SplitResultBody({ result, presentation }: { result: ToneResult; present
           </ResultCard>
         ) : null}
 
-        {adapted.keepOff.length ? (
+        {adapted.keepOff?.length ? (
           <ResultCard title="Keep These Off" icon={<X className="h-3.5 w-3.5" />}>
             <div className="grid gap-2">
               {adapted.keepOff.map((entry) => (

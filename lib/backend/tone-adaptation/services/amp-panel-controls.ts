@@ -187,26 +187,96 @@ function fenderBlackface(ctx: AmpPanelContext): AmpPanelControl[] {
   ];
 }
 
+// Amp archetype detection → precise, honest description + the well-documented Line 6 Helix
+// model name (Helix's amp list is stable and public). We name the ACTUAL original amp in the
+// instruction, so it's specific and true regardless of the user's modeler; the Helix string is
+// only surfaced when the user is on a Helix/HX/POD. Other modelers' proprietary model strings
+// are intentionally NOT guessed.
+// Archetype detection → precise character label + the specific model name inside the two
+// modelers whose amp lists are public/stable: Line 6 Helix/HX and IK AmpliTube 5. Names are
+// sourced (Helix docs; AmpliTube 5 gear list) — NOT guessed. Order: specific → broad.
+type ModelerModels = { helix?: string; amplitube?: string };
+const ARCHETYPES: Array<{ pattern: RegExp; label: string; models: ModelerModels }> = [
+  { pattern: /deluxe\s*reverb/i, label: "a blackface Fender Deluxe clean", models: { helix: "US Deluxe Nrm", amplitube: "'65 Deluxe Reverb" } },
+  { pattern: /princeton/i, label: "a Fender Princeton clean", models: { helix: "US Princess", amplitube: "'65 Princeton" } },
+  { pattern: /super\s*reverb/i, label: "a Fender Super Reverb clean", models: { helix: "US Double Nrm", amplitube: "'65 Super Reverb" } },
+  { pattern: /twin|vibrolux|vibroverb|blackface|silverface/i, label: "a blackface Fender clean", models: { helix: "US Double Nrm", amplitube: "'65 Twin Reverb" } },
+  { pattern: /bassman|tweed|\bchamp\b/i, label: "a tweed Fender-style", models: { helix: "Tweed Blues Nrm", amplitube: "'53 Bassman" } },
+  { pattern: /ac-?30|ac-?15|\bvox\b/i, label: "a Vox AC-style Class-A chime", models: { helix: "A30 Fawn Brt", amplitube: "BM 30" } },
+  { pattern: /jcm\s*800|2203|2204/i, label: "a Marshall JCM800", models: { helix: "Brit 2204", amplitube: "Brit 8000" } },
+  { pattern: /\bjvm\b|\bdsl\b|jcm\s*900/i, label: "a modern Marshall high-gain", models: { helix: "Brit 2204", amplitube: "Satch VM" } },
+  { pattern: /plexi|super\s*lead|1959|\bjtm\b|\bjmp\b/i, label: "a Marshall Plexi 100W", models: { helix: "Brit Plexi Brt", amplitube: "Super Lead (Plexi)" } },
+  { pattern: /triple\s*rec/i, label: "a Mesa Triple Rectifier high-gain", models: { helix: "Cali Rectifire Red", amplitube: "Triple Rectifier" } },
+  { pattern: /dual\s*rec|rectifier|recto/i, label: "a Mesa Rectifier modern high-gain", models: { helix: "Cali Rectifire Red", amplitube: "Dual Rectifier" } },
+  { pattern: /mark\s*iic|iic\+/i, label: "a Mesa Mark IIC+ lead", models: { helix: "Cali IV Lead", amplitube: "Mark IIC+" } },
+  { pattern: /mark\s*iv/i, label: "a Mesa Mark IV lead", models: { helix: "Cali IV Lead", amplitube: "Mark IV" } },
+  { pattern: /mark\s*(iii|v)|boogie\s*mark|\bmark\b/i, label: "a Mesa Mark-series lead", models: { helix: "Cali IV Lead", amplitube: "Mark IIC+" } },
+  { pattern: /soldano|\bslo\b/i, label: "a Soldano SLO-100 boutique high-gain", models: { helix: "Solo Lead OD", amplitube: "SLD 100" } },
+  { pattern: /5150|6505|\bevh\b/i, label: "an EVH / Peavey 5150 high-gain", models: { helix: "PV Panama", amplitube: "SJ50" } },
+  { pattern: /diezel|\bvh4\b/i, label: "a Diezel modern high-gain", models: { helix: "Fatality", amplitube: "VHandcraft 4" } },
+  { pattern: /friedman/i, label: "a Friedman hot-rodded Marshall", models: { helix: "Placater Dirty" } },
+  { pattern: /hiwatt/i, label: "a Hiwatt clean/crunch", models: { helix: "WhoWatt 100", amplitube: "HiAmp" } },
+  { pattern: /dumble|two-?rock|overdrive\s*special/i, label: "a Dumble-style smooth overdrive", models: { helix: "Line 6 Litigator" } },
+  { pattern: /jazz\s*chorus|jc-?120/i, label: "a Roland JC clean", models: { helix: "Jazz Rivet 120", amplitube: "Jazz Amp 120" } },
+  { pattern: /orange|rockerverb/i, label: "an Orange dirty-channel crunch", models: { amplitube: "RockerVerb 50" } },
+  { pattern: /marshall/i, label: "a Marshall-style British crunch", models: { helix: "Brit Plexi Nrm", amplitube: "Super Lead (Plexi)" } }
+];
+
+function describeAmpArchetype(originalAmp: string | null): { label: string | null; models: ModelerModels } {
+  if (!originalAmp) return { label: null, models: {} };
+  const match = ARCHETYPES.find((entry) => entry.pattern.test(originalAmp));
+  return match ? { label: match.label, models: match.models } : { label: null, models: {} };
+}
+
+function detectModeler(ampName: string): "helix" | "amplitube" | null {
+  if (/helix|\bhx\b|line\s*6|\bpod\b/i.test(ampName)) return "helix";
+  if (/amplitube|ik\s*multimedia/i.test(ampName)) return "amplitube";
+  return null;
+}
+
+// The amp-model recommendation for a modeler user — always names the real original amp (so it's
+// specific + true on any modeler), and gives the EXACT in-app model name when we can (Helix/HX,
+// AmpliTube). Other modelers get the accurate archetype rather than a guessed model string.
+function modelerAmpControl(ctx: AmpPanelContext): AmpPanelControl {
+  if (!ctx.originalAmp) {
+    return { key: "amp_model", label: "Amp Model", value: "Match to original", note: "Pick the amp model closest to the original amp." };
+  }
+  const arche = describeAmpArchetype(ctx.originalAmp);
+  const modeler = detectModeler(ctx.ampName);
+  const exactModel = modeler ? arche.models[modeler] : undefined;
+  const modelerLabel = modeler === "helix" ? "Helix/HX" : "AmpliTube";
+
+  if (exactModel) {
+    return {
+      key: "amp_model",
+      label: "Amp Model",
+      value: `"${exactModel}"`,
+      note: `Load ${modelerLabel}'s "${exactModel}" model — its take on a ${ctx.originalAmp}.`
+    };
+  }
+
+  const character = arche.label ? ` — ${arche.label}` : "";
+  return {
+    key: "amp_model",
+    label: "Amp Model",
+    value: `${ctx.originalAmp}-style`,
+    note: `Load the model closest to a ${ctx.originalAmp}${character}.`
+  };
+}
+
 // ── Generic app-modeler practice amps (Spark / Spider / Mustang / Vypyr / THR) ──
 function appModeler(ctx: AmpPanelContext): AmpPanelControl[] {
-  const controls: AmpPanelControl[] = [];
-  if (ctx.originalAmp) {
-    controls.push({ key: "amp_model", label: "Amp Model", value: "Match to original", note: `In the app, pick the amp model closest to a ${ctx.originalAmp}.` });
-  }
-  controls.push(gate(ctx.toneType));
-  return controls;
+  return [modelerAmpControl(ctx), gate(ctx.toneType)];
 }
 
 // ── Generic amp modeler / plugin (AmpliTube, Helix, Neural, Fractal, Boss GT, Pod…) ──
 function pluginModeler(ctx: AmpPanelContext): AmpPanelControl[] {
-  const controls: AmpPanelControl[] = [];
-  if (ctx.originalAmp) {
-    controls.push({ key: "amp_block", label: "Amp Model", value: "Match to original", note: `Load the amp model closest to a ${ctx.originalAmp}.` });
-  }
-  controls.push(gate(ctx.toneType));
-  controls.push({ key: "input_level", label: "Input Level", value: "Unity (0 dB)", note: "Set your interface input so the amp block sees a real instrument level." });
-  controls.push({ key: "cab_block", label: "Cab / IR Block", value: "On", note: "Keep the cab/IR block enabled — it is the speaker part of the tone." });
-  return controls;
+  return [
+    modelerAmpControl(ctx),
+    gate(ctx.toneType),
+    { key: "input_level", label: "Input Level", value: "Unity (0 dB)", note: "Set your interface input so the amp block sees a real instrument level." },
+    { key: "cab_block", label: "Cab / IR Block", value: "On", note: "Keep the cab/IR block enabled — it is the speaker part of the tone." }
+  ];
 }
 
 // Order matters: specific patterns before broad ones.
