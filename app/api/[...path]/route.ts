@@ -37,31 +37,37 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   if (route === "amps/lookup") {
     const dbResults = await searchEquipmentModels(supabaseClient, "amp", { query, limit: 60 });
+    void logGearSearch("amp", query, (dbResults || []).length);
     return json({ results: (dbResults || []).map(toCatalogItem) });
   }
 
   if (route === "guitars/lookup") {
     const dbResults = await searchEquipmentModels(supabaseClient, "guitar", { query, limit: 80 });
+    void logGearSearch("guitar", query, (dbResults || []).length);
     return json({ results: (dbResults || []).map(toCatalogItem) });
   }
 
   if (route === "bass-amps/lookup") {
     const dbResults = await searchEquipmentModels(supabaseClient, "amp", { query, limit: 40, instrumentType: "bass" });
+    void logGearSearch("bass_amp", query, (dbResults || []).length);
     return json({ results: (dbResults || []).map(toCatalogItem) });
   }
 
   if (route === "bass-guitars/lookup") {
     const dbResults = await searchEquipmentModels(supabaseClient, "guitar", { query, limit: 40, instrumentType: "bass" });
+    void logGearSearch("bass_guitar", query, (dbResults || []).length);
     return json({ results: (dbResults || []).map(toCatalogItem) });
   }
 
   if (route === "pedals/catalog") {
     const dbResults = await searchPedalModels(supabaseClient, { query, limit: 240 });
+    void logGearSearch("pedal", query, (dbResults || []).length);
     return json({ results: (dbResults || []).map(toCatalogResultFromGearSearchItem) });
   }
 
   if (route === "multi-fx/catalog") {
     const dbResults = await searchMultiFxModels(supabaseClient, { query, limit: 120 });
+    void logGearSearch("multifx", query, (dbResults || []).length);
     return json({ results: (dbResults || []).map(toCatalogResultFromGearSearchItem) });
   }
 
@@ -102,6 +108,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   if (route === "pickups/catalog") {
     const supabase = await createSupabaseServerClient();
     const pickups = await searchPickupModels(supabase, { query, limit: 200 });
+    void logGearSearch("pickup", query, (pickups || []).length);
     const results = (pickups || []).map((item) => ({
       id: item.id,
       name: item.displayName,
@@ -425,6 +432,31 @@ function json(data: unknown) {
       "Cache-Control": "no-store"
     }
   });
+}
+
+// Fire-and-forget gear-gap logging: when a guitar/amp/pedal/etc. search returns
+// ZERO catalog matches (including half-typed names), record it so we know which
+// gear to add next. Deduped + counted server-side by record_gear_search_miss.
+// Mirrors logSongSearch; never throws — logging must never break search.
+async function logGearSearch(kind: string, query: string, matchCount: number) {
+  try {
+    const normalized = query.trim();
+    if (normalized.length < 2 || matchCount > 0) {
+      return;
+    }
+    const admin = createSupabaseAdminClient();
+    if (!admin) {
+      return;
+    }
+    await admin.rpc("record_gear_search_miss", {
+      p_kind: kind,
+      p_query: normalized.slice(0, 160),
+      p_match_count: matchCount,
+      p_user_id: null
+    });
+  } catch {
+    // Logging must never break gear search.
+  }
 }
 
 // Fire-and-forget search-gap logging: record what users search for and whether
