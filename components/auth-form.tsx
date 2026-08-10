@@ -24,6 +24,8 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
   const [recoveryReady, setRecoveryReady] = useState(mode !== "update");
   const [oauthRedirecting, setOauthRedirecting] = useState(false);
   const googleAuthEnabled = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED !== "false";
+  const [pendingConfirmEmail, setPendingConfirmEmail] = useState("");
+  const [resendState, setResendState] = useState<"idle" | "sending" | "sent">("idle");
 
   useEffect(() => {
     const authMessage = searchParams.get("message");
@@ -168,7 +170,12 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
       if (signUpError) {
         setError(signUpError.message);
       } else {
-        setMessage("Account created. Check your email if confirmation is enabled, then we will take you into your Tonefex setup.");
+        // Email confirmation required -> Supabase returns no session; show the "confirm your
+        // email" panel with a resend option. Auto-confirm -> the onAuthStateChange effect
+        // above catches the new session and redirects, so this panel is skipped.
+        setPendingConfirmEmail(submittedEmail);
+        setResendState("idle");
+        setMessage("");
         router.refresh();
       }
       return;
@@ -225,6 +232,27 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
     }
   }
 
+  async function resendConfirmation() {
+    setError("");
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase || !pendingConfirmEmail) {
+      return;
+    }
+    setResendState("sending");
+    const origin = getAuthOrigin();
+    const { error: resendError } = await supabase.auth.resend({
+      type: "signup",
+      email: pendingConfirmEmail,
+      options: { emailRedirectTo: `${origin}/auth/callback?next=/welcome` }
+    });
+    if (resendError) {
+      setResendState("idle");
+      setError(resendError.message);
+    } else {
+      setResendState("sent");
+    }
+  }
+
   const title = mode === "signup" ? "Create your account" : mode === "reset" ? "Reset your password" : mode === "update" ? "Choose a new password" : "Sign in";
   const description =
     mode === "signup"
@@ -256,10 +284,24 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
               </p>
             </div>
           ) : mode === "login" || mode === "signup" ? (
-            <button className="button-secondary mt-6 w-full" type="button" onClick={signInWithGoogle}>
-              <Chrome className="h-4 w-4" />
-              Continue with Google
-            </button>
+            <>
+              <button
+                className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-md border border-slate-300 bg-white px-4 text-base font-bold text-ink shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean focus-visible:ring-offset-2"
+                type="button"
+                onClick={signInWithGoogle}
+              >
+                <Chrome className="h-5 w-5" />
+                Continue with Google
+              </button>
+              <p className="mt-2 text-center text-xs font-semibold text-emerald-700">Fastest — no email confirmation needed</p>
+              <div className="my-5 flex items-center gap-3">
+                <div className="h-px flex-1 bg-slate-200" />
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  or {mode === "signup" ? "sign up" : "sign in"} with email
+                </span>
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
+            </>
           ) : null}
 
           {oauthRedirecting && (mode === "login" || mode === "signup") ? null : updateComplete ? (
@@ -268,6 +310,41 @@ export function AuthForm({ mode }: { mode: "login" | "signup" | "reset" | "updat
               <Link href="/login?passwordReset=success" className="button-primary w-full justify-center">
                 Return to sign in
               </Link>
+            </div>
+          ) : pendingConfirmEmail && mode === "signup" ? (
+            <div className="mt-2 grid gap-4">
+              <div className="rounded-lg border border-moss/50 bg-moss/10 px-4 py-4 text-sm text-ink">
+                <div className="font-bold">Confirm your email to finish</div>
+                <p className="mt-1 leading-6 text-slate-700">
+                  We sent a confirmation link to <span className="font-semibold">{pendingConfirmEmail}</span>. Open it and
+                  we&apos;ll take you into your {brand.appName} setup. If it&apos;s not in your inbox within a minute, check
+                  your spam folder.
+                </p>
+              </div>
+              {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div> : null}
+              <button
+                type="button"
+                className="button-secondary w-full justify-center"
+                onClick={resendConfirmation}
+                disabled={resendState === "sending" || resendState === "sent"}
+              >
+                {resendState === "sending" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {resendState === "sent" ? "Confirmation email sent again" : "Resend confirmation email"}
+              </button>
+              <p className="text-center text-xs text-slate-500">
+                Wrong address?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingConfirmEmail("");
+                    setResendState("idle");
+                    setError("");
+                  }}
+                  className="font-semibold text-ink underline"
+                >
+                  Use a different email
+                </button>
+              </p>
             </div>
           ) : mode === "update" && !recoveryReady ? (
             <div className="mt-6 grid gap-4">
