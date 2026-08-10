@@ -108,7 +108,7 @@ export async function assertCanCreateAdaptation(
   if (profileQuota.remaining <= 0) {
     return {
       ok: false,
-      error: "You've used your free adaptation. Upgrade to keep matching tones, or go Expert for unlimited access.",
+      error: "You've used all your free adaptations. Upgrade to keep matching tones, or go Expert for unlimited access.",
       path: "free",
       freeAdaptationsRemaining: 0,
       monthlyAdaptationsRemaining: null
@@ -294,7 +294,7 @@ export async function recordSuccessfulAdaptationUsage(
       freeAdaptationLimit: profileQuota.limit,
       monthlyAdaptationsRemaining: null,
       firstAdaptationCompleted: Boolean(profileQuota.firstAdaptationCompletedAt),
-      error: "You've used your free adaptation. Upgrade to keep matching tones, or go Expert for unlimited access."
+      error: "You've used all your free adaptations. Upgrade to keep matching tones, or go Expert for unlimited access."
     };
   }
 

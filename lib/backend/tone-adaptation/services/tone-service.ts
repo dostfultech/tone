@@ -257,7 +257,9 @@ export class ToneService {
           message: hydrationError instanceof Error ? hydrationError.message : "Unknown hydration error"
         });
         throw notFoundError(
-          `We don't have a researched tone for "${request.song ?? "this song"}" yet. Try a different song or part while we add it.`,
+          request.mode === "bass"
+            ? `We don't have a bass tone for "${request.song ?? "this song"}" yet — try Guitar mode, or pick a more bass-driven song while we add it.`
+            : `We don't have a researched tone for "${request.song ?? "this song"}" yet. Try a different song or part while we add it.`,
           {
             song: request.song ?? null,
             artist: request.artist ?? null,
@@ -289,7 +291,9 @@ export class ToneService {
         record({ databaseTimeMs: elapsedMs(dbLoadStart), aiUsed: false, sourceHydrationUsed: false });
         if (isToneBackendError(retryError) && retryError.code === "NOT_FOUND") {
           throw notFoundError(
-            `We don't have a researched tone for "${request.song ?? "this song"}" yet. Try a different song or part while we add it.`,
+            request.mode === "bass"
+            ? `We don't have a bass tone for "${request.song ?? "this song"}" yet — try Guitar mode, or pick a more bass-driven song while we add it.`
+            : `We don't have a researched tone for "${request.song ?? "this song"}" yet. Try a different song or part while we add it.`,
             {
               song: request.song ?? null,
               artist: request.artist ?? null,

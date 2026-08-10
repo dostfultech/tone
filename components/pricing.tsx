@@ -144,6 +144,27 @@ export function Pricing() {
         </div>
       </div>
 
+      {!snapshot?.hasAccess ? (
+        <div className="mx-auto mt-10 max-w-3xl">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[
+              ["1,000+ verified song tones", "Real amp, pickup and pedal settings — researched, not guessed."],
+              ["Adapted to your exact gear", "Every setting re-dialed for the guitar and amp you actually own."],
+              ["Every pedal dialed in", "Exact knob settings for your pedals — or which ones to switch off."],
+              ["Match unlimited songs", "Any song, any time — no more per-tone limits."]
+            ].map(([title, detail]) => (
+              <div key={title} className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-left shadow-sm">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-moss" />
+                <div>
+                  <div className="text-sm font-bold text-ink">{title}</div>
+                  <div className="mt-0.5 text-sm leading-6 text-neutral-600">{detail}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {snapshot?.hasAccess && activePlan ? (
         <div className="mx-auto mt-10 max-w-5xl rounded-2xl border border-neutral-200 bg-white p-6 shadow-soft">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
