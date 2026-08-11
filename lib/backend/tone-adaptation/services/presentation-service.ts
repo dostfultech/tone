@@ -100,7 +100,8 @@ export function buildTonePresentation(
     originalEffects,
     source.toneType,
     source.partType,
-    new Set(keepOff.map((entry) => entry.name))
+    new Set(keepOff.map((entry) => entry.name)),
+    typeof adaptedSettings.gain === "number" ? adaptedSettings.gain : 0
   );
   const adaptedCabinet = buildAdaptedCabinet(original?.cab ?? null, original?.amp ?? null, context);
   const ampControls = buildAmpPanelControls({
@@ -420,14 +421,16 @@ function buildPedalSettings(
   originalEffects: OriginalToneEffect[],
   toneType: string,
   partType: string,
-  keepOffNames: Set<string>
+  keepOffNames: Set<string>,
+  adaptedGain: number
 ): Array<{ name: string; setting: string; role: string }> {
   const originalCategories = new Set(originalEffects.map((effect) => effectCategory(effect.type)));
   const flags = {
     heavy: HEAVY_TONE_TYPES.has(String(toneType)),
     crunch: CRUNCH_TONE_TYPES.has(String(toneType)),
     clean: CLEAN_TONE_TYPES.has(String(toneType)),
-    lead: partType === "solo" || partType === "lead"
+    lead: partType === "solo" || partType === "lead",
+    ampGainHigh: adaptedGain >= 8
   };
 
   // Same fuzzy dedup as buildKeepOff so a name-drift twin isn't listed twice.
@@ -451,14 +454,17 @@ function buildPedalSettings(
 
 function pedalGuidanceFor(
   category: string,
-  ctx: { heavy: boolean; crunch: boolean; clean: boolean; lead: boolean; originalUses: boolean }
+  ctx: { heavy: boolean; crunch: boolean; clean: boolean; lead: boolean; originalUses: boolean; ampGainHigh: boolean }
 ): { setting: string; role: string } | null {
   switch (category) {
     case "drive":
-      if (ctx.heavy) {
+      // Amp already dimed (heavy tone, or the adapted gain is already high): an overdrive
+      // must NOT stack more gain — that's just piling drive on drive. Run it as a clean
+      // boost / tone-shaper instead, and tell the player they can leave it off.
+      if (ctx.heavy || ctx.ampGainHigh) {
         return {
-          setting: "Drive 0 · Level 7–8 · Tone ~6",
-          role: "Run it as a clean boost in front of the amp — tightens the low end and pushes the gain without adding its own dirt."
+          setting: "Drive 0–1 · Level 7–8 · Tone ~6",
+          role: "Your amp is already high-gain, so run this as a clean boost (Drive near 0) — it tightens the low end and pushes mids without adding more dirt. If the tone's already there, leave it off."
         };
       }
       if (ctx.crunch) {
