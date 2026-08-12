@@ -275,9 +275,9 @@ const PEDAL_ALTERNATIVES: Record<string, PedalAlternative[]> = {
     { name: "Strymon BigSky", price: "$479", tier: "premium" }
   ],
   modulation: [
-    { name: "MXR Phase 90", price: "$99", tier: "budget" },
-    { name: "Boss CE-5 Chorus", price: "$119", tier: "mid" },
-    { name: "EHX Small Clone", price: "$99", tier: "premium" }
+    { name: "Behringer Ultra Chorus UC200", price: "$30", tier: "budget" },
+    { name: "EHX Small Clone", price: "$99", tier: "mid" },
+    { name: "Boss CE-2W Waza Craft", price: "$199", tier: "premium" }
   ],
   compressor: [
     { name: "Donner Ultimate Comp", price: "$45", tier: "budget" },
@@ -305,6 +305,41 @@ const PEDAL_ALTERNATIVES: Record<string, PedalAlternative[]> = {
     { name: "ISP Decimator II", price: "$199", tier: "premium" }
   ]
 };
+
+// "modulation" is an umbrella (chorus / phaser / flanger / tremolo). Never suggest a phaser as
+// a chorus alternative and vice-versa — match the actual effect. Falls back to chorus, the most
+// common modulation on clean and lead tones.
+const MODULATION_ALTERNATIVES: Record<string, PedalAlternative[]> = {
+  chorus: [
+    { name: "Behringer Ultra Chorus UC200", price: "$30", tier: "budget" },
+    { name: "EHX Small Clone", price: "$99", tier: "mid" },
+    { name: "Boss CE-2W Waza Craft", price: "$199", tier: "premium" }
+  ],
+  phaser: [
+    { name: "Donner Foggy Phaser", price: "$40", tier: "budget" },
+    { name: "MXR Phase 90", price: "$99", tier: "mid" },
+    { name: "Walrus Audio Lillian", price: "$199", tier: "premium" }
+  ],
+  flanger: [
+    { name: "Behringer UF300 Flanger", price: "$35", tier: "budget" },
+    { name: "MXR M117R Flanger", price: "$149", tier: "mid" },
+    { name: "EHX Electric Mistress", price: "$135", tier: "premium" }
+  ],
+  tremolo: [
+    { name: "Behringer UT300 Tremolo", price: "$30", tier: "budget" },
+    { name: "Boss TR-2 Tremolo", price: "$109", tier: "mid" },
+    { name: "Strymon Flint", price: "$299", tier: "premium" }
+  ]
+};
+
+function alternativesFor(effectName: string, effectType: string, category: string): PedalAlternative[] {
+  if (category !== "modulation") return PEDAL_ALTERNATIVES[category] ?? [];
+  const s = `${effectName} ${effectType}`.toLowerCase();
+  if (/phaser|phase/.test(s)) return MODULATION_ALTERNATIVES.phaser;
+  if (/flanger|flange/.test(s)) return MODULATION_ALTERNATIVES.flanger;
+  if (/tremolo|\btrem\b/.test(s)) return MODULATION_ALTERNATIVES.tremolo;
+  return MODULATION_ALTERNATIVES.chorus;
+}
 
 // Effect categories the app will flag on the user's board to turn OFF when the tone doesn't use them.
 // Drive is only flagged for genuinely clean tones (a distorted tone may legitimately want the user's drive).
@@ -367,7 +402,7 @@ function buildMissingEffects(
       importance: effectImportance(category, partLabel),
       description: `${effect.name} was used on the original ${partLabel}. Your ${partLabel} may lose some of its character without a ${CATEGORY_LABELS[category] ?? category}.`,
       substitution: substitutable ? `Use your amp's ${CATEGORY_LABELS[category] ?? category} if it has one.` : null,
-      alternatives: PEDAL_ALTERNATIVES[category] ?? []
+      alternatives: alternativesFor(effect.name, effect.type, category)
     });
   }
 
