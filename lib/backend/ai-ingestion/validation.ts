@@ -153,6 +153,41 @@ export function validateAiDraft(value: unknown): NormalizedMasterToneDraft {
     confidence: Math.round(Math.min(Math.max(optionalNumber(record.confidence) ?? 65, 0), 100))
   };
 
+  return enforceToneQuality(draft);
+}
+
+// Quality gate (Step 5): catch the few absurd/templated values an AI draft can produce — a
+// "clean" tone with cranked gain, a metal tone that's nearly clean, or maxed-out EQ artifacts —
+// and pull them into a musical range BEFORE the tone is ever stored or shown. Conservative:
+// it only corrects clear contradictions, so real tones are left untouched.
+function enforceToneQuality(draft: NormalizedMasterToneDraft): NormalizedMasterToneDraft {
+  const cleanish = draft.toneType === "clean" || draft.toneType === "acoustic" || draft.toneType === "bass_clean";
+  const heavy =
+    draft.toneType === "high_gain" ||
+    draft.toneType === "metal" ||
+    draft.toneType === "modern_metal" ||
+    draft.toneType === "heavy";
+
+  // 1) Gain must fit the tone's character — only fix clear contradictions.
+  if (cleanish && draft.gain > 5) draft.gain = 3.5; // a clean tone can't have cranked gain
+  if (heavy && draft.gain < 5) draft.gain = 7; // a metal/high-gain tone can't be near-clean
+
+  // 2) Templated maxed-EQ artifacts → pull toward musical values.
+  if (draft.bass >= 9.5 && draft.middle >= 9.5) {
+    draft.bass = 6.5;
+    draft.middle = 6.5;
+  }
+  if (draft.treble >= 9.5 && draft.bass >= 9.5) draft.treble = 7;
+  if (draft.presence >= 9.5) draft.presence = 7.5;
+
+  // 3) Belt-and-suspenders: everything stays on the 0-10 scale.
+  const knobs = [
+    "gain", "bass", "middle", "treble", "presence", "resonance",
+    "depth", "masterVolume", "noiseGate", "compression", "delay", "reverb"
+  ] as const;
+  for (const key of knobs) {
+    draft[key] = Math.round(Math.min(Math.max(draft[key], 0), 10) * 100) / 100;
+  }
   return draft;
 }
 
