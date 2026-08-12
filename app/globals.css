@@ -151,16 +151,74 @@ a {
   @apply text-sm font-semibold text-slate-700;
 }
 
+/*
+ * Buttons "pop" on interaction: at rest a soft shadow; on hover they lift and the
+ * shadow deepens; on press they sink back down. transition-all (not just colors) so
+ * the transform animates. Motion is disabled under prefers-reduced-motion below.
+ */
 .button-primary {
-  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white shadow-[0_14px_32px_rgba(8,7,26,0.18)] transition-colors hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean focus-visible:ring-offset-2;
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white shadow-[0_14px_32px_rgba(8,7,26,0.18)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-black hover:shadow-[0_20px_44px_rgba(8,7,26,0.32)] active:translate-y-0 active:scale-[0.98] active:shadow-[0_10px_22px_rgba(8,7,26,0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean focus-visible:ring-offset-2;
 }
 
 .button-secondary {
-  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-ink shadow-sm transition-colors hover:border-ink hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean focus-visible:ring-offset-2;
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-ink shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-ink hover:bg-white hover:shadow-[0_14px_30px_rgba(8,7,26,0.12)] active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean focus-visible:ring-offset-2;
 }
 
 .button-quiet {
-  @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean focus-visible:ring-offset-2;
+  @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-slate-700 transition-all duration-200 ease-out hover:bg-blue-50 hover:text-ink active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean focus-visible:ring-offset-2;
+}
+
+/*
+ * One shared transition for both reveal and hover-lift so a single element can do
+ * both without the two `transition` declarations clobbering each other. Reveal drives
+ * `opacity` + the standalone `translate` property; hover-lift drives `transform` +
+ * `box-shadow` — separate properties, so they compose. The stagger uses a
+ * `--reveal-delay` variable applied only to the reveal properties, so hover stays
+ * instant even on a staggered card.
+ */
+.hover-lift,
+.reveal-on .reveal {
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) var(--reveal-delay, 0ms),
+    translate 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) var(--reveal-delay, 0ms),
+    transform 0.22s cubic-bezier(0.22, 0.61, 0.36, 1),
+    box-shadow 0.22s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 26px 55px rgba(8, 7, 26, 0.16);
+}
+
+/*
+ * Scroll reveal: sections start slightly lowered + transparent and rise into place
+ * as they enter the viewport (toggled by the ScrollReveal client island). Elements
+ * only start hidden once JS marks the document ready, so no-JS / crawlers see all
+ * content immediately, and there is no flash before hydration.
+ */
+.reveal-on .reveal {
+  opacity: 0;
+  translate: 0 28px;
+}
+
+.reveal-on .reveal.is-visible {
+  opacity: 1;
+  translate: 0 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button-primary:hover,
+  .button-secondary:hover,
+  .hover-lift:hover {
+    transform: none;
+  }
+
+  .reveal-on .reveal {
+    opacity: 1;
+    translate: none;
+    transition: none;
+  }
 }
 
 .section {

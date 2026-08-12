@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -6,6 +7,7 @@ import { brand } from "@/lib/brand";
 import { buildPageMetadata, toAbsoluteUrl } from "@/lib/seo";
 import { SiteShell } from "@/components/site-shell";
 import { Reviews } from "@/components/reviews";
+import { ScrollReveal } from "@/components/scroll-reveal";
 
 const differentiators = [
   {
@@ -162,11 +164,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </p>
 
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link href="/app" className="inline-flex min-h-14 items-center justify-center gap-2 rounded-lg bg-moss px-8 text-base font-bold text-ink shadow-[0_0_50px_rgba(167,255,63,0.35)] transition hover:bg-moss/90">
+            <Link href="/app" className="inline-flex min-h-14 items-center justify-center gap-2 rounded-lg bg-moss px-8 text-base font-bold text-ink shadow-[0_0_50px_rgba(167,255,63,0.35)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-moss/90 hover:shadow-[0_0_70px_rgba(167,255,63,0.5)] active:translate-y-0 active:scale-[0.98]">
               Dial In a Song
               <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link href="/plans" className="inline-flex min-h-14 items-center justify-center gap-2 rounded-lg border border-white/20 px-8 text-base font-semibold text-white transition hover:bg-white/10">
+            <Link href="/plans" className="inline-flex min-h-14 items-center justify-center gap-2 rounded-lg border border-white/20 px-8 text-base font-semibold text-white transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white/10 active:translate-y-0 active:scale-[0.98]">
               View Plans
             </Link>
           </div>
@@ -222,17 +224,21 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       {/* Differentiators */}
       <section id="why-tonefex" className="scroll-mt-20 border-b border-white/80">
         <div className="section py-16 lg:py-20">
-          <div className="mx-auto mb-12 max-w-3xl text-center">
+          <div className="reveal mx-auto mb-12 max-w-3xl text-center">
             <p className="text-sm font-bold uppercase tracking-[0.18em] text-ocean">Why players switch</p>
             <h2 className="mt-3 text-3xl font-bold tracking-normal text-ink sm:text-4xl">
               Built different where it counts
             </h2>
           </div>
           <div className="grid gap-6 md:grid-cols-2">
-            {differentiators.map((feature) => {
+            {differentiators.map((feature, i) => {
               const Icon = feature.icon;
               return (
-                <article key={feature.title} className="compact-card p-7">
+                <article
+                  key={feature.title}
+                  className="reveal hover-lift compact-card p-7"
+                  style={{ "--reveal-delay": `${i * 70}ms` } as CSSProperties}
+                >
                   <div className="mb-5 grid h-12 w-12 place-items-center rounded-lg bg-ink text-moss shadow-lg">
                     <Icon className="h-5 w-5" />
                   </div>
@@ -248,11 +254,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       {/* How it works — video + 3 beats */}
       <section id="how-it-works" className="scroll-mt-20 border-b border-white/80 bg-slate-50">
         <div className="section py-16 lg:py-20">
-          <div className="mx-auto mb-12 max-w-3xl text-center">
+          <div className="reveal mx-auto mb-12 max-w-3xl text-center">
             <h2 className="text-3xl font-bold tracking-normal text-ink sm:text-4xl">From song to sound in three moves</h2>
             <p className="mt-3 text-base text-slate-600">Watch a real tone get dialed in, start to finish.</p>
           </div>
-          <div className="mx-auto mb-12 max-w-4xl">
+          <div className="reveal mx-auto mb-12 max-w-4xl">
             <div className="overflow-hidden rounded-xl border border-white/10 bg-ink shadow-[0_30px_90px_rgba(8,7,26,0.35)]">
               <video
                 className="block w-full"
@@ -283,7 +289,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             ].map((step, i) => {
               const Icon = step.icon;
               return (
-                <article key={step.title} className="rounded-xl border border-white/80 bg-white p-7 shadow-sm">
+                <article
+                  key={step.title}
+                  className="reveal hover-lift rounded-xl border border-white/80 bg-white p-7 shadow-sm"
+                  style={{ "--reveal-delay": `${i * 70}ms` } as CSSProperties}
+                >
                   <div className="mb-4 flex items-center gap-3">
                     <div className="grid h-10 w-10 place-items-center rounded-lg bg-ink text-sm font-bold text-moss">{i + 1}</div>
                     <Icon className="h-5 w-5 text-ocean" />
@@ -300,17 +310,17 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       {/* What players are chasing */}
       <section id="trending" className="scroll-mt-20">
         <div className="section py-16 lg:py-20">
-          <div className="mx-auto mb-10 max-w-3xl text-center">
+          <div className="reveal mx-auto mb-10 max-w-3xl text-center">
             <p className="text-sm font-bold uppercase tracking-[0.18em] text-ocean">On the boards right now</p>
             <h2 className="mt-3 text-3xl font-bold tracking-normal text-ink sm:text-4xl">What players are chasing</h2>
             <p className="mt-3 text-base text-slate-600">The most-dialed tones this week</p>
           </div>
-          <div className="mx-auto grid max-w-4xl gap-3">
+          <div className="reveal mx-auto grid max-w-4xl gap-3">
             {trendingSongs.map((song, i) => (
               <Link
                 key={`${song.title}-${song.artist}`}
                 href="/app"
-                className="group flex items-center gap-4 rounded-xl border border-white/80 bg-white px-5 py-4 shadow-sm transition-shadow hover:shadow-md"
+                className="group flex items-center gap-4 rounded-xl border border-white/80 bg-white px-5 py-4 shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md"
               >
                 <div className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg bg-ink text-sm font-bold text-moss">
                   {i + 1}
@@ -338,10 +348,14 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               { icon: Library, stat: "15,000+", label: "Guitar & bass tones for the songs you want to play" },
               { icon: Users, stat: "125,000+", label: "Guitarists worldwide trust the settings" },
               { icon: Volume2, stat: "2", label: "Full instruments — dedicated guitar and bass engines" }
-            ].map((item) => {
+            ].map((item, i) => {
               const Icon = item.icon;
               return (
-                <div key={item.label} className="stage-card px-6 py-8">
+                <div
+                  key={item.label}
+                  className="reveal stage-card px-6 py-8"
+                  style={{ "--reveal-delay": `${i * 70}ms` } as CSSProperties}
+                >
                   <Icon className="mx-auto h-6 w-6 text-moss" />
                   <div className="mt-3 text-4xl font-bold text-white">{item.stat}</div>
                   <p className="mt-2 text-sm leading-6 text-white/60">{item.label}</p>
@@ -355,12 +369,16 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       {/* Testimonials */}
       <section className="border-b border-white/80 bg-slate-50">
         <div className="section py-16 lg:py-20">
-          <h2 className="text-center text-3xl font-bold tracking-normal text-ink sm:text-4xl">
+          <h2 className="reveal text-center text-3xl font-bold tracking-normal text-ink sm:text-4xl">
             Players on {brand.appName}
           </h2>
           <div className="mx-auto mt-10 grid max-w-5xl gap-6 md:grid-cols-3">
-            {testimonials.map((t) => (
-              <article key={t.name} className="rounded-xl border border-white/80 bg-white p-6 shadow-sm">
+            {testimonials.map((t, i) => (
+              <article
+                key={t.name}
+                className="reveal hover-lift rounded-xl border border-white/80 bg-white p-6 shadow-sm"
+                style={{ "--reveal-delay": `${i * 70}ms` } as CSSProperties}
+              >
                 <div className="mb-4 flex items-center gap-3">
                   <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br ${t.gradient} text-base font-bold text-white shadow-md`}>
                     {t.name.slice(0, 1).toUpperCase()}
@@ -384,17 +402,17 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
       {/* CTA Banner */}
       <section className="section py-16">
-        <div className="stage-dark rounded-xl border border-white/10 p-8 text-center shadow-lg lg:p-12">
+        <div className="reveal stage-dark rounded-xl border border-white/10 p-8 text-center shadow-lg lg:p-12">
           <h2 className="text-3xl font-bold text-white sm:text-4xl">Tonight&apos;s song is waiting.</h2>
           <p className="mx-auto mt-3 max-w-xl text-base text-white/60">
             Search it, dial the numbers onto your amp, and hear your rig do something it&apos;s never done.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link href="/app" className="inline-flex min-h-14 items-center gap-2 rounded-lg bg-moss px-8 text-base font-bold text-ink shadow transition-colors hover:bg-moss/90">
+            <Link href="/app" className="inline-flex min-h-14 items-center gap-2 rounded-lg bg-moss px-8 text-base font-bold text-ink shadow transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-moss/90 hover:shadow-[0_0_60px_rgba(167,255,63,0.4)] active:translate-y-0 active:scale-[0.98]">
               Dial In a Song
               <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link href="/plans" className="inline-flex min-h-14 items-center gap-2 rounded-lg border border-white/20 px-8 text-base font-semibold text-white transition-colors hover:bg-white/10">
+            <Link href="/plans" className="inline-flex min-h-14 items-center gap-2 rounded-lg border border-white/20 px-8 text-base font-semibold text-white transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white/10 active:translate-y-0 active:scale-[0.98]">
               View Plans
             </Link>
           </div>
@@ -403,6 +421,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
       {/* Reviews */}
       <Reviews />
+
+      <ScrollReveal />
     </SiteShell>
   );
 }
