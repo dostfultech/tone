@@ -2,12 +2,13 @@ import type { CSSProperties } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, BadgeCheck, Guitar, Library, MessageSquare, Music2, Star, Users, Volume2, Zap } from "lucide-react";
+import { ArrowRight, BadgeCheck, Disc3, Guitar, Library, MessageSquare, Music2, Star, Users, Volume2, Zap } from "lucide-react";
 import { brand } from "@/lib/brand";
 import { buildPageMetadata, toAbsoluteUrl } from "@/lib/seo";
 import { SiteShell } from "@/components/site-shell";
 import { Reviews } from "@/components/reviews";
 import { ScrollReveal } from "@/components/scroll-reveal";
+import { PhotoAvatar } from "@/components/photo-avatar";
 
 const differentiators = [
   {
@@ -45,22 +46,25 @@ const trendingSongs = [
 
 const testimonials = [
   {
-    name: "JamSession_92",
-    role: "Bedroom player",
+    name: "Alex",
+    role: "Guitar player",
     gradient: "from-ocean to-copper",
-    text: "Found accurate tones for all my favorite songs — adapted to my gear, it sounds so close to the original."
+    photo: "/testimonials/alex.jpg",
+    text: "I used to spend hours tweaking my amp just to get close to the sound I wanted. This makes it ridiculously easy to dial in a tone that actually fits my setup. Huge time saver."
   },
   {
-    name: "ToneChaser",
-    role: "Gigging guitarist",
+    name: "Marcus T.",
+    role: "Guitar player",
     gradient: "from-moss to-ocean",
-    text: "I could never nail that Smells Like Teen Spirit sound. The moment I used this, my tones completely changed."
+    photo: "/testimonials/marcus.jpg",
+    text: "The best part is that I don't need the exact gear used in the recording. I can choose what I own and still get a really convincing version of the tone. Definitely one of the most useful guitar tools I've tried."
   },
   {
-    name: "RiffMaster",
-    role: "Home studio",
+    name: "Ryan",
+    role: "Guitar player",
     gradient: "from-ember to-copper",
-    text: "I was about to give up trying to dial in my amp. This changed everything — real settings, real results."
+    photo: "/testimonials/ryan.jpg",
+    text: "I finally stopped guessing what settings to use. I picked a song, entered my rig, and got settings I could actually use right away. It feels like having someone build the tone for you."
   }
 ];
 
@@ -149,9 +153,27 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       {/* Hero — dark stage */}
       <section className="stage-dark stage-grid-lines relative overflow-hidden">
         <div className="section relative py-20 text-center sm:py-24 lg:py-28">
-          <div className="stage-chip">
-            <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-400" />
-            <span className="leading-none normal-case tracking-normal">Trusted by 125,000+ guitarists worldwide</span>
+          <div className="mx-auto inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/10 px-3 py-2 pr-4 backdrop-blur-sm sm:gap-4">
+            <div className="flex -space-x-2.5">
+              {testimonials.map((t) => (
+                <PhotoAvatar
+                  key={t.name}
+                  src={t.photo}
+                  name={t.name}
+                  gradient={t.gradient}
+                  className="h-8 w-8 rounded-full ring-2 ring-[#0d0c1d]"
+                  fallbackTextClassName="text-xs"
+                />
+              ))}
+            </div>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Star key={i} className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" />
+              ))}
+            </div>
+            <span className="text-sm font-semibold leading-none text-white/85">
+              Loved by <span className="text-white">125,000+</span> guitarists
+            </span>
           </div>
 
           <h1 className="mx-auto mt-8 max-w-4xl text-5xl font-bold leading-[1.04] tracking-tight text-white sm:text-6xl lg:text-7xl">
@@ -239,7 +261,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                   className="reveal hover-lift compact-card p-7"
                   style={{ "--reveal-delay": `${i * 70}ms` } as CSSProperties}
                 >
-                  <div className="mb-5 grid h-12 w-12 place-items-center rounded-lg bg-ink text-moss shadow-lg">
+                  <div className="mb-5 grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-ink to-[#1b1a44] text-moss shadow-[0_12px_26px_rgba(8,7,26,0.24)] ring-1 ring-moss/25">
                     <Icon className="h-5 w-5" />
                   </div>
                   <h3 className="text-lg font-bold">{feature.title}</h3>
@@ -295,7 +317,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                   style={{ "--reveal-delay": `${i * 70}ms` } as CSSProperties}
                 >
                   <div className="mb-4 flex items-center gap-3">
-                    <div className="grid h-10 w-10 place-items-center rounded-lg bg-ink text-sm font-bold text-moss">{i + 1}</div>
+                    <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-ink to-[#1b1a44] text-sm font-bold text-moss shadow-[0_10px_22px_rgba(8,7,26,0.22)] ring-1 ring-moss/25">{i + 1}</div>
                     <Icon className="h-5 w-5 text-ocean" />
                   </div>
                   <h3 className="text-lg font-bold text-ink">{step.title}</h3>
@@ -322,9 +344,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 href="/app"
                 className="group flex items-center gap-4 rounded-xl border border-white/80 bg-white px-5 py-4 shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md"
               >
-                <div className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg bg-ink text-sm font-bold text-moss">
-                  {i + 1}
-                </div>
+                <AlbumTile rank={i + 1} genre={song.genre} title={song.title} />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-ink">{song.title}</div>
                   <div className="truncate text-xs text-slate-500">{song.artist}</div>
@@ -380,9 +400,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 style={{ "--reveal-delay": `${i * 70}ms` } as CSSProperties}
               >
                 <div className="mb-4 flex items-center gap-3">
-                  <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br ${t.gradient} text-base font-bold text-white shadow-md`}>
-                    {t.name.slice(0, 1).toUpperCase()}
-                  </div>
+                  <PhotoAvatar
+                    src={t.photo}
+                    name={t.name}
+                    gradient={t.gradient}
+                    className="h-11 w-11 shrink-0 rounded-full shadow-md"
+                  />
                   <div>
                     <div className="text-sm font-semibold text-ink">{t.name}</div>
                     <div className="text-xs text-slate-500">{t.role}</div>
@@ -429,6 +452,38 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
 function stringParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] || "" : value || "";
+}
+
+const COVER_GRADIENTS = [
+  "from-indigo-500 to-fuchsia-600",
+  "from-sky-500 to-blue-700",
+  "from-emerald-500 to-teal-700",
+  "from-rose-500 to-orange-600",
+  "from-violet-600 to-indigo-800",
+  "from-amber-500 to-red-600",
+  "from-cyan-500 to-blue-700",
+  "from-slate-600 to-slate-900"
+];
+
+/**
+ * Cover-art-style tile for the trending list. Real album art is licensed, so this is a
+ * branded stand-in: a per-song gradient (deterministic from the title) with a vinyl
+ * glyph and the chart rank — reads as artwork, not a flat placeholder box.
+ */
+function AlbumTile({ rank, title }: { rank: number; genre: string; title: string }) {
+  const hash = Array.from(title).reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+  const gradient = COVER_GRADIENTS[hash % COVER_GRADIENTS.length];
+  return (
+    <div className="relative h-12 w-12 flex-shrink-0 sm:h-14 sm:w-14">
+      <div className={`relative grid h-full w-full place-items-center overflow-hidden rounded-lg bg-gradient-to-br ${gradient} shadow-md`}>
+        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-white/25" />
+        <Disc3 className="relative h-6 w-6 text-white/85 sm:h-7 sm:w-7" />
+      </div>
+      <div className="absolute -bottom-1.5 -left-1.5 grid h-5 w-5 place-items-center rounded-full bg-ink text-[10px] font-bold text-moss ring-2 ring-white">
+        {rank}
+      </div>
+    </div>
+  );
 }
 
 /**
