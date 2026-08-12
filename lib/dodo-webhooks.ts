@@ -109,7 +109,19 @@ function buildRowFromSubscription(
   const customerId = nestedCustomerId(sub.customer) || stringValue(sub.customer_id);
   const nextBillingDate = dateValue(sub.next_billing_date);
   const previousBillingDate = dateValue(sub.previous_billing_date);
-  const status = resolveInternalStatus(stringValue(sub.status));
+  // Trials re-enabled: Dodo has no "trialing" status, so we derive the trial window from
+  // trial_period_days + the creation date. An active sub still inside that window is a trial;
+  // once the window passes (first charge) it reverts to plain "active". Robust because it
+  // never depends on ambiguous billing-date fields.
+  const trialPeriodDays = Number(sub.trial_period_days) || 0;
+  const createdAt = dateValue(sub.created_at);
+  const trialEnd =
+    trialPeriodDays > 0 && createdAt
+      ? new Date(new Date(createdAt).getTime() + trialPeriodDays * 86_400_000).toISOString()
+      : null;
+  const baseStatus = normalizeDodoStatus(stringValue(sub.status));
+  const trialActive = Boolean(trialEnd && new Date(trialEnd).getTime() > Date.now() && baseStatus === "active");
+  const status = trialActive ? "trialing" : baseStatus;
 
   return {
     user_id: userId,

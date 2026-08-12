@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Crown, Loader2 } from "lucide-react";
+import { Check, Crown, Gift, Loader2 } from "lucide-react";
 import { plans } from "@/lib/mock-data";
 import {
   formatSubscriptionDate,
@@ -13,6 +13,9 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { trackCheckoutStarted, trackEvent } from "@/lib/analytics";
 
 type Billing = "monthly" | "annual";
+
+// 7-day free-trial adaptation allotment per plan (matches lib/entitlements trialLimits).
+const TRIAL_ADAPTATIONS: Record<string, number> = { beginner: 5, expert: 8 };
 
 export function Pricing() {
   const [billing, setBilling] = useState<Billing>("annual");
@@ -224,6 +227,15 @@ export function Pricing() {
               </div>
               <p className="mt-2 text-sm text-neutral-600">{plan.subline}</p>
               {plan.savings ? <p className="mt-2 text-sm font-semibold text-ink"><span className="lime-highlight">Save {plan.savings}%</span> per year</p> : null}
+              {!snapshot?.hasAccess ? (
+                <div className="mt-5 rounded-lg border border-ocean/25 bg-ocean/5 px-4 py-3">
+                  <div className="flex items-center gap-2 text-sm font-bold text-ocean">
+                    <Gift className="h-4 w-4" />
+                    7-Day Free Trial
+                  </div>
+                  <p className="mt-0.5 text-sm text-neutral-600">{TRIAL_ADAPTATIONS[plan.id] ?? 5} adaptations included during your trial</p>
+                </div>
+              ) : null}
               <div className="mt-6 grid gap-3 text-sm">
                 <Feature>{plan.adaptations}</Feature>
                 <Feature>{plan.saved}</Feature>
@@ -233,7 +245,7 @@ export function Pricing() {
               </div>
               <button className="button-primary mt-7 w-full" onClick={() => startCheckout(plan.id)} disabled={loadingPlan !== null}>
                 {loadingPlan === plan.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {snapshot?.planId === "beginner" && plan.id === "expert" ? "Upgrade to Expert" : `Subscribe to ${plan.name}`}
+                {snapshot?.planId === "beginner" && plan.id === "expert" ? "Upgrade to Expert" : snapshot?.hasAccess ? `Subscribe to ${plan.name}` : "Start 7-Day Free Trial"}
               </button>
               <p className="mt-3 text-center text-xs text-neutral-500">Cancel anytime from the customer portal.</p>
             </article>

@@ -8,6 +8,9 @@ export type Entitlement = {
   status: string | null;
   monthlyAdaptations: number | null;
   savedTonesLimit: number | null;
+  isTrial: boolean;
+  // Total adaptations allowed during the 7-day free trial (null when not on trial).
+  trialAdaptations: number | null;
 };
 
 export const planLimits = {
@@ -21,6 +24,12 @@ export const planLimits = {
     savedTonesLimit: null,
     gearPresetsLimit: null
   }
+} as const;
+
+// 7-day free trial caps (ToneAdapt-style): total adaptations allowed before the trial converts.
+export const trialLimits = {
+  beginner: 5,
+  expert: 8
 } as const;
 
 export function getBypassEntitlement(user: User | null): Entitlement | null {
@@ -39,7 +48,9 @@ export function getBypassEntitlement(user: User | null): Entitlement | null {
     planId: "expert",
     status: "test_access",
     monthlyAdaptations: null,
-    savedTonesLimit: null
+    savedTonesLimit: null,
+    isTrial: false,
+    trialAdaptations: null
   };
 }
 
@@ -53,16 +64,21 @@ export function mapSubscriptionEntitlement(subscription: {
 } | null): Entitlement {
   const status = subscription?.status || null;
   const planId = subscription?.plan_id === "expert" ? "expert" : subscription?.plan_id === "beginner" ? "beginner" : null;
-  // No trial tier: a subscription grants access only once it is fully active.
+  // Access is granted while active OR trialing (7-day free trial). The webhook marks a
+  // subscription "trialing" while it is inside its Dodo trial window.
   const active = status === "active";
+  const trialing = status === "trialing";
   const limits = planId ? planLimits[planId] : null;
+  const isTrial = trialing && Boolean(planId);
 
   return {
-    hasAccess: Boolean(active && planId),
-    source: active ? "subscription" : "none",
+    hasAccess: Boolean((active || trialing) && planId),
+    source: active || trialing ? "subscription" : "none",
     planId,
     status,
     monthlyAdaptations: limits?.monthlyAdaptations ?? null,
-    savedTonesLimit: limits?.savedTonesLimit ?? null
+    savedTonesLimit: limits?.savedTonesLimit ?? null,
+    isTrial,
+    trialAdaptations: isTrial && planId ? trialLimits[planId] : null
   };
 }

@@ -5,7 +5,7 @@ import {
   resolveAdaptationAccessState
 } from "@/lib/adaptation-access";
 import { EARLY_TESTER_FREE_ADAPTATIONS } from "@/lib/early-tester";
-import { planLimits } from "@/lib/entitlements";
+import { planLimits, trialLimits } from "@/lib/entitlements";
 import { plans } from "@/lib/mock-data";
 
 const earlyTesterMode = process.env.NEXT_PUBLIC_EARLY_TESTER_MODE === "true";
@@ -140,10 +140,13 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
 
   const planId = subscription?.planId || null;
   const plan = planId ? plans.find((item) => item.id === planId) || null : null;
-  // Trials are retired — paid plans use their full limits, no trial window.
   const limits = planId ? planLimits[planId] : null;
-  const trialEnd = null;
-  const trialDaysRemaining = null;
+  const status = subscription?.status || null;
+  const isTrialing = status === "trialing" && Boolean(planId);
+  const trialLimit = isTrialing && planId ? trialLimits[planId] : null;
+  const trialEnd = isTrialing ? subscription?.trialEnd || null : null;
+  const trialDaysRemaining =
+    isTrialing && trialEnd ? Math.max(Math.ceil((new Date(trialEnd).getTime() - Date.now()) / 86_400_000), 0) : null;
   const profile = (profileResult.data as RawProfile | null) || null;
   let effectiveFreeLimit = profile?.free_adaptation_limit;
   if (earlyTesterMode && (effectiveFreeLimit === null || effectiveFreeLimit === 0) && (profile?.free_adaptations_used === null || profile?.free_adaptations_used === 0)) {
@@ -155,22 +158,30 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
   const adaptationsUsed = monthlyUsageResult.data?.adaptations_used || 0;
   const savedTonesUsed = savedThisMonthResult.count || 0;
   const gearPresetsUsed = presetsThisMonthResult.count || 0;
-  const hasPaidAccess = Boolean(subscription?.isActive && planId);
+  const hasPaidAccess = Boolean((subscription?.isActive || isTrialing) && planId);
   const adaptationAccess = resolveAdaptationAccessState({
     entitlement: {
       hasAccess: hasPaidAccess,
       source: hasPaidAccess ? "subscription" : "none",
       planId,
-      status: subscription?.status || null,
+      status,
       monthlyAdaptations: limits?.monthlyAdaptations ?? null,
-      savedTonesLimit: limits?.savedTonesLimit ?? null
+      savedTonesLimit: limits?.savedTonesLimit ?? null,
+      isTrial: isTrialing,
+      trialAdaptations: trialLimit
     },
     isAuthenticated: true,
     freeQuota,
     onboarding
   });
+  // During a trial the meter is the trial cap (Beginner 5 / Expert 8); otherwise the plan's monthly cap.
+  const activeCap = isTrialing ? trialLimit : limits?.monthlyAdaptations ?? null;
   const visibleAdaptationsUsed = hasPaidAccess ? adaptationsUsed : freeQuota.used;
-  const visibleAdaptationsRemaining = hasPaidAccess ? limits?.monthlyAdaptations == null ? null : Math.max(limits.monthlyAdaptations - adaptationsUsed, 0) : freeQuota.remaining;
+  const visibleAdaptationsRemaining = hasPaidAccess
+    ? activeCap == null
+      ? null
+      : Math.max(activeCap - adaptationsUsed, 0)
+    : freeQuota.remaining;
 
   return {
     user,
@@ -180,7 +191,7 @@ export async function loadClientSubscriptionSnapshot(client: SupabaseClient): Pr
     billingInterval: subscription?.billingInterval || null,
     renewalDate: subscription?.renewalDate || null,
     hasAccess: hasPaidAccess,
-    isTrialing: false,
+    isTrialing,
     trialEnd,
     trialDaysRemaining,
     features: plan?.perks || [],
@@ -263,7 +274,9 @@ function emptySnapshot(): ClientSubscriptionSnapshot {
         planId: null,
         status: null,
         monthlyAdaptations: null,
-        savedTonesLimit: null
+        savedTonesLimit: null,
+        isTrial: false,
+        trialAdaptations: null
       },
       isAuthenticated: false,
       freeQuota: createFreeAdaptationQuota(),

@@ -54,7 +54,35 @@ export async function assertCanCreateAdaptation(
   await ensureProfileUsageRow(admin, user);
   const profileQuota = await loadProfileUsage(admin, user.id);
 
-  // Expert = unlimited. (No trial tier exists.)
+  // 7-day free trial: a fixed number of TOTAL adaptations (Beginner 5 / Expert 8), metered via
+  // the monthly counter (the trial is only 7 days). Runs BEFORE the expert-unlimited branch so
+  // a trialing Expert is still capped at 8.
+  if (entitlement.isTrial && entitlement.trialAdaptations !== null) {
+    const { data } = await admin
+      .from("monthly_usage")
+      .select("adaptations_used")
+      .eq("user_id", user.id)
+      .eq("usage_month", currentUsageMonth())
+      .maybeSingle();
+    const used = data?.adaptations_used || 0;
+    if (used >= entitlement.trialAdaptations) {
+      return {
+        ok: false,
+        error: `You've used all ${entitlement.trialAdaptations} free-trial adaptations. Your trial upgrades to the full plan automatically at the end of the 7 days.`,
+        path: entitlement.planId ?? "beginner",
+        freeAdaptationsRemaining: profileQuota.remaining,
+        monthlyAdaptationsRemaining: 0
+      };
+    }
+    return {
+      ok: true,
+      path: entitlement.planId ?? "beginner",
+      freeAdaptationsRemaining: profileQuota.remaining,
+      monthlyAdaptationsRemaining: Math.max(entitlement.trialAdaptations - used, 0)
+    };
+  }
+
+  // Expert = unlimited (paid, not trialing).
   if (entitlement.source === "test" || (entitlement.hasAccess && entitlement.planId === "expert")) {
     return {
       ok: true,
@@ -208,6 +236,39 @@ export async function recordSuccessfulAdaptationUsage(
   }
 
   await markFirstAdaptationCompleted(admin, userId, new Date().toISOString());
+
+  // 7-day trial: meter via monthly_usage so the trial cap (Beginner 5 / Expert 8) is enforced.
+  // Runs before the expert-unlimited branch so a trialing Expert is metered too.
+  if (entitlement.isTrial && entitlement.trialAdaptations !== null) {
+    const month = currentUsageMonth();
+    const { data } = await admin.from("monthly_usage").select("adaptations_used").eq("user_id", userId).eq("usage_month", month).maybeSingle();
+    const nextCount = (data?.adaptations_used || 0) + 1;
+    const { error: monthlyUsageError } = await admin.from("monthly_usage").upsert({
+      user_id: userId,
+      usage_month: month,
+      adaptations_used: nextCount
+    });
+    if (!monthlyUsageError) {
+      await admin.from("usage_events").insert({
+        user_id: userId,
+        event_type: "tone_adaptation",
+        tone_job_id: toneResult.job_id,
+        quantity: 1,
+        metadata: { source: "tone_result_confirmation", tone_result_id: toneResultId, plan: "trial" }
+      });
+    }
+    const refreshedQuota = await loadProfileUsage(admin, userId);
+    return {
+      ok: true,
+      confirmed: true,
+      usageApplied: !monthlyUsageError,
+      freeAdaptationsRemaining: refreshedQuota.remaining,
+      freeAdaptationsUsed: refreshedQuota.used,
+      freeAdaptationLimit: refreshedQuota.limit,
+      monthlyAdaptationsRemaining: Math.max(entitlement.trialAdaptations - nextCount, 0),
+      firstAdaptationCompleted: true
+    };
+  }
 
   // Expert is unlimited — usage is not metered for this tier.
   if (entitlement.source === "test" || (entitlement.hasAccess && entitlement.planId === "expert")) {
