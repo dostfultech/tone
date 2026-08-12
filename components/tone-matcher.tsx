@@ -39,7 +39,6 @@ import {
   useAnimatedToneControls
 } from "@/components/tone-control-animation";
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
-import { UnlockAccessButton } from "@/components/unlock-access-modal";
 import { TrialStatusBar } from "@/components/trial-status-bar";
 import { FirstToneSavedPopup } from "@/components/first-tone-saved-popup";
 import { OnboardingProgress } from "@/components/onboarding-progress";
@@ -1391,15 +1390,10 @@ export function ToneMatcher() {
 
         {subscriptionSnapshot?.user && !subscriptionSnapshot.isTrialing ? (
           <div className="order-7 mt-10 space-y-4 lg:order-4">
+            {/* Non-trial: just the status/CTA card. A free user sees "Start your free
+                trial" here; the "Unlock Full Access" button only appears during a trial
+                (via TrialStatusBar), not before it. */}
             <FreeAdaptationSummary {...getAdaptationSummaryProps(subscriptionSnapshot)} />
-            {!subscriptionSnapshot.hasAccess ? (
-              <UnlockAccessButton
-                className="button-primary w-full justify-center"
-                label="Unlock Full Access"
-                planId={subscriptionSnapshot.planId}
-                billingInterval={subscriptionSnapshot.billingInterval}
-              />
-            ) : null}
           </div>
         ) : null}
 
