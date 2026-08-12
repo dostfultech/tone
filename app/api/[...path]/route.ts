@@ -16,6 +16,7 @@ import { assertCanCreateAdaptation, recordSuccessfulAdaptationUsage } from "@/li
 import { buildResearchPayload, createMissingSongRequest, findToneProfile, listCommunityToneProfiles, type CommunityToneQuery } from "@/lib/tone-profiles";
 import { lookupBatchArtwork } from "@/lib/itunes";
 import { normalizeMyGearProfile } from "@/lib/my-gear";
+import { maybeResearchGear } from "@/lib/backend/gear-research";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -448,12 +449,16 @@ async function logGearSearch(kind: string, query: string, matchCount: number) {
     if (!admin) {
       return;
     }
+    const trimmedQuery = normalized.slice(0, 160);
     await admin.rpc("record_gear_search_miss", {
       p_kind: kind,
-      p_query: normalized.slice(0, 160),
+      p_query: trimmedQuery,
       p_match_count: matchCount,
       p_user_id: null
     });
+    // Step 4: best-effort AI research of the missing gear into the review queue. Self-gated to
+    // real demand (searched 2+ times) and once-per-item, so it never spams AI on typeahead.
+    void maybeResearchGear(admin, kind, trimmedQuery);
   } catch {
     // Logging must never break gear search.
   }
