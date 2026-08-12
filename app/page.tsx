@@ -2,13 +2,14 @@ import type { CSSProperties } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, BadgeCheck, Disc3, Guitar, Library, MessageSquare, Music2, Star, Users, Volume2, Zap } from "lucide-react";
+import { ArrowRight, BadgeCheck, Guitar, Library, MessageSquare, Music2, Star, Users, Volume2, Zap } from "lucide-react";
 import { brand } from "@/lib/brand";
 import { buildPageMetadata, toAbsoluteUrl } from "@/lib/seo";
 import { SiteShell } from "@/components/site-shell";
 import { Reviews } from "@/components/reviews";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { PhotoAvatar } from "@/components/photo-avatar";
+import { SongCover } from "@/components/song-cover";
 
 const differentiators = [
   {
@@ -33,15 +34,16 @@ const differentiators = [
   }
 ];
 
+// Cover art served from Apple's iTunes artwork CDN (via the public iTunes Search API).
 const trendingSongs = [
-  { title: "Master of Puppets", artist: "Metallica", genre: "Metal", part: "Riff" },
-  { title: "Sweet Child O' Mine", artist: "Guns N' Roses", genre: "Rock", part: "Riff" },
-  { title: "Comfortably Numb", artist: "Pink Floyd", genre: "Rock", part: "Solo" },
-  { title: "Smells Like Teen Spirit", artist: "Nirvana", genre: "Rock", part: "Riff" },
-  { title: "Hotel California", artist: "Eagles", genre: "Rock", part: "Solo" },
-  { title: "Enter Sandman", artist: "Metallica", genre: "Metal", part: "Riff" },
-  { title: "Eruption", artist: "Van Halen", genre: "Rock", part: "Solo" },
-  { title: "Back in Black", artist: "AC/DC", genre: "Rock", part: "Riff" }
+  { title: "Master of Puppets", artist: "Metallica", genre: "Metal", part: "Riff", cover: "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/b8/5a/82/b85a8259-60d9-bfaa-770a-2baac8380e87/858978005196.png/300x300bb.jpg" },
+  { title: "Sweet Child O' Mine", artist: "Guns N' Roses", genre: "Rock", part: "Riff", cover: "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/a0/4d/c4/a04dc484-03cc-02aa-fa82-5334fcb4bc16/18UMGIM24878.rgb.jpg/300x300bb.jpg" },
+  { title: "Comfortably Numb", artist: "Pink Floyd", genre: "Rock", part: "Solo", cover: "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/3e/17/ec/3e17ec6d-f980-c64f-19e0-a6fd8bbf0c10/886445635850.jpg/300x300bb.jpg" },
+  { title: "Smells Like Teen Spirit", artist: "Nirvana", genre: "Rock", part: "Riff", cover: "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/95/fd/b9/95fdb9b2-6d2b-92a6-97f2-51c1a6d77f1a/00602527874609.rgb.jpg/300x300bb.jpg" },
+  { title: "Hotel California", artist: "Eagles", genre: "Rock", part: "Solo", cover: "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/88/16/2c/88162c3d-46db-8321-61f3-3a47404cfe76/075596050920.jpg/300x300bb.jpg" },
+  { title: "Enter Sandman", artist: "Metallica", genre: "Metal", part: "Riff", cover: "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/2e/94/95/2e9495d7-dfe3-ddc8-87ef-6ef797a60218/850007452056.png/300x300bb.jpg" },
+  { title: "Eruption", artist: "Van Halen", genre: "Rock", part: "Solo", cover: "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/7a/ef/88/7aef88ad-25aa-be91-eb78-8917c3f114f7/603497894130.jpg/300x300bb.jpg" },
+  { title: "Back in Black", artist: "AC/DC", genre: "Rock", part: "Riff", cover: "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/1e/14/58/1e145814-281a-58e0-3ab1-145f5d1af421/886443673441.jpg/300x300bb.jpg" }
 ];
 
 const testimonials = [
@@ -66,6 +68,14 @@ const testimonials = [
     photo: "/testimonials/ryan.jpg",
     text: "I finally stopped guessing what settings to use. I picked a song, entered my rig, and got settings I could actually use right away. It feels like having someone build the tone for you."
   }
+];
+
+// Hero trust-badge faces — separate photos from the testimonials.
+// Files: public/testimonials/badge-1.jpg, badge-2.jpg, badge-3.jpg
+const badgeAvatars = [
+  { name: "Guitar player", photo: "/testimonials/badge-1.jpg", gradient: "from-ocean to-copper" },
+  { name: "Guitar player", photo: "/testimonials/badge-2.jpg", gradient: "from-moss to-ocean" },
+  { name: "Guitar player", photo: "/testimonials/badge-3.jpg", gradient: "from-ember to-copper" }
 ];
 
 export const metadata: Metadata = buildPageMetadata({
@@ -155,12 +165,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         <div className="section relative py-20 text-center sm:py-24 lg:py-28">
           <div className="mx-auto inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/10 px-3 py-2 pr-4 backdrop-blur-sm sm:gap-4">
             <div className="flex -space-x-2.5">
-              {testimonials.map((t) => (
+              {badgeAvatars.map((a, i) => (
                 <PhotoAvatar
-                  key={t.name}
-                  src={t.photo}
-                  name={t.name}
-                  gradient={t.gradient}
+                  key={i}
+                  src={a.photo}
+                  name={a.name}
+                  gradient={a.gradient}
                   className="h-8 w-8 rounded-full ring-2 ring-[#0d0c1d]"
                   fallbackTextClassName="text-xs"
                 />
@@ -344,7 +354,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 href="/app"
                 className="group flex items-center gap-4 rounded-xl border border-white/80 bg-white px-5 py-4 shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md"
               >
-                <AlbumTile rank={i + 1} genre={song.genre} title={song.title} />
+                <SongCover cover={song.cover} rank={i + 1} title={song.title} />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-ink">{song.title}</div>
                   <div className="truncate text-xs text-slate-500">{song.artist}</div>
@@ -454,37 +464,6 @@ function stringParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] || "" : value || "";
 }
 
-const COVER_GRADIENTS = [
-  "from-indigo-500 to-fuchsia-600",
-  "from-sky-500 to-blue-700",
-  "from-emerald-500 to-teal-700",
-  "from-rose-500 to-orange-600",
-  "from-violet-600 to-indigo-800",
-  "from-amber-500 to-red-600",
-  "from-cyan-500 to-blue-700",
-  "from-slate-600 to-slate-900"
-];
-
-/**
- * Cover-art-style tile for the trending list. Real album art is licensed, so this is a
- * branded stand-in: a per-song gradient (deterministic from the title) with a vinyl
- * glyph and the chart rank — reads as artwork, not a flat placeholder box.
- */
-function AlbumTile({ rank, title }: { rank: number; genre: string; title: string }) {
-  const hash = Array.from(title).reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
-  const gradient = COVER_GRADIENTS[hash % COVER_GRADIENTS.length];
-  return (
-    <div className="relative h-12 w-12 flex-shrink-0 sm:h-14 sm:w-14">
-      <div className={`relative grid h-full w-full place-items-center overflow-hidden rounded-lg bg-gradient-to-br ${gradient} shadow-md`}>
-        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-white/25" />
-        <Disc3 className="relative h-6 w-6 text-white/85 sm:h-7 sm:w-7" />
-      </div>
-      <div className="absolute -bottom-1.5 -left-1.5 grid h-5 w-5 place-items-center rounded-full bg-ink text-[10px] font-bold text-moss ring-2 ring-white">
-        {rank}
-      </div>
-    </div>
-  );
-}
 
 /**
  * Custom amp-knob dial (0-10). Pointer sweeps 270deg from 7 o'clock to 5 o'clock,
