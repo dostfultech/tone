@@ -1383,10 +1383,17 @@ export function ToneMatcher() {
           </div>
         ) : null}
 
-        {subscriptionSnapshot?.user && !subscriptionSnapshot.isTrialing ? (
+        {subscriptionSnapshot?.user ? (
           <div className="order-7 mt-10 space-y-4 lg:order-4">
             <FreeAdaptationSummary {...getAdaptationSummaryProps(subscriptionSnapshot)} />
-            {!subscriptionSnapshot.hasAccess ? (
+            {subscriptionSnapshot.isTrialing ? (
+              <Link
+                href="/plans?source=trial-unlock"
+                className="button-primary w-full justify-center"
+              >
+                Unlock Full Access
+              </Link>
+            ) : !subscriptionSnapshot.hasAccess ? (
               <UnlockAccessButton
                 className="button-primary w-full justify-center"
                 label="Unlock Full Access"

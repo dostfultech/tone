@@ -3,6 +3,22 @@ import type { ClientSubscriptionSnapshot } from "@/lib/subscription-client";
 const earlyTesterMode = process.env.NEXT_PUBLIC_EARLY_TESTER_MODE === "true";
 
 export function getAdaptationSummaryProps(snapshot: ClientSubscriptionSnapshot) {
+  // During the 7-day free trial, show trial-specific copy: how many of the trial
+  // adaptations are left and how many days remain.
+  if (snapshot.isTrialing) {
+    const remaining = snapshot.usage.adaptationsRemaining ?? 0;
+    const limit = snapshot.usage.adaptationsUsed + remaining;
+    const days = snapshot.trialDaysRemaining;
+    return {
+      remaining,
+      limit,
+      unlimited: false,
+      label: days != null ? `Free Trial · ${days} day${days === 1 ? "" : "s"} left` : "Free Trial",
+      helpText: "Unlock full access anytime — your card is already on file.",
+      valueText: `${remaining} of ${limit} trial adaptations left`
+    };
+  }
+
   if (snapshot.adaptationAccess.isUnlimited) {
     return {
       remaining: 0,

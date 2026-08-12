@@ -74,11 +74,16 @@ export function Pricing() {
   );
 
   const activePlan = snapshot?.planId ? computedPlans.find((plan) => plan.id === snapshot.planId) || null : null;
-  const availablePlans = snapshot?.planId === "expert"
-    ? []
-    : snapshot?.planId === "beginner"
-      ? computedPlans.filter((plan) => plan.id === "expert")
-      : computedPlans;
+  // During a trial, offer BOTH plans so the user can convert their current plan now OR
+  // switch (e.g. Beginner trial -> full Beginner, or upgrade to Expert). Once actively
+  // subscribed, only show the upgrade path.
+  const availablePlans = snapshot?.isTrialing
+    ? computedPlans
+    : snapshot?.planId === "expert"
+      ? []
+      : snapshot?.planId === "beginner"
+        ? computedPlans.filter((plan) => plan.id === "expert")
+        : computedPlans;
 
   async function startCheckout(planId: string) {
     setLoadingPlan(planId);
@@ -118,6 +123,53 @@ export function Pricing() {
     } finally {
       setLoadingPlan(null);
     }
+  }
+
+  // Trial users already have a card on file — convert/upgrade the existing subscription
+  // immediately (Dodo changePlan) instead of starting a fresh checkout (which would only
+  // begin another trial).
+  async function changePlanNow(planId: string) {
+    setLoadingPlan(planId);
+    setMessage("");
+    try {
+      const response = await fetch("/api/dodo/change-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId, billing })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (data.code === "no_subscription") {
+          // No live subscription found — fall back to a normal checkout.
+          await startCheckout(planId);
+          return;
+        }
+        trackEvent("trial_convert_failed", { plan_id: planId, billing_interval: billing, reason: data.error || "request_failed" });
+        setMessage(data.error || "Could not switch plans.");
+        return;
+      }
+      trackEvent("trial_converted", { plan_id: planId, billing_interval: billing });
+      setMessage(`You're now on the ${planId === "expert" ? "Expert" : "Beginner"} plan — full access is unlocked.`);
+      const supabase = createSupabaseBrowserClient();
+      if (supabase) {
+        window.setTimeout(() => {
+          loadClientSubscriptionSnapshot(supabase).then(setSnapshot).catch(() => undefined);
+        }, 1500);
+      }
+    } catch {
+      trackEvent("trial_convert_failed", { plan_id: planId, billing_interval: billing, reason: "network_or_runtime" });
+      setMessage("Could not switch plans in this environment.");
+    } finally {
+      setLoadingPlan(null);
+    }
+  }
+
+  function handlePlanAction(planId: string) {
+    if (snapshot?.isTrialing) {
+      void changePlanNow(planId);
+      return;
+    }
+    void startCheckout(planId);
   }
 
   return (
@@ -200,9 +252,9 @@ export function Pricing() {
 
           {snapshot.planId === "beginner" ? (
             <div className="mt-6 flex justify-end">
-              <button className="button-primary" onClick={() => startCheckout("expert")} disabled={loadingPlan !== null}>
+              <button className="button-primary" onClick={() => handlePlanAction("expert")} disabled={loadingPlan !== null}>
                 {loadingPlan === "expert" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Upgrade to Expert
+                {snapshot.isTrialing ? "Upgrade to Expert now" : "Upgrade to Expert"}
               </button>
             </div>
           ) : null}
@@ -243,11 +295,21 @@ export function Pricing() {
                   <Feature key={perk}>{perk}</Feature>
                 ))}
               </div>
-              <button className="button-primary mt-7 w-full" onClick={() => startCheckout(plan.id)} disabled={loadingPlan !== null}>
+              <button className="button-primary mt-7 w-full" onClick={() => handlePlanAction(plan.id)} disabled={loadingPlan !== null}>
                 {loadingPlan === plan.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {snapshot?.planId === "beginner" && plan.id === "expert" ? "Upgrade to Expert" : snapshot?.hasAccess ? `Subscribe to ${plan.name}` : "Start 7-Day Free Trial"}
+                {snapshot?.isTrialing
+                  ? plan.id === snapshot.planId
+                    ? `Unlock ${plan.name} now`
+                    : `Switch to ${plan.name} now`
+                  : snapshot?.planId === "beginner" && plan.id === "expert"
+                    ? "Upgrade to Expert"
+                    : snapshot?.hasAccess
+                      ? `Subscribe to ${plan.name}`
+                      : "Start 7-Day Free Trial"}
               </button>
-              <p className="mt-3 text-center text-xs text-neutral-500">Cancel anytime from the customer portal.</p>
+              <p className="mt-3 text-center text-xs text-neutral-500">
+                {snapshot?.isTrialing ? "Ends your free trial and charges your card on file today. Cancel anytime." : "Cancel anytime from the customer portal."}
+              </p>
             </article>
           ))}
         </div>

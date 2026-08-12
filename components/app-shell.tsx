@@ -180,7 +180,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {snapshot?.user ? <FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} className="mb-4" /> : null}
+          {snapshot?.user ? (
+            <div className="mb-4 space-y-2">
+              <FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} />
+              {snapshot.isTrialing ? (
+                <Link
+                  href="/plans?source=trial-unlock"
+                  onClick={navigate}
+                  className="button-primary w-full justify-center text-sm"
+                >
+                  Unlock Full Access
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
 
           <NavSection title="My Collection" items={collectionNav} pathname={pathname} onNavigate={navigate} />
           <NavSection title="Discover" items={discoveryNav} pathname={pathname} onNavigate={navigate} />
