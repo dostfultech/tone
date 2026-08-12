@@ -53,10 +53,10 @@ export function FreeAdaptationSummary({
           </div>
           <div>
             <div className="text-xs font-bold uppercase tracking-[0.14em] text-white/70">
-              No Active Plan
+              7-Day Free Trial
             </div>
             <div className="mt-1 text-sm font-semibold text-white">
-              Upgrade to keep matching
+              Start your free trial
             </div>
           </div>
         </div>

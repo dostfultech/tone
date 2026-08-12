@@ -136,7 +136,7 @@ export async function assertCanCreateAdaptation(
   if (profileQuota.remaining <= 0) {
     return {
       ok: false,
-      error: "You've used all your free adaptations. Upgrade to keep matching tones, or go Expert for unlimited access.",
+      error: "Start your 7-day free trial to dial in tones on your own gear — no charge for 7 days.",
       path: "free",
       freeAdaptationsRemaining: 0,
       monthlyAdaptationsRemaining: null
@@ -355,7 +355,7 @@ export async function recordSuccessfulAdaptationUsage(
       freeAdaptationLimit: profileQuota.limit,
       monthlyAdaptationsRemaining: null,
       firstAdaptationCompleted: Boolean(profileQuota.firstAdaptationCompletedAt),
-      error: "You've used all your free adaptations. Upgrade to keep matching tones, or go Expert for unlimited access."
+      error: "Start your 7-day free trial to dial in tones on your own gear — no charge for 7 days."
     };
   }
 

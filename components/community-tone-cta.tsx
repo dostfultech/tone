@@ -201,7 +201,7 @@ export function CommunityToneCta({ mode, song, artist, part, partType, toneType,
         ) : null}
         {snapshot?.user && !snapshot.hasAccess && !snapshot.adaptationAccess.canAdapt ? (
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-900">
-            You&apos;ve used your free adaptation. Upgrade to adapt more tones to your rig.
+            Start your 7-day free trial to adapt this tone to your rig.
           </p>
         ) : null}
         {readyForGearAdaptation ? (

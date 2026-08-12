@@ -1,6 +1,7 @@
 import type { Entitlement } from "@/lib/entitlements";
 
-export const DEFAULT_FREE_ADAPTATION_LIMIT = 3;
+// Trial-only model: no free no-card adaptations. Users start the 7-day free trial to adapt.
+export const DEFAULT_FREE_ADAPTATION_LIMIT = 0;
 
 export type ProfileAccessRow = {
   free_adaptation_limit?: number | null;

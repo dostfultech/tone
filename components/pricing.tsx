@@ -151,7 +151,7 @@ export function Pricing() {
         <div className="mx-auto mt-10 max-w-3xl">
           <div className="grid gap-3 sm:grid-cols-2">
             {[
-              ["1,000+ verified song tones", "Real amp, pickup and pedal settings — researched, not guessed."],
+              ["7,000+ songs · 16,000+ verified tones", "Real amp, pickup and pedal settings — researched, not guessed."],
               ["Adapted to your exact gear", "Every setting re-dialed for the guitar and amp you actually own."],
               ["Every pedal dialed in", "Exact knob settings for your pedals — or which ones to switch off."],
               ["Match unlimited songs", "Any song, any time — no more per-tone limits."]

@@ -61,9 +61,9 @@ export function getAdaptationSummaryProps(snapshot: ClientSubscriptionSnapshot) 
     limit: 0,
     unlimited: false,
     showUpgradeCta: true,
-    label: "No Active Plan",
-    helpText: "You've used your free adaptation. Upgrade to keep matching tones.",
-    valueText: "Upgrade to continue"
+    label: "7-Day Free Trial",
+    helpText: "Start your 7-day free trial to adapt tones to your gear.",
+    valueText: "Start your free trial"
   };
 }
 
@@ -94,7 +94,7 @@ export function getFreeAdaptationBannerCopy(snapshot: ClientSubscriptionSnapshot
   }
 
   return {
-    title: "You've used your free adaptation.",
-    body: "Upgrade to a plan to keep matching tones to your gear."
+    title: "Start your 7-day free trial.",
+    body: "Start your free trial to adapt any song's tone to the gear you actually play."
   };
 }
