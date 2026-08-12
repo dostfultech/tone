@@ -213,6 +213,9 @@ export class SupabaseSongRepository implements SongRepository {
     const requestedSong = normalizeText(request.song ?? "");
     const requestedArtist = normalizeText(request.artist ?? "");
     const partType = request.partType ?? "";
+    const requestedPartText = normalizeText(request.part ?? "");
+    const rowPart = normalizeText(stringField(row, "part_type"));
+    const rowPartLabel = normalizeText(stringField(row, "part_label"));
     const toneType = request.toneType ?? "auto";
     const legacyToneType = stringField(row, "tone_type");
 
@@ -221,7 +224,17 @@ export class SupabaseSongRepository implements SongRepository {
     else if (title.includes(requestedSong) || requestedSong.includes(title)) score += 55;
     if (artist === requestedArtist) score += 45;
     else if (artist.includes(requestedArtist) || requestedArtist.includes(artist)) score += 20;
-    if (stringField(row, "part_type") === partType) score += 20;
+    // Part match — serve the profile whose part matches what the player asked for. Check the
+    // normalized partType AND the free-text part they typed ("outro"), since the part field is
+    // free text and may not map to a partType enum. Weighted enough (+40) to break the verified
+    // tie between two admin_verified parts of the same song (both also get +200 below).
+    const partMatches =
+      (partType !== "" && rowPart === partType) ||
+      (requestedPartText !== "" &&
+        (rowPart === requestedPartText ||
+          rowPartLabel.split(/[^a-z0-9]+/).includes(requestedPartText) ||
+          requestedPartText.split(/[^a-z0-9]+/).some((word) => word.length >= 3 && rowPart === word)));
+    if (partMatches) score += 40;
     if (toneType === "auto" || legacyToneType === toneType || legacyToneType === "auto") {
       score += 15;
     }
