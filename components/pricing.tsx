@@ -128,37 +128,36 @@ export function Pricing() {
   // Trial users already have a card on file — convert/upgrade the existing subscription
   // immediately (Dodo changePlan) instead of starting a fresh checkout (which would only
   // begin another trial).
-  async function changePlanNow(planId: string) {
+  // Trial users already have a card on file. Converting their CURRENT plan ends the trial
+  // and bills now (convert-trial); picking a DIFFERENT plan switches product then bills
+  // (change-plan). Both activate the subscription server-side, so we reload to reflect
+  // the now-active plan and full quota.
+  async function convertOrChange(planId: string) {
     setLoadingPlan(planId);
     setMessage("");
+    const isCurrentPlan = snapshot?.planId === planId;
+    const endpoint = isCurrentPlan ? "/api/dodo/convert-trial" : "/api/dodo/change-plan";
     try {
-      const response = await fetch("/api/dodo/change-plan", {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, billing })
+        body: isCurrentPlan ? undefined : JSON.stringify({ planId, billing })
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         if (data.code === "no_subscription") {
-          // No live subscription found — fall back to a normal checkout.
           await startCheckout(planId);
           return;
         }
         trackEvent("trial_convert_failed", { plan_id: planId, billing_interval: billing, reason: data.error || "request_failed" });
-        setMessage(data.error || "Could not switch plans.");
+        setMessage(data.error || "Could not update your plan. Please try again.");
         return;
       }
       trackEvent("trial_converted", { plan_id: planId, billing_interval: billing });
-      setMessage(`You're now on the ${planId === "expert" ? "Expert" : "Beginner"} plan — full access is unlocked.`);
-      const supabase = createSupabaseBrowserClient();
-      if (supabase) {
-        window.setTimeout(() => {
-          loadClientSubscriptionSnapshot(supabase).then(setSnapshot).catch(() => undefined);
-        }, 1500);
-      }
+      window.location.reload();
     } catch {
       trackEvent("trial_convert_failed", { plan_id: planId, billing_interval: billing, reason: "network_or_runtime" });
-      setMessage("Could not switch plans in this environment.");
+      setMessage("Could not update your plan in this environment.");
     } finally {
       setLoadingPlan(null);
     }
@@ -166,7 +165,7 @@ export function Pricing() {
 
   function handlePlanAction(planId: string) {
     if (snapshot?.isTrialing) {
-      void changePlanNow(planId);
+      void convertOrChange(planId);
       return;
     }
     void startCheckout(planId);

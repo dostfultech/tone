@@ -16,6 +16,22 @@ function normalizeBilling(value: string | null | undefined): BillingInterval {
   return value === "annual" ? "annual" : "monthly";
 }
 
+async function convertTrialNow(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const response = await fetch("/api/dodo/convert-trial", { method: "POST" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      trackEvent("trial_convert_failed", { reason: data.error || "request_failed" });
+      return { ok: false, error: data.error || "Could not unlock full access." };
+    }
+    trackEvent("trial_converted", {});
+    return { ok: true };
+  } catch {
+    trackEvent("trial_convert_failed", { reason: "network_or_runtime" });
+    return { ok: false, error: "Could not unlock full access in this environment." };
+  }
+}
+
 async function startCheckout(planId: PlanId, billing: BillingInterval): Promise<{ ok: boolean; error?: string }> {
   const plan = plans.find((item) => item.id === planId);
   const amount = plan ? (billing === "annual" ? plan.annual : plan.monthly) : undefined;
@@ -46,12 +62,14 @@ export function UnlockAccessModal({
   open,
   onClose,
   planId,
-  billingInterval
+  billingInterval,
+  convert = false
 }: {
   open: boolean;
   onClose: () => void;
   planId?: string | null;
   billingInterval?: string | null;
+  convert?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -72,13 +90,18 @@ export function UnlockAccessModal({
   async function confirm() {
     setLoading(true);
     setError("");
-    const outcome = await startCheckout(resolvedPlanId, resolvedBilling);
+    const outcome = convert ? await convertTrialNow() : await startCheckout(resolvedPlanId, resolvedBilling);
     if (!outcome.ok) {
-      setError(outcome.error || "Checkout could not be started.");
+      setError(outcome.error || (convert ? "Could not unlock full access." : "Checkout could not be started."));
       setLoading(false);
       return;
     }
-    // startCheckout redirects the browser to the payment URL on success.
+    // Convert updates the existing subscription server-side (no redirect) — reload
+    // so the account reflects the now-active plan and full quota. Checkout mode
+    // redirects the browser to the payment URL instead.
+    if (convert) {
+      window.location.reload();
+    }
   }
 
   return (
@@ -89,7 +112,7 @@ export function UnlockAccessModal({
             <div className="grid h-11 w-11 place-items-center rounded-md bg-ocean/10 text-ocean">
               <Sparkles className="h-5 w-5" />
             </div>
-            <h2 className="text-xl font-bold">Start Your Subscription</h2>
+            <h2 className="text-xl font-bold">{convert ? "Unlock Full Access" : "Start Your Subscription"}</h2>
           </div>
           <button type="button" className="button-quiet px-2" onClick={onClose} aria-label="Close subscription modal">
             <X className="h-5 w-5" />
@@ -97,7 +120,9 @@ export function UnlockAccessModal({
         </div>
         <div className="grid gap-4 px-6 py-6">
           <p className="text-sm text-slate-600">
-            Start your subscription to unlock the full plan and keep matching tones to your gear.
+            {convert
+              ? "End your free trial now and start your subscription immediately. You'll be charged today and get your full plan quota right away."
+              : "Start your subscription to unlock the full plan and keep matching tones to your gear."}
           </p>
           <div className="rounded-lg border border-white/80 bg-white/70 px-4 py-4">
             <div className="flex items-center justify-between">
@@ -111,6 +136,12 @@ export function UnlockAccessModal({
               </span>
             </div>
           </div>
+          {convert ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <strong className="font-bold">Note:</strong> Your trial will end immediately and you&apos;ll be charged the
+              full subscription amount today.
+            </div>
+          ) : null}
           {error ? <p className="text-sm font-semibold text-red-600">{error}</p> : null}
           <div className="mt-1 flex gap-3">
             <button type="button" className="button-secondary flex-1 justify-center" onClick={onClose} disabled={loading}>
@@ -119,7 +150,7 @@ export function UnlockAccessModal({
             <button type="button" className="button-primary min-h-12 flex-1 justify-center" onClick={confirm} disabled={loading}>
               {loading ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Starting…
+                  <Loader2 className="h-4 w-4 animate-spin" /> {convert ? "Unlocking…" : "Starting…"}
                 </>
               ) : (
                 "Unlock Full Access Now"
@@ -136,12 +167,14 @@ export function UnlockAccessButton({
   className,
   label = "Unlock Full Access",
   planId,
-  billingInterval
+  billingInterval,
+  convert = false
 }: {
   className?: string;
   label?: string;
   planId?: string | null;
   billingInterval?: string | null;
+  convert?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -149,7 +182,7 @@ export function UnlockAccessButton({
       <button type="button" className={className || "button-primary w-full justify-center"} onClick={() => setOpen(true)}>
         {label}
       </button>
-      <UnlockAccessModal open={open} onClose={() => setOpen(false)} planId={planId} billingInterval={billingInterval} />
+      <UnlockAccessModal open={open} onClose={() => setOpen(false)} planId={planId} billingInterval={billingInterval} convert={convert} />
     </>
   );
 }

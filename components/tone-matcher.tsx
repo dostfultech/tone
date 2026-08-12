@@ -40,6 +40,7 @@ import {
 } from "@/components/tone-control-animation";
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
 import { UnlockAccessButton } from "@/components/unlock-access-modal";
+import { TrialStatusBar } from "@/components/trial-status-bar";
 import { FirstToneSavedPopup } from "@/components/first-tone-saved-popup";
 import { OnboardingProgress } from "@/components/onboarding-progress";
 import { trackEvent, trackToneGenerated, trackToneSaved } from "@/lib/analytics";
@@ -1330,6 +1331,10 @@ export function ToneMatcher() {
           </div>
         </section>
 
+        <div className="order-1">
+          <TrialStatusBar snapshot={subscriptionSnapshot} />
+        </div>
+
         {!firstAdaptationOnboarding ? (
           <section className="order-8 mt-12 lg:order-2 lg:mt-14">
           <div className="mb-6 text-center">
@@ -1383,17 +1388,10 @@ export function ToneMatcher() {
           </div>
         ) : null}
 
-        {subscriptionSnapshot?.user ? (
+        {subscriptionSnapshot?.user && !subscriptionSnapshot.isTrialing ? (
           <div className="order-7 mt-10 space-y-4 lg:order-4">
             <FreeAdaptationSummary {...getAdaptationSummaryProps(subscriptionSnapshot)} />
-            {subscriptionSnapshot.isTrialing ? (
-              <Link
-                href="/plans?source=trial-unlock"
-                className="button-primary w-full justify-center"
-              >
-                Unlock Full Access
-              </Link>
-            ) : !subscriptionSnapshot.hasAccess ? (
+            {!subscriptionSnapshot.hasAccess ? (
               <UnlockAccessButton
                 className="button-primary w-full justify-center"
                 label="Unlock Full Access"

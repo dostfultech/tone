@@ -77,9 +77,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // full_immediately bills the new plan now (ends the trial), rather than a prorated
+    // or scheduled amount that could come out to $0 during a trial.
     await client.subscriptions.changePlan(subscriptionId, {
       product_id: productId,
-      proration_billing_mode: "prorated_immediately",
+      proration_billing_mode: "full_immediately",
       quantity: 1
     });
   } catch (error) {
@@ -88,6 +90,33 @@ export async function POST(request: NextRequest) {
       { status: 502 }
     );
   }
+
+  // Activate authoritatively in our DB so access reflects immediately (the webhook can
+  // lag). New plan, trial cleared, and a fresh monthly quota.
+  const now = new Date();
+  const periodEnd = new Date(now);
+  if (billing === "annual") {
+    periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+  } else {
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+  }
+  await admin
+    .from("subscriptions")
+    .update({
+      status: "active",
+      plan_id: planId,
+      billing_interval: billing,
+      dodo_product_id: productId,
+      trial_end: now.toISOString(),
+      trial_period_days: 0,
+      current_period_start: now.toISOString(),
+      current_period_end: periodEnd.toISOString()
+    })
+    .eq("user_id", user.id)
+    .eq("dodo_subscription_id", subscriptionId);
+
+  const usageMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
+  await admin.from("monthly_usage").update({ adaptations_used: 0 }).eq("user_id", user.id).eq("usage_month", usageMonth);
 
   await admin.from("usage_events").insert({
     user_id: user.id,

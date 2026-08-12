@@ -120,7 +120,13 @@ function buildRowFromSubscription(
       ? new Date(new Date(createdAt).getTime() + trialPeriodDays * 86_400_000).toISOString()
       : null;
   const baseStatus = normalizeDodoStatus(stringValue(sub.status));
-  const trialActive = Boolean(trialEnd && new Date(trialEnd).getTime() > Date.now() && baseStatus === "active");
+  // A sub is only a live trial while it is inside the trial window AND has not been
+  // charged yet. Once a charge lands (previous_billing_date set) — including an early
+  // "Unlock Full Access" conversion — it is a plain paid subscription, so we must NOT
+  // re-flag it as trialing just because the original created_at+trial window hasn't lapsed.
+  const trialActive = Boolean(
+    trialEnd && new Date(trialEnd).getTime() > Date.now() && baseStatus === "active" && !previousBillingDate
+  );
   const status = trialActive ? "trialing" : baseStatus;
 
   return {
@@ -133,9 +139,10 @@ function buildRowFromSubscription(
     dodo_product_id: productId || null,
     current_period_start: previousBillingDate,
     current_period_end: nextBillingDate,
-    // Trials are retired — no trial window is ever recorded.
-    trial_end: null,
-    trial_period_days: 0,
+    // Record the derived trial window so the app can show "N days left" and enforce
+    // trial caps. Cleared to null/0 once the sub is no longer trialing.
+    trial_end: trialActive ? trialEnd : null,
+    trial_period_days: trialActive ? trialPeriodDays : 0,
     cancel_at_period_end: Boolean(sub.cancel_at_next_billing_date),
     metadata: metadataEnvelope
   };

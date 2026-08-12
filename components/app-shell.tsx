@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { brand } from "@/lib/brand";
 import { FreeAdaptationSummary } from "@/components/free-adaptation-summary";
+import { UnlockAccessButton } from "@/components/unlock-access-modal";
 import { SiteFooter } from "@/components/site-footer";
 import { PaymentFailedBanner } from "@/components/payment-failed-banner";
 import {
@@ -184,13 +185,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="mb-4 space-y-2">
               <FreeAdaptationSummary {...getAdaptationSummaryProps(snapshot)} />
               {snapshot.isTrialing ? (
-                <Link
-                  href="/plans?source=trial-unlock"
-                  onClick={navigate}
+                <UnlockAccessButton
                   className="button-primary w-full justify-center text-sm"
-                >
-                  Unlock Full Access
-                </Link>
+                  label="Unlock Full Access"
+                  planId={snapshot.planId}
+                  billingInterval={snapshot.billingInterval}
+                  convert
+                />
               ) : null}
             </div>
           ) : null}
