@@ -66,6 +66,7 @@ type Presentation = {
     playingNotes: string[];
   };
   confidence: { score: number; factors: string[] };
+  partNotice?: string | null;
 };
 
 const IMPORTANCE_BADGE_CLASSES: Record<string, string> = {
@@ -170,6 +171,13 @@ function FullPresentationView({
 
   return (
     <div className="mt-8 grid gap-8 lg:grid-cols-2">
+      {presentation.partNotice ? (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900 lg:col-span-2">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{presentation.partNotice}</span>
+        </div>
+      ) : null}
+
       {/* ORIGINAL TONE — left column */}
       <div className="grid content-start gap-5">
         <div className="flex items-center gap-3">

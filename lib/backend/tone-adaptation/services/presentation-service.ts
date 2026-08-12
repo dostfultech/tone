@@ -71,6 +71,9 @@ export interface TonePresentation {
     playingNotes: string[];
   };
   confidence: { score: number; factors: string[] };
+  // Set when the player asked for a part we don't have on file and we served the closest
+  // one instead (e.g. asked for the outro, we only have the solo). Null when they match.
+  partNotice: string | null;
 }
 
 export function buildTonePresentation(
@@ -158,8 +161,30 @@ export function buildTonePresentation(
       pedalSettings,
       playingNotes: buildPlayingNotes(original?.playingNotes ?? [], original?.adaptationNotes ?? [], missingEffects)
     },
-    confidence: computeConfidence(source.confidence, context)
+    confidence: computeConfidence(source.confidence, context),
+    partNotice: buildPartNotice(request, { partType: source.partType, partLabel: partLabel })
   };
+}
+
+// If the player asked for a specific part (e.g. "outro") but we only have a different part
+// on file (e.g. the solo), say so plainly instead of passing the other part off as theirs.
+// This is what makes a wrong-part match honest rather than misleading.
+function buildPartNotice(
+  request: NormalizedToneAdaptationRequest,
+  source: { partType: string; partLabel: string }
+): string | null {
+  const requested = (request.part ?? "").trim();
+  if (!requested) return null;
+  const requestedLc = requested.toLowerCase();
+  if (/^(auto|main|any|default|full|whole|song)\b/.test(requestedLc)) return null;
+
+  const hay = `${String(source.partType ?? "").toLowerCase()} ${String(source.partLabel ?? "").toLowerCase()}`;
+  const requestedWords = requestedLc.split(/[^a-z]+/).filter((w) => w.length >= 3);
+  // If any meaningful word the player typed shows up in the part we served, it's a match.
+  if (requestedWords.some((w) => hay.includes(w))) return null;
+
+  const served = source.partLabel || source.partType || "the part we have";
+  return `You asked for the ${requested}, but we don't have that exact part for this song yet — these settings are for the closest part we do have (${served}). They'll get you in the ballpark, but the ${requested} may want different gain and effects.`;
 }
 
 const UI_SETTING_ALIASES: Array<[string, string[]]> = [

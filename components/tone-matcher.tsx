@@ -101,6 +101,7 @@ type TonePresentationDto = {
     playingNotes: string[];
   };
   confidence: { score: number; factors: string[] };
+  partNotice?: string | null;
 };
 
 type ToneResult = {
@@ -2787,6 +2788,13 @@ function SplitResultBody({ result, presentation }: { result: ToneResult; present
 
   return (
     <div className="grid gap-5 p-5 lg:grid-cols-2">
+      {presentation.partNotice ? (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900 lg:col-span-2">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{presentation.partNotice}</span>
+        </div>
+      ) : null}
+
       {/* ORIGINAL TONE — left column */}
       <motion.section className="grid content-start gap-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}>
         <div className="flex items-center gap-3">
