@@ -125,7 +125,9 @@ export class OpenAiToneResearchProvider implements AiToneResearchProvider {
     // Grounds the gear + settings in real sources instead of the model's memory.
     const research = await researchToneSources(request);
 
-    const model = process.env.AI_INGESTION_MODEL || process.env.OPENAI_MODEL || "gpt-4.1-nano";
+    // GPT-4.1 (full) is the default for tone research — it runs once per new song then caches
+    // forever, so accuracy matters far more than the small one-time cost. Override via env.
+    const model = process.env.AI_INGESTION_MODEL || process.env.OPENAI_MODEL || "gpt-4.1";
     const completion = await client.chat.completions.create({
       model,
       temperature: 0.2,

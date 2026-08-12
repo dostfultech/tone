@@ -244,17 +244,36 @@ export class ToneService {
         mode: request.mode
       });
 
+      // Research the missing tone, retrying once. A transient AI/network hiccup (the main
+      // cause of the occasional bass failures) should never dead-end the user — only after
+      // both attempts fail do we surface the honest "not researched yet" message.
       let hydrated: { masterToneId?: string } | null = null;
-      try {
-        hydrated = await hydrationService.hydrateSourceTone(request);
-      } catch (hydrationError) {
+      let lastHydrationError: unknown = null;
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        try {
+          hydrated = await hydrationService.hydrateSourceTone(request);
+          lastHydrationError = null;
+          break;
+        } catch (hydrationError) {
+          lastHydrationError = hydrationError;
+          this.logger.warn("source_tone_hydration_attempt_failed", {
+            requestId: request.requestId,
+            attempt,
+            song: request.song,
+            artist: request.artist,
+            mode: request.mode,
+            message: hydrationError instanceof Error ? hydrationError.message : "Unknown hydration error"
+          });
+        }
+      }
+      if (lastHydrationError) {
         record({ databaseTimeMs: elapsedMs(dbLoadStart), aiUsed: true, sourceHydrationUsed: true });
         this.logger.error("source_tone_hydration_failed", {
           requestId: request.requestId,
           song: request.song,
           artist: request.artist,
           part: request.part,
-          message: hydrationError instanceof Error ? hydrationError.message : "Unknown hydration error"
+          message: lastHydrationError instanceof Error ? lastHydrationError.message : "Unknown hydration error"
         });
         throw notFoundError(
           request.mode === "bass"
