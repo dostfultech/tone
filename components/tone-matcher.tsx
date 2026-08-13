@@ -300,6 +300,7 @@ export function ToneMatcher() {
   const [effectsTab, setEffectsTab] = useState<"pedals" | "multifx">("pedals");
   const [myGearProfile, setMyGearProfile] = useState<MyGearProfile>(createEmptyMyGearProfile());
   const [result, setResult] = useState<ToneResult | null>(null);
+  const [rigNudgeDismissed, setRigNudgeDismissed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("");
@@ -1344,6 +1345,30 @@ export function ToneMatcher() {
         <div className="order-1">
           <TrialStatusBar snapshot={subscriptionSnapshot} />
         </div>
+
+        {subscriptionSnapshot?.user && !subscriptionSnapshot.onboarding.gearSetupCompleted && !firstAdaptationOnboarding && !rigNudgeDismissed ? (
+          <div className="order-1 mx-auto mt-4 w-full max-w-3xl">
+            <div className="flex flex-col items-start gap-3 rounded-xl border border-ocean/25 bg-ocean/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ocean/15 text-ocean">
+                  <Guitar className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-ink">Set up your gear profile</div>
+                  <div className="text-xs text-slate-500">Get tone matches dialed in for your exact rig.</div>
+                </div>
+              </div>
+              <div className="flex w-full items-center gap-2 sm:w-auto">
+                <Link href="/onboarding" className="button-primary min-h-10 flex-1 justify-center whitespace-nowrap px-4 text-sm sm:flex-none">
+                  Set Up My Rig
+                </Link>
+                <button type="button" onClick={() => setRigNudgeDismissed(true)} className="button-quiet px-2" aria-label="Dismiss">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {!firstAdaptationOnboarding ? (
           <section className="order-8 mt-12 lg:order-2 lg:mt-14">

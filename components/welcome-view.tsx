@@ -36,7 +36,7 @@ export function WelcomeView() {
       }
     }
 
-    router.push("/gear?onboarding=1");
+    router.push("/onboarding");
   }
 
   return (
