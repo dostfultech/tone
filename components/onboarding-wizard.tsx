@@ -7,7 +7,14 @@ import { SearchableGearDropdown } from "@/components/searchable-gear-dropdown";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { brand } from "@/lib/brand";
 import { trackEvent } from "@/lib/analytics";
-import type { GearSearchItem } from "@/lib/my-gear";
+import {
+  cacheMyGearProfile,
+  normalizeMyGearProfile,
+  type GearSearchItem,
+  type GearSelectionCategory,
+  type GearSelectionMetadata,
+  type MyGearProfile
+} from "@/lib/my-gear";
 
 type Step = "intro" | "guitar" | "amp" | "extras" | "summary" | "done";
 
@@ -39,12 +46,53 @@ export type OnboardingWizardProps = {
 };
 
 const REFERRALS = ["Instagram", "YouTube", "TikTok", "Reddit", "Facebook", "Google Search", "Friends", "Word of Mouth", "Other"];
-const GUITAR_QUICK = ["Fender Stratocaster", "Squier Stratocaster", "Epiphone Les Paul", "Gibson Les Paul", "Fender Telecaster", "Squier Telecaster"];
-const AMP_QUICK = ["Boss Katana", "Fender Mustang LT25", "Fender Champion 20", "Marshall CODE 25", "Positive Grid Spark", "Fender Mustang GTX 50"];
-const PEDAL_QUICK = ["10-Band EQ", "Tube Screamer", "Boss DS-1", "MXR Carbon Copy", "Boss CE-2", "Big Muff"];
-const MULTIFX_QUICK = ["Boss GT-1000", "Line 6 Helix", "HX Stomp", "POD Go", "Line 6 HX Effects", "Boss GX-100"];
+// Quick-select names are REAL, verified catalog entries (they resolve 1:1 in gear search) — no generic placeholders.
+const GUITAR_QUICK = ["Fender Player Stratocaster", "Squier Classic Vibe 50s Stratocaster", "Epiphone Les Paul Standard 50s", "Gibson Les Paul Standard 50s", "Fender Player Telecaster", "Yamaha Pacifica 112V"];
+const AMP_QUICK = ["Boss Katana-100 Gen 3", "Fender Mustang LT25", "Fender Champion 20", "Positive Grid Spark 2", "Fender Mustang GTX50", "Vox AC15C1"];
+const PEDAL_QUICK = ["TS9 Tube Screamer", "DS-1 Distortion", "Big Muff Pi", "Carbon Copy Analog Delay", "CE-2W Chorus", "CP-24 10-Band EQ"];
+const MULTIFX_QUICK = ["GT-1000", "Helix LT", "HX Stomp", "POD Go", "HX Effects", "GX-100"];
 
 const STEP_ORDER: Step[] = ["intro", "guitar", "amp", "extras", "summary", "done"];
+
+// Resolve a selected name to its real catalog entry (model_id + canonical brand/model) via gear search.
+async function resolveGearItem(type: GearSelectionCategory, name: string): Promise<GearSearchItem | null> {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const params = new URLSearchParams({ type, q: trimmed, limit: "8" });
+  if (type === "guitar" || type === "amp") {
+    params.set("instrumentType", "guitar");
+  }
+  try {
+    const res = await fetch(`/api/equipment/search?${params.toString()}`, { cache: "no-store" });
+    if (!res.ok) {
+      return null;
+    }
+    const data = await res.json();
+    const results: GearSearchItem[] = Array.isArray(data.results) ? data.results : [];
+    if (!results.length) {
+      return null;
+    }
+    const lowered = trimmed.toLowerCase();
+    return results.find((r) => r.name?.toLowerCase() === lowered || r.modelName?.toLowerCase() === lowered) || results[0];
+  } catch {
+    return null;
+  }
+}
+
+function toSelectionMeta(item: GearSearchItem, category: GearSelectionCategory): GearSelectionMetadata {
+  return {
+    model_id: item.modelId,
+    brand_name: item.brandName,
+    model_name: item.modelName,
+    category,
+    model_category: item.category || category,
+    pickup_configuration: item.pickupConfiguration ?? null,
+    amp_type: item.ampType ?? null,
+    pedal_type: item.pedalType ?? null
+  };
+}
 
 export function OnboardingWizard({ variant = "page", onComplete, onSkip }: OnboardingWizardProps = {}) {
   const router = useRouter();
@@ -93,22 +141,45 @@ export function OnboardingWizard({ variant = "page", onComplete, onSkip }: Onboa
   async function finish() {
     setSaving(true);
     setError("");
-    const name = [guitar, amp].filter(Boolean).join(" + ") || "My Rig";
-    const usingMultiFx = Boolean(multifx);
-    // A multi-FX unit run direct takes the amp slot (mirrors gear-view's save shape).
-    const ampName = usingMultiFx ? multifx : amp;
     const hasGear = Boolean(guitar || amp || multifx);
-    const effects: OnboardingPresetEffects = {
-      effectsMode: usingMultiFx ? "multi_fx" : "manual",
-      multiFx: multifx || undefined,
-      selectedFx: pedals.join(", "),
-      features: [],
-      customPickups: {}
-    };
     let presetId = `local-${Date.now()}`;
 
     const supabase = createSupabaseBrowserClient();
     try {
+      // Resolve every pick to a real, verified catalog entry (canonical name + model_id).
+      const [guitarItem, ampItem, multifxItem, ...pedalItems] = await Promise.all([
+        resolveGearItem("guitar", guitar),
+        resolveGearItem("amp", amp),
+        multifx ? resolveGearItem("multifx", multifx) : Promise.resolve(null),
+        ...pedals.map((pedal) => resolveGearItem("pedal", pedal))
+      ]);
+      const resolvedPedals = pedalItems.filter((item): item is GearSearchItem => Boolean(item));
+
+      const guitarName = guitarItem?.name || guitar;
+      const ampName = ampItem?.name || amp;
+      const multifxName = multifxItem?.name || multifx;
+      // Keep the real amp in the amp slot; only fall back to the multi-FX when there's no amp (going direct).
+      const ampSlot = ampName || multifxName;
+      const name = [guitarName, ampName].filter(Boolean).join(" + ") || "My Rig";
+
+      const effects: OnboardingPresetEffects = {
+        effectsMode: multifxName && !ampName ? "multi_fx" : "manual",
+        multiFx: multifxName || undefined,
+        selectedFx: resolvedPedals.map((item) => item.name).join(", "),
+        features: [],
+        customPickups: {}
+      };
+
+      // The matcher reads pedals + multi-FX from the My Gear profile — write it so they pre-fill as defaults.
+      const profile: MyGearProfile = normalizeMyGearProfile({
+        schema_version: 1,
+        guitar: guitarItem ? toSelectionMeta(guitarItem, "guitar") : null,
+        amp: ampItem ? toSelectionMeta(ampItem, "amp") : null,
+        pedals: resolvedPedals.map((item) => toSelectionMeta(item, "pedal")),
+        multifx: multifxItem ? toSelectionMeta(multifxItem, "multifx") : null,
+        updated_at: new Date().toISOString()
+      });
+
       if (supabase) {
         const {
           data: { user }
@@ -121,8 +192,8 @@ export function OnboardingWizard({ variant = "page", onComplete, onSkip }: Onboa
                 user_id: user.id,
                 name,
                 instrument_type: "guitar",
-                guitar_name: guitar || null,
-                amp_name: ampName || null,
+                guitar_name: guitarName || null,
+                amp_name: ampSlot || null,
                 pickup_name: null,
                 effects
               })
@@ -136,18 +207,22 @@ export function OnboardingWizard({ variant = "page", onComplete, onSkip }: Onboa
             .from("profiles")
             .update({
               welcome_completed_at: new Date().toISOString(),
-              gear_onboarding_completed_at: new Date().toISOString()
+              gear_onboarding_completed_at: new Date().toISOString(),
+              my_gear_profile: profile
             })
             .eq("id", user.id);
         }
       }
 
+      // Cache + broadcast the profile so the open matcher pre-fills pedals/multi-FX instantly.
+      cacheMyGearProfile(profile);
+
       const preset: OnboardingGearPreset = {
         id: presetId,
         name,
         instrument_type: "guitar",
-        guitar_name: guitar || null,
-        amp_name: ampName || null,
+        guitar_name: guitarName || null,
+        amp_name: ampSlot || null,
         pickup_name: null,
         effects
       };
@@ -157,10 +232,16 @@ export function OnboardingWizard({ variant = "page", onComplete, onSkip }: Onboa
       if (hasGear) {
         localStorage.setItem(
           `${brand.storagePrefix}_saved_gear_presets`,
-          JSON.stringify([{ id: presetId, name, instrument_type: "guitar", guitar, amp: ampName, pickup: "", effects }, ...localPresets])
+          JSON.stringify([{ id: presetId, name, instrument_type: "guitar", guitar: guitarName, amp: ampSlot, pickup: "", effects }, ...localPresets])
         );
       }
-      trackEvent("onboarding_completed", { has_guitar: Boolean(guitar), has_amp: Boolean(amp), pedals: pedals.length, referral: referral || "unknown" });
+      trackEvent("onboarding_completed", {
+        has_guitar: Boolean(guitar),
+        has_amp: Boolean(amp),
+        pedals: resolvedPedals.length,
+        has_multifx: Boolean(multifx),
+        referral: referral || "unknown"
+      });
       setCreatedPreset(preset);
       setPresetName(name);
       setStep("done");
