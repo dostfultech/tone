@@ -15,6 +15,7 @@ import {
   Guitar,
   Info,
   Loader2,
+  Lock,
   Music2,
   Search,
   SlidersHorizontal,
@@ -106,6 +107,7 @@ type TonePresentationDto = {
 type ToneResult = {
   id: string;
   toneResultId?: string | null;
+  locked?: boolean;
   request: ToneRequest;
   accuracy: number;
   originalRig: string;
@@ -172,6 +174,7 @@ type ToneBackendApiResponse = {
     goingDirect: boolean;
     multiFx?: string;
   };
+  preview?: boolean;
   tracking?: {
     toneResultId: string | null;
     usageConfirmationRequired: boolean;
@@ -180,6 +183,7 @@ type ToneBackendApiResponse = {
     freeAdaptationLimit?: number | null;
     monthlyAdaptationsRemaining: number | null;
     accessPath: string;
+    locked?: boolean;
   };
 };
 
@@ -534,6 +538,14 @@ export function ToneMatcher() {
           throw new Error(data.error?.message || data.error || "Tone adaptation failed.");
         }
         const adapted = mapToneAdaptationApiResponse(payload, data as ToneBackendApiResponse);
+        if (adapted.locked) {
+          // Locked preview for a no-access user: show the Original tone with the adapted
+          // side gated. No credit was consumed and nothing is saved — so skip usage
+          // tracking, confirmation, and auto-save.
+          setResult(adapted);
+          trackEvent("demo_preview_shown", { source: trigger, song: adapted.request.song });
+          return;
+        }
         const source = (data as ToneBackendApiResponse).source || {};
         console.info("[tonefex:adaptation:response]", {
           event: "tone_adaptation_response",
@@ -1134,16 +1146,14 @@ export function ToneMatcher() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (subscriptionSnapshot?.user && !subscriptionSnapshot.hasAccess && subscriptionSnapshot.usage.freeAdaptationsRemaining <= 0) {
-      if (earlyTesterMode) {
-        trackEvent("feedback_redirect", { source: "tone_matcher_submit" });
-        router.push("/feedback");
-      } else {
-        trackEvent("paywall_shown", { source: "tone_matcher_submit", reason: "upgrade_prompt" });
-        router.push(`/plans?required=subscription&redirect=${encodeURIComponent(matcherRedirectTarget)}&source=upgrade-prompt`);
-      }
+    if (earlyTesterMode && subscriptionSnapshot?.user && !subscriptionSnapshot.hasAccess && subscriptionSnapshot.usage.freeAdaptationsRemaining <= 0) {
+      trackEvent("feedback_redirect", { source: "tone_matcher_submit" });
+      router.push("/feedback");
       return;
     }
+    // No-access users (trial-only) are NOT blocked here — they run the match and get a
+    // LOCKED PREVIEW: the Original tone is shown and the adapted settings are gated behind
+    // the "Start your 7-day free trial" CTA (handled server-side + in the result panel).
 
     if (goingDirect && !multiFx) {
       setMessage("Going Direct requires a saved Multi-FX unit in My Gear.");
@@ -2438,6 +2448,7 @@ function mapToneAdaptationApiResponse(payload: ToneRequest, response: ToneBacken
   return {
     id: response.requestId,
     toneResultId: response.tracking?.toneResultId || null,
+    locked: Boolean(response.preview || response.tracking?.locked),
     request: payload,
     accuracy: presentation?.confidence?.score ?? response.masterTone.confidence,
     originalRig: `${response.masterTone.song} by ${response.masterTone.artist}`,
@@ -2636,6 +2647,7 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => Pro
               </p>
             ) : null}
           </div>
+          {result.locked ? null : (
           <div className="flex flex-col items-start gap-2 sm:items-end">
             <motion.button
               type="button"
@@ -2682,11 +2694,12 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => Pro
               ) : null}
             </AnimatePresence>
           </div>
+          )}
         </div>
       </div>
 
       {result.presentation ? (
-        <SplitResultBody result={result} presentation={result.presentation} />
+        <SplitResultBody result={result} presentation={result.presentation} locked={Boolean(result.locked)} />
       ) : (
         <div className="grid gap-5 p-5">
           <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}>
@@ -2775,7 +2788,7 @@ function GuitarControlsRow({ controls }: { controls: { volume: number; tone: num
   );
 }
 
-function SplitResultBody({ result, presentation }: { result: ToneResult; presentation: TonePresentationDto }) {
+function SplitResultBody({ result, presentation, locked = false }: { result: ToneResult; presentation: TonePresentationDto; locked?: boolean }) {
   const original = presentation.original;
   const adapted = presentation.adapted;
   const hasOriginalGear = Boolean(original.gear.guitar || original.gear.pickups || original.gear.amp || original.gear.cab || original.notes);
@@ -2916,6 +2929,10 @@ function SplitResultBody({ result, presentation }: { result: ToneResult; present
           </div>
         </div>
 
+        {locked ? (
+          <LockedAdaptedOverlay />
+        ) : (
+          <>
         {adapted.pickupChoice ? (
           <ResultCard title="Pickup Choice" icon={<Guitar className="h-3.5 w-3.5" />}>
             <p className="text-sm font-bold text-ink">{adapted.pickupChoice.recommendation}</p>
@@ -3073,7 +3090,44 @@ function SplitResultBody({ result, presentation }: { result: ToneResult; present
             </div>
           </ResultCard>
         ) : null}
+          </>
+        )}
       </motion.section>
+    </div>
+  );
+}
+
+function LockedAdaptedOverlay() {
+  return (
+    <div className="preview-lock relative min-h-[420px] rounded-xl border border-white/80 bg-white/70">
+      {/* Blurred teaser of what the adapted card looks like */}
+      <div className="preview-lock-inner grid gap-3 p-4" aria-hidden="true">
+        {["Pickup Choice", "Amp Mode", "Amp settings — adapted", "Guitar Controls", "Dial In Your Pedals"].map((title) => (
+          <div key={title} className="rounded-lg border border-slate-200 bg-white p-3">
+            <div className="h-3 w-28 rounded bg-slate-200" />
+            <div className="mt-2 h-3 w-40 rounded bg-slate-100" />
+            <div className="mt-1.5 h-3 w-32 rounded bg-slate-100" />
+          </div>
+        ))}
+      </div>
+      <div className="absolute inset-0 z-[1] grid place-items-center p-6 text-center">
+        <div className="max-w-xs">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-ocean/10 text-ocean shadow-sm">
+            <Lock className="h-7 w-7" />
+          </div>
+          <h4 className="mt-4 text-xl font-bold text-ink">Unlock Adapted Tone</h4>
+          <p className="mt-1.5 text-sm leading-6 text-slate-600">
+            Start your 7-day free trial to see your personalized tone adaptation settings — dialed in for your exact rig.
+          </p>
+          <Link
+            href="/plans?required=subscription&source=demo-unlock"
+            className="button-primary mt-5 inline-flex min-h-12 justify-center px-8 text-base"
+          >
+            Try it for FREE
+          </Link>
+          <p className="mt-2 text-xs text-slate-400">No charge for 7 days · cancel anytime</p>
+        </div>
+      </div>
     </div>
   );
 }

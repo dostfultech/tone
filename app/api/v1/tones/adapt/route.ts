@@ -46,7 +46,14 @@ export async function POST(request: NextRequest) {
     const entitlement = await getEntitlement(supabase, user);
     const eligibility = await assertCanCreateAdaptation(admin, user, entitlement, dto.requestSource);
 
-    if (!eligibility.ok) {
+    // A signed-in user WITHOUT access (no active/trial subscription) gets a LOCKED PREVIEW
+    // instead of a hard 402: we compute the tone and return the Original side, but the
+    // client gates the adapted settings behind the "Start your 7-day free trial" CTA. This
+    // is the conversion demo. Users who DO have access but hit a cap (trial/paid exhausted)
+    // still get the normal 402 upgrade prompt.
+    const previewOnly = !eligibility.ok && !entitlement.hasAccess;
+
+    if (!eligibility.ok && !previewOnly) {
       return NextResponse.json(
         {
           error: {
@@ -86,6 +93,25 @@ export async function POST(request: NextRequest) {
         errorMessage: adaptError instanceof Error ? adaptError.message : "Tone adaptation failed."
       });
       throw adaptError;
+    }
+
+    if (previewOnly) {
+      // Locked preview: no credit consumed, nothing persisted. The client shows the
+      // Original tone and gates the adapted settings behind the free-trial CTA.
+      return NextResponse.json({
+        ...response,
+        preview: true,
+        tracking: {
+          toneResultId: null,
+          usageConfirmationRequired: false,
+          freeAdaptationsRemaining: 0,
+          freeAdaptationsUsed: null,
+          freeAdaptationLimit: 0,
+          monthlyAdaptationsRemaining: null,
+          accessPath: "preview",
+          locked: true
+        }
+      });
     }
 
     const toneJobId = await createToneJob(admin, user.id, dto);
