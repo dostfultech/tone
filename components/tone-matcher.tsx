@@ -1106,9 +1106,11 @@ export function ToneMatcher() {
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem(sessionKey, "1");
     }
-    setOnboardingOpen(true);
-    if (welcomeTrigger) {
-      // Drop ?welcome=1 so a refresh doesn't force-reopen the popup.
+    // Do NOT force the onboarding modal open. New (esp. mobile) users found the forced popup
+    // clumsy; the "Your Rig" card is right at the top of the flow, so gear is picked inline.
+    // The wizard is still available on demand via the "Set up my rig" button.
+    if (welcomeTrigger && typeof window !== "undefined") {
+      // Drop ?welcome=1 so the URL is clean.
       window.history.replaceState({}, "", onboardingMode ? "/app?onboarding=1" : "/app");
     }
   }, [onboardingMode, onboardingOpen, rigNudgeDismissed, subscriptionSnapshot, welcomeTrigger]);
@@ -1424,20 +1426,20 @@ export function ToneMatcher() {
         ) : null}
 
         {!firstAdaptationOnboarding ? (
-          <section className="order-8 mt-12 lg:order-2 lg:mt-14">
-          <div className="mb-6 text-center">
-            <div className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-ink text-moss shadow-lg">
-              <Flame className="h-6 w-6" />
+          <section className="order-2 mt-8 lg:order-2 lg:mt-14">
+          <div className="mb-4 text-center sm:mb-6">
+            <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-ink text-moss shadow-lg sm:h-12 sm:w-12">
+              <Flame className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
-            <h2 className="mt-3 text-3xl font-bold">What players are chasing</h2>
-            <p className="mt-2 text-slate-500">The most-dialed tones right now — tap one to load it</p>
+            <h2 className="mt-3 text-xl font-bold sm:text-3xl">What players are chasing</h2>
+            <p className="mt-1 text-sm text-slate-500 sm:mt-2 sm:text-base">The most-dialed tones right now. Tap one to load it.</p>
           </div>
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
+          <div className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-2 md:gap-5 md:overflow-visible md:px-0 xl:grid-cols-5 [&::-webkit-scrollbar]:hidden">
             {trendingTones.map((item) => (
               <button
                 key={item.rank}
                 type="button"
-                className="compact-card min-h-36 p-6 text-left transition-colors hover:border-ocean/40 hover:shadow-xl"
+                className="compact-card min-h-36 w-[80%] shrink-0 snap-center p-6 text-left transition-colors hover:border-ocean/40 hover:shadow-xl md:w-auto md:shrink"
                 onClick={() => {
                   setSong(item.song);
                   setSongDraft(item.song);
@@ -1500,7 +1502,7 @@ export function ToneMatcher() {
           />
         </div>
 
-        <div className="order-2 lg:order-6">
+        <div className="order-3 lg:order-6">
           <StepProgress />
         </div>
 
@@ -1715,7 +1717,7 @@ export function ToneMatcher() {
 
               <div className={`border-t border-blue-100 pt-8 ${firstAdaptationOnboarding && !showAdvancedGear ? "hidden" : ""}`}>
                 <h3 className="mb-5 text-xl font-bold">Select Your Effects (Optional)</h3>
-                <div className="grid rounded-lg border border-white/80 bg-blue-50/80 p-2 shadow-inner md:grid-cols-2">
+                <div className="grid grid-cols-2 rounded-lg border border-white/80 bg-blue-50/80 p-2 shadow-inner">
                   {[
                     ["pedals", "Pedals", SlidersHorizontal],
                     ["multifx", "Multi-FX", Sparkles]
@@ -1725,7 +1727,7 @@ export function ToneMatcher() {
                       <button
                         key={value as string}
                         type="button"
-                        className={`flex min-h-16 items-center justify-center gap-3 rounded-md text-base font-bold transition ${
+                        className={`flex min-h-12 items-center justify-center gap-2 rounded-md text-sm font-bold transition sm:min-h-16 sm:gap-3 sm:text-base ${
                           effectsTab === value ? "bg-white text-ink shadow-lg" : "text-slate-700 hover:bg-white/70"
                         }`}
                         onClick={() => setEffectsTab(value as "pedals" | "multifx")}
@@ -2153,14 +2155,14 @@ function StepProgress() {
   ];
 
   return (
-    <div className="mx-auto mt-8 grid max-w-4xl grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-5 sm:mt-16">
+    <div className="mx-auto mt-6 grid max-w-4xl grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 sm:mt-16 sm:gap-5">
       {steps.map(([number, label], index) => (
         <div key={number} className="contents">
           <div className="text-center">
-            <div className={`mx-auto grid h-20 w-20 place-items-center rounded-lg border text-3xl font-bold shadow-lg ${index < 2 ? "border-white bg-ink text-white" : "border-white bg-white/70 text-slate-500"}`}>
+            <div className={`mx-auto grid h-11 w-11 place-items-center rounded-lg border text-base font-bold shadow-lg sm:h-20 sm:w-20 sm:text-3xl ${index < 2 ? "border-white bg-ink text-white" : "border-white bg-white/70 text-slate-500"}`}>
               {number}
             </div>
-            <div className="mt-3 text-lg font-bold text-slate-800">{label}</div>
+            <div className="mt-2 text-xs font-bold text-slate-800 sm:mt-3 sm:text-lg">{label}</div>
           </div>
           {index < steps.length - 1 ? (
             <div className="hidden h-1 w-32 rounded-full bg-blue-100 sm:block">
@@ -2176,11 +2178,11 @@ function StepProgress() {
 function WorkflowCard({ step, title, children, className = "" }: { step: string; title: string; children: React.ReactNode; className?: string }) {
   return (
     <section className={`theme-panel overflow-hidden ${className}`}>
-      <header className="theme-blue-panel flex min-h-32 items-center gap-5 border-b border-white/80 px-9 py-7">
-        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-ink text-2xl font-bold text-white shadow-lg">{step}</div>
-        <h2 className="text-4xl font-bold tracking-normal">{title}</h2>
+      <header className="theme-blue-panel flex items-center gap-3 border-b border-white/80 px-5 py-4 sm:min-h-32 sm:gap-5 sm:px-9 sm:py-7">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-ink text-base font-bold text-white shadow-lg sm:h-16 sm:w-16 sm:text-2xl">{step}</div>
+        <h2 className="text-xl font-bold tracking-normal sm:text-4xl">{title}</h2>
       </header>
-      <div className="p-8 lg:p-12">{children}</div>
+      <div className="p-5 sm:p-8 lg:p-12">{children}</div>
     </section>
   );
 }
