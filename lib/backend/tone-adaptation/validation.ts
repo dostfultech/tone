@@ -41,8 +41,8 @@ export function validateToneAdaptationRequest(payload: unknown): NormalizedToneA
   const toneType = normalizeToneType(dto.toneType);
   const requestId = cleanString(dto.requestId) ?? randomUUID();
   const masterToneId = cleanString(dto.masterToneId);
-  const song = cleanString(dto.song);
-  const artist = cleanString(dto.artist);
+  const song = tidyTitleInput(cleanString(dto.song));
+  const artist = tidyTitleInput(cleanString(dto.artist));
 
   if (!masterToneId && (!song || !artist)) {
     throw validationError("Provide either masterToneId or both song and artist.");
@@ -184,6 +184,21 @@ function normalizeNamedSelection(value: unknown): NormalizedSelection | undefine
 
 function cleanString(value: unknown) {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+// Tidy stray input so the same song isn't split in search + analytics (e.g. a user's
+// "' Sweet Child O' Mine" vs "Sweet Child O' Mine"). Strips a leading quote/apostrophe that is
+// followed by whitespace (junk) but preserves real leading-apostrophe titles like "'39" or
+// "'Til You Can't" (apostrophe immediately followed by a character), and collapses double spaces.
+function tidyTitleInput(value?: string) {
+  if (!value) {
+    return value;
+  }
+  const tidied = value
+    .replace(/^['‘’"“”]\s+/, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return tidied || value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

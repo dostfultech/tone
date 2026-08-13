@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { AppShell } from "@/components/app-shell";
-import { WelcomeView } from "@/components/welcome-view";
-import { buildPageMetadata } from "@/lib/seo";
+import { EARLY_TESTER_FREE_ADAPTATIONS, isEarlyTesterMode } from "@/lib/early-tester";
 import { getEntitlement, getCurrentSession } from "@/lib/server-access";
+import { buildPageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildPageMetadata({
   title: "Welcome",
@@ -12,6 +11,10 @@ export const metadata: Metadata = buildPageMetadata({
   noIndex: true
 });
 
+// Analytics (2026-08): the old welcome interstitial (a re-pitch + "Get Started" button) bounced
+// ~85% of new signups — they'd just signed up and hit ANOTHER marketing wall before reaching the
+// app. So this now grants the free adaptations and drops the player straight into /app. The grant
+// is idempotent (guarded on welcome_completed_at) so it only fires once.
 export default async function WelcomePage() {
   const { supabase, user } = await getCurrentSession();
 
@@ -24,9 +27,13 @@ export default async function WelcomePage() {
     redirect("/app");
   }
 
-  return (
-    <AppShell>
-      <WelcomeView />
-    </AppShell>
-  );
+  if (supabase) {
+    const updates: Record<string, unknown> = { welcome_completed_at: new Date().toISOString() };
+    if (isEarlyTesterMode()) {
+      updates.free_adaptation_limit = EARLY_TESTER_FREE_ADAPTATIONS;
+    }
+    await supabase.from("profiles").update(updates).eq("id", user.id).is("welcome_completed_at", null);
+  }
+
+  redirect("/app?welcome=1");
 }
