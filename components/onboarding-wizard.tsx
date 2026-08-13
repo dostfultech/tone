@@ -11,6 +11,33 @@ import type { GearSearchItem } from "@/lib/my-gear";
 
 type Step = "intro" | "guitar" | "amp" | "extras" | "summary" | "done";
 
+export type OnboardingPresetEffects = {
+  effectsMode: string;
+  multiFx?: string;
+  selectedFx: string;
+  features: string[];
+  customPickups: Record<string, string>;
+};
+
+export type OnboardingGearPreset = {
+  id: string;
+  name: string;
+  instrument_type: "guitar";
+  guitar_name: string | null;
+  amp_name: string | null;
+  pickup_name: null;
+  effects: OnboardingPresetEffects;
+};
+
+export type OnboardingWizardProps = {
+  /** "page" renders standalone (its own route); "modal" is embedded in an overlay and reports completion via callbacks. */
+  variant?: "page" | "modal";
+  /** Called when the user finishes and taps "Start Matching Tones" (modal variant). Hands back the created preset so the matcher can pre-fill. */
+  onComplete?: (payload: { preset: OnboardingGearPreset }) => void;
+  /** Called when the user skips/closes (modal variant). */
+  onSkip?: () => void;
+};
+
 const REFERRALS = ["Instagram", "YouTube", "TikTok", "Reddit", "Facebook", "Google Search", "Friends", "Word of Mouth", "Other"];
 const GUITAR_QUICK = ["Fender Stratocaster", "Squier Stratocaster", "Epiphone Les Paul", "Gibson Les Paul", "Fender Telecaster", "Squier Telecaster"];
 const AMP_QUICK = ["Boss Katana", "Fender Mustang LT25", "Fender Champion 20", "Marshall CODE 25", "Positive Grid Spark", "Fender Mustang GTX 50"];
@@ -19,7 +46,7 @@ const MULTIFX_QUICK = ["Boss GT-1000", "Line 6 Helix", "HX Stomp", "POD Go", "Li
 
 const STEP_ORDER: Step[] = ["intro", "guitar", "amp", "extras", "summary", "done"];
 
-export function OnboardingWizard() {
+export function OnboardingWizard({ variant = "page", onComplete, onSkip }: OnboardingWizardProps = {}) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("intro");
   const [referral, setReferral] = useState<string | null>(null);
@@ -30,6 +57,7 @@ export function OnboardingWizard() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [presetName, setPresetName] = useState("");
+  const [createdPreset, setCreatedPreset] = useState<OnboardingGearPreset | null>(null);
 
   const progress = useMemo(() => {
     const idx = STEP_ORDER.indexOf(step);
@@ -44,17 +72,40 @@ export function OnboardingWizard() {
     router.push("/app?onboarding=1");
   }
 
+  // "Start Matching Tones" on the done step: modal reports the preset back so the matcher pre-fills; page navigates.
+  function complete() {
+    if (variant === "modal" && onComplete && createdPreset) {
+      onComplete({ preset: createdPreset });
+      return;
+    }
+    goToApp();
+  }
+
+  // Skip/exit the whole flow: modal closes in place; page falls back to the app.
+  function skip() {
+    if (variant === "modal" && onSkip) {
+      onSkip();
+      return;
+    }
+    goToApp();
+  }
+
   async function finish() {
     setSaving(true);
     setError("");
     const name = [guitar, amp].filter(Boolean).join(" + ") || "My Rig";
-    const effects = {
-      effectsMode: multifx ? "multi_fx" : "pedals",
+    const usingMultiFx = Boolean(multifx);
+    // A multi-FX unit run direct takes the amp slot (mirrors gear-view's save shape).
+    const ampName = usingMultiFx ? multifx : amp;
+    const hasGear = Boolean(guitar || amp || multifx);
+    const effects: OnboardingPresetEffects = {
+      effectsMode: usingMultiFx ? "multi_fx" : "manual",
       multiFx: multifx || undefined,
       selectedFx: pedals.join(", "),
-      features: [] as string[],
+      features: [],
       customPickups: {}
     };
+    let presetId = `local-${Date.now()}`;
 
     const supabase = createSupabaseBrowserClient();
     try {
@@ -63,16 +114,23 @@ export function OnboardingWizard() {
           data: { user }
         } = await supabase.auth.getUser();
         if (user) {
-          if (guitar || amp) {
-            await supabase.from("gear_presets").insert({
-              user_id: user.id,
-              name,
-              instrument_type: "guitar",
-              guitar_name: guitar || null,
-              amp_name: multifx || amp || null,
-              pickup_name: null,
-              effects
-            });
+          if (hasGear) {
+            const { data } = await supabase
+              .from("gear_presets")
+              .insert({
+                user_id: user.id,
+                name,
+                instrument_type: "guitar",
+                guitar_name: guitar || null,
+                amp_name: ampName || null,
+                pickup_name: null,
+                effects
+              })
+              .select("id")
+              .single();
+            if (data?.id) {
+              presetId = data.id as string;
+            }
           }
           await supabase
             .from("profiles")
@@ -83,15 +141,27 @@ export function OnboardingWizard() {
             .eq("id", user.id);
         }
       }
+
+      const preset: OnboardingGearPreset = {
+        id: presetId,
+        name,
+        instrument_type: "guitar",
+        guitar_name: guitar || null,
+        amp_name: ampName || null,
+        pickup_name: null,
+        effects
+      };
+
       // Local cache so the preset shows immediately even before a round-trip.
       const localPresets = JSON.parse(localStorage.getItem(`${brand.storagePrefix}_saved_gear_presets`) || "[]");
-      if (guitar || amp) {
+      if (hasGear) {
         localStorage.setItem(
           `${brand.storagePrefix}_saved_gear_presets`,
-          JSON.stringify([{ id: `local-${Date.now()}`, name, instrument_type: "guitar", guitar, amp: multifx || amp, pickup: "", effects }, ...localPresets])
+          JSON.stringify([{ id: presetId, name, instrument_type: "guitar", guitar, amp: ampName, pickup: "", effects }, ...localPresets])
         );
       }
       trackEvent("onboarding_completed", { has_guitar: Boolean(guitar), has_amp: Boolean(amp), pedals: pedals.length, referral: referral || "unknown" });
+      setCreatedPreset(preset);
       setPresetName(name);
       setStep("done");
     } catch (err) {
@@ -102,7 +172,7 @@ export function OnboardingWizard() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 pb-16 pt-24 sm:px-6">
+    <div className={variant === "modal" ? "w-full" : "mx-auto max-w-2xl px-4 pb-16 pt-24 sm:px-6"}>
       {step !== "intro" && step !== "done" ? (
         <div className="mb-8">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
@@ -112,7 +182,7 @@ export function OnboardingWizard() {
       ) : null}
 
       {step === "intro" ? (
-        <IntroStep referral={referral} onReferral={setReferral} onStart={() => setStep("guitar")} onSkip={goToApp} />
+        <IntroStep referral={referral} onReferral={setReferral} onStart={() => setStep("guitar")} onSkip={skip} />
       ) : null}
 
       {step === "guitar" ? (
@@ -133,7 +203,7 @@ export function OnboardingWizard() {
           primaryDisabled={!guitar}
           onPrimary={() => setStep("amp")}
           skipLabel="I'll add my gear later"
-          onSkip={goToApp}
+          onSkip={skip}
         />
       ) : null}
 
@@ -186,7 +256,7 @@ export function OnboardingWizard() {
         />
       ) : null}
 
-      {step === "done" ? <DoneStep presetName={presetName} onStart={goToApp} /> : null}
+      {step === "done" ? <DoneStep presetName={presetName} onStart={complete} /> : null}
     </div>
   );
 }
@@ -552,7 +622,7 @@ function DoneStep({ presetName, onStart }: { presetName: string; onStart: () => 
             {presetName}
           </div>
           <p className="mx-auto mt-4 max-w-sm text-sm text-slate-500">
-            Pick it from the preset dropdown on the app and start matching tones.
+            It&apos;s loaded into the matcher — just pick a song and start matching tones.
           </p>
         </>
       ) : (

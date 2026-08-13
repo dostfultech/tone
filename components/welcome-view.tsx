@@ -36,7 +36,7 @@ export function WelcomeView() {
       }
     }
 
-    router.push("/onboarding");
+    router.push("/app?welcome=1");
   }
 
   return (

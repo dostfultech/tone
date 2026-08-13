@@ -59,6 +59,7 @@ import {
   type GearSelectionMetadata,
   type MyGearProfile
 } from "@/lib/my-gear";
+import { OnboardingWizard, type OnboardingGearPreset } from "@/components/onboarding-wizard";
 
 type TonePresentationDto = {
   original: {
@@ -269,10 +270,12 @@ export function ToneMatcher() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const onboardingMode = searchParams.get("onboarding") === "1";
+  const welcomeTrigger = searchParams.get("welcome") === "1";
   const requestedGuitar = sanitizeGearParam(searchParams.get("guitar"));
   const requestedAmp = sanitizeGearParam(searchParams.get("amp"));
   const matcherRedirectTarget = onboardingMode ? "/app?onboarding=1" : "/app";
   const autoAdaptTriggeredRef = useRef(false);
+  const onboardingAutoOpenedRef = useRef(false);
   const hasLoadedPreferencesRef = useRef(false);
   const hasAppliedMyGearDefaultsRef = useRef(false);
   const resultRef = useRef<HTMLDivElement | null>(null);
@@ -301,6 +304,7 @@ export function ToneMatcher() {
   const [myGearProfile, setMyGearProfile] = useState<MyGearProfile>(createEmptyMyGearProfile());
   const [result, setResult] = useState<ToneResult | null>(null);
   const [rigNudgeDismissed, setRigNudgeDismissed] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("");
@@ -1058,11 +1062,43 @@ export function ToneMatcher() {
     setBridgePickup(presetEffects.customPickups?.bridge || "");
   }, [cabinetCatalog, multiFx, myGearProfile.multifx, myGearProfile.pedals, selectedFx]);
 
+  // Finishing onboarding (modal): drop the fresh preset in and pre-fill the whole form with the chosen rig.
+  const handleOnboardingComplete = useCallback(
+    (payload: { preset: OnboardingGearPreset }) => {
+      const preset = payload.preset as MatcherGearPreset;
+      setGearPresets((prev) => [preset, ...prev.filter((item) => item.id !== preset.id)]);
+      applyGearPreset(preset);
+      setOnboardingOpen(false);
+      setRigNudgeDismissed(true);
+      void refreshSubscriptionSnapshot();
+    },
+    [applyGearPreset, refreshSubscriptionSnapshot]
+  );
+
+  // Fallback for the standalone /onboarding page (or a refresh of /app?onboarding=1): auto-apply the newest matching preset.
   useEffect(() => {
-    if (!gearPresets.length || selectedPresetId || autoAdaptTriggeredRef.current) {
+    if (!onboardingMode || !gearPresets.length || selectedPresetId || autoAdaptTriggeredRef.current) {
       return;
     }
-  }, [applyGearPreset, gearPresets, mode, selectedPresetId]);
+    const compatible = selectCompatibleGearPreset(gearPresets, mode);
+    if (compatible?.id) {
+      applyGearPreset(compatible);
+    }
+  }, [applyGearPreset, gearPresets, mode, onboardingMode, selectedPresetId]);
+
+  // Auto-open the onboarding popup immediately after signup (`/app?welcome=1`) for users who haven't set up gear yet.
+  useEffect(() => {
+    if (onboardingAutoOpenedRef.current || !welcomeTrigger) {
+      return;
+    }
+    if (!subscriptionSnapshot?.user || subscriptionSnapshot.onboarding.gearSetupCompleted) {
+      return;
+    }
+    onboardingAutoOpenedRef.current = true;
+    setOnboardingOpen(true);
+    // Drop ?welcome=1 so a refresh doesn't reopen the popup.
+    window.history.replaceState({}, "", onboardingMode ? "/app?onboarding=1" : "/app");
+  }, [onboardingMode, subscriptionSnapshot, welcomeTrigger]);
 
   useEffect(() => {
     if (selectedFx && pedalCatalog.length && !pedalCatalog.some((item) => item.name === selectedFx)) {
@@ -1359,9 +1395,13 @@ export function ToneMatcher() {
                 </div>
               </div>
               <div className="flex w-full items-center gap-2 sm:w-auto">
-                <Link href="/onboarding" className="button-primary min-h-10 flex-1 justify-center whitespace-nowrap px-4 text-sm sm:flex-none">
+                <button
+                  type="button"
+                  onClick={() => setOnboardingOpen(true)}
+                  className="button-primary min-h-10 flex-1 justify-center whitespace-nowrap px-4 text-sm sm:flex-none"
+                >
                   Set Up My Rig
-                </Link>
+                </button>
                 <button type="button" onClick={() => setRigNudgeDismissed(true)} className="button-quiet px-2" aria-label="Dismiss">
                   <X className="h-4 w-4" />
                 </button>
@@ -1993,6 +2033,24 @@ export function ToneMatcher() {
           </motion.div>
         ) : null}
       </AnimatePresence>
+
+      {onboardingOpen ? (
+        <div className="fixed inset-0 z-[110] overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm">
+          <div className="flex min-h-full items-start justify-center sm:items-center">
+            <div className="relative my-6 w-full max-w-2xl sm:my-auto">
+              <button
+                type="button"
+                onClick={() => setOnboardingOpen(false)}
+                aria-label="Close setup"
+                className="absolute right-3 top-3 z-10 grid h-9 w-9 place-items-center rounded-full bg-white/90 text-slate-500 shadow-sm transition hover:text-ink"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <OnboardingWizard variant="modal" onComplete={handleOnboardingComplete} onSkip={() => setOnboardingOpen(false)} />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
