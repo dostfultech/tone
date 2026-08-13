@@ -1086,19 +1086,32 @@ export function ToneMatcher() {
     }
   }, [applyGearPreset, gearPresets, mode, onboardingMode, selectedPresetId]);
 
-  // Auto-open the onboarding popup immediately after signup (`/app?welcome=1`) for users who haven't set up gear yet.
+  // Auto-open the onboarding popup for a signed-in user who hasn't set up gear yet.
+  // Fires right after signup (?welcome=1) and — as a fallback — the first time a
+  // gearless user lands on /app this session, so the popup reliably greets new users
+  // no matter which path (welcome page, direct redirect, etc.) brought them here.
   useEffect(() => {
-    if (onboardingAutoOpenedRef.current || !welcomeTrigger) {
+    if (onboardingAutoOpenedRef.current || onboardingOpen) {
       return;
     }
-    if (!subscriptionSnapshot?.user || subscriptionSnapshot.onboarding.gearSetupCompleted) {
+    if (!subscriptionSnapshot?.user || subscriptionSnapshot.onboarding.gearSetupCompleted || rigNudgeDismissed) {
+      return;
+    }
+    const sessionKey = `${brand.storagePrefix}_onboarding_popup_shown`;
+    const shownThisSession = typeof window !== "undefined" && window.sessionStorage.getItem(sessionKey) === "1";
+    if (!welcomeTrigger && shownThisSession) {
       return;
     }
     onboardingAutoOpenedRef.current = true;
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(sessionKey, "1");
+    }
     setOnboardingOpen(true);
-    // Drop ?welcome=1 so a refresh doesn't reopen the popup.
-    window.history.replaceState({}, "", onboardingMode ? "/app?onboarding=1" : "/app");
-  }, [onboardingMode, subscriptionSnapshot, welcomeTrigger]);
+    if (welcomeTrigger) {
+      // Drop ?welcome=1 so a refresh doesn't force-reopen the popup.
+      window.history.replaceState({}, "", onboardingMode ? "/app?onboarding=1" : "/app");
+    }
+  }, [onboardingMode, onboardingOpen, rigNudgeDismissed, subscriptionSnapshot, welcomeTrigger]);
 
   useEffect(() => {
     if (selectedFx && pedalCatalog.length && !pedalCatalog.some((item) => item.name === selectedFx)) {
