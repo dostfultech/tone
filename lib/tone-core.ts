@@ -539,6 +539,19 @@ function applyEquipmentProfileAdjustments(
     targetSettings[key] = clampKnob(Number(targetSettings[key] ?? 5) + deltas[key]);
   }
 
+  // Gain governor: guitar + amp + pickup + cab deltas were stacking into a systematic
+  // over-gain (tester feedback on Floods/Panama + data across 174 adaptations: avg +0.71,
+  // ~37% pushed gain up by 2+). Cap how far above the source tone the adapted gain can land.
+  // Modelers / going-direct reproduce the amp itself, so they should never need MORE gain than
+  // the original; real, differing gear may need a touch.
+  const sourceGain = toneProfile.originalSettings?.gain;
+  if (typeof targetSettings.gain === "number" && typeof sourceGain === "number") {
+    const maxRaise = equipment.goingDirect ? 0 : 1;
+    if (targetSettings.gain > sourceGain + maxRaise) {
+      targetSettings.gain = clampKnob(sourceGain + maxRaise);
+    }
+  }
+
   const adaptationNotes = buildAdaptationNotes(request, toneProfile, equipment, toneProfile.originalSettings, targetSettings);
   const equipmentTips = buildEquipmentTips(equipment);
   const pickupAdvice = equipment.guitar
