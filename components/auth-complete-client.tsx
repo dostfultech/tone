@@ -41,7 +41,9 @@ export function AuthCompleteClient({ searchParams }: AuthCompleteClientProps) {
     } = client.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         clearOauthInProgress();
-        window.location.replace(next);
+        void fetch("/api/referral/attribute", { method: "POST" })
+          .catch(() => {})
+          .finally(() => window.location.replace(next));
       }
     });
 
@@ -75,6 +77,7 @@ export function AuthCompleteClient({ searchParams }: AuthCompleteClientProps) {
 
         if (session?.user) {
           clearOauthInProgress();
+          await fetch("/api/referral/attribute", { method: "POST" }).catch(() => {});
           window.location.replace(next);
           return;
         }
