@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSiteUrl } from "@/lib/env";
+import { REF_COOKIE, normalizeRefCode } from "@/lib/referral";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
@@ -46,12 +48,50 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    return NextResponse.redirect(new URL(next, origin));
+    await attributeReferral(request, supabase);
+    const response = NextResponse.redirect(new URL(next, origin));
+    response.cookies.set(REF_COOKIE, "", { maxAge: 0, path: "/" });
+    return response;
   }
 
   const authCompleteUrl = new URL("/auth/complete", origin);
   authCompleteUrl.searchParams.set("next", next);
   return NextResponse.redirect(authCompleteUrl);
+}
+
+// Best-effort referral attribution: if the visitor arrived via ?ref=CODE (captured to a cookie)
+// and this is a brand-new account, link them to the referrer. Never blocks or breaks auth.
+async function attributeReferral(
+  request: NextRequest,
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>
+) {
+  try {
+    const code = normalizeRefCode(request.cookies.get(REF_COOKIE)?.value);
+    if (!code || !supabase) {
+      return;
+    }
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return;
+    }
+    const admin = createSupabaseAdminClient();
+    if (!admin) {
+      return;
+    }
+    const { data: me } = await admin.from("profiles").select("referred_by").eq("id", user.id).maybeSingle();
+    if (!me || me.referred_by) {
+      return; // no profile yet, or already attributed
+    }
+    const { data: referrer } = await admin.from("profiles").select("id").eq("referral_code", code).maybeSingle();
+    if (!referrer || referrer.id === user.id) {
+      return; // unknown code or self-referral
+    }
+    await admin.from("profiles").update({ referred_by: referrer.id }).eq("id", user.id).is("referred_by", null);
+  } catch {
+    // swallow — referral attribution must never break sign-in
+  }
 }
 
 function resolveAuthOrigin(requestUrl: URL) {

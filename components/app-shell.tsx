@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import {
   CreditCard,
   Database,
+  Gift,
   Library,
   LogIn,
   LogOut,
@@ -34,7 +35,8 @@ import { cn } from "@/lib/utils";
 
 const collectionNav = [
   { href: "/library", label: "Library", icon: Library },
-  { href: "/gear", label: "My Gear", icon: SlidersHorizontal }
+  { href: "/gear", label: "My Gear", icon: SlidersHorizontal },
+  { href: "/referral", label: "Invite & Earn", icon: Gift }
 ];
 
 const discoveryNav = [

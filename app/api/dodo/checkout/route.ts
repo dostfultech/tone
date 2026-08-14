@@ -28,6 +28,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Missing Dodo product ID for ${planId} ${billing}.` }, { status: 503 });
   }
 
+  const admin = createSupabaseAdminClient();
+  let referredBy: string | null = null;
+  if (admin) {
+    const { data: prof } = await admin.from("profiles").select("referred_by").eq("id", user.id).maybeSingle();
+    referredBy = (prof?.referred_by as string | null) ?? null;
+  }
+
   const client = createDodoClient();
   if (!client) {
     return NextResponse.json({ error: "Dodo client unavailable" }, { status: 503 });
@@ -51,7 +58,8 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         plan_id: planId,
         billing_interval: billing,
-        environment: resolveDodoEnvironment()
+        environment: resolveDodoEnvironment(),
+        ...(referredBy ? { referred_by: referredBy } : {})
       }
     } as never);
   } catch (error) {
@@ -63,7 +71,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const admin = createSupabaseAdminClient();
   await admin?.from("usage_events").insert({
     user_id: user.id,
     event_type: "checkout_started",
