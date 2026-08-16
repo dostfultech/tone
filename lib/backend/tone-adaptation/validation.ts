@@ -89,14 +89,21 @@ export function slugify(value: string) {
 // parentheticals that are part of the title (e.g. "Voodoo Child (Slight Return)") are
 // preserved because they do not contain a variant keyword.
 const SONG_VARIANT_QUALIFIER =
-  /\b(?:re-?master(?:ed)?|digital remaster|live|deluxe|mono|stereo|anniversary|edition|version|remix|radio edit|single version|album version|bonus(?: track)?|demo|take\s*\d+|session|expanded|reissue|remastered)\b/i;
+  /\b(?:re-?master(?:ed)?|digital remaster|live|deluxe|mono|stereo|anniversary|edition|version|remix|mix|edit|radio edit|single version|album version|bonus(?: track)?|demo|take\s*\d+|session|expanded|reissue|remastered|feat\.?|ft\.?|featuring|acoustic|instrumental|unplugged|extended|explicit)\b/i;
 
 export function normalizeSongTitle(title: string): string {
-  let result = title.trim();
+  // Streaming metadata sometimes carries stray wrapping quotes or doubled spaces
+  // ("' Sweet Child O' Mine"). Strip junk only when followed/preceded by a space so
+  // legitimate leading apostrophes ("'39") survive.
+  let result = title
+    .trim()
+    .replace(/^['"‘’“”]\s+/, "")
+    .replace(/\s+['"‘’“”]$/, "")
+    .replace(/\s{2,}/g, " ");
 
   // Strip up to a few stacked trailing "(...)" / "[...]" qualifier groups, e.g.
-  // "Song (Live) (2011 Remaster)" -> "Song".
-  for (let i = 0; i < 3; i += 1) {
+  // "Song (feat. X) (2011 Remaster)" or "Song (2009 Remastered Version) [feat. Y]" -> "Song".
+  for (let i = 0; i < 4; i += 1) {
     const stripped = result.replace(/[([][^()[\]]*[)\]]\s*$/, (match) =>
       SONG_VARIANT_QUALIFIER.test(match) ? "" : match
     );
@@ -106,7 +113,7 @@ export function normalizeSongTitle(title: string): string {
     result = stripped.trim();
   }
 
-  // Strip a trailing "- Remastered 2011" / "- Live at ..." dash suffix.
+  // Strip a trailing "- Remastered 2011" / "- Live at ..." / "- feat. X" dash suffix.
   result = result.replace(/\s[-–—]\s.*$/, (match) => (SONG_VARIANT_QUALIFIER.test(match) ? "" : match));
 
   return result.trim() || title.trim();
