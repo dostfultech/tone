@@ -60,6 +60,7 @@ import {
   type MyGearProfile
 } from "@/lib/my-gear";
 import { OnboardingWizard, type OnboardingGearPreset } from "@/components/onboarding-wizard";
+import { ToneAccuracyFeedback } from "@/components/tone-accuracy-feedback";
 
 type TonePresentationDto = {
   original: {
@@ -2832,6 +2833,28 @@ function ResultPanel({ result, onSave }: { result: ToneResult; onSave: () => Pro
           </motion.section>
         </div>
       )}
+
+      {!result.locked ? (
+        <div className="px-5 pb-5">
+          <ToneAccuracyFeedback
+            key={result.id}
+            payload={{
+              songTitle: result.request.song,
+              artistName: result.request.artist,
+              partLabel: result.request.part || null,
+              toneType: result.request.toneType || null,
+              guitarName: result.request.guitar || null,
+              ampName: result.request.amp || null,
+              goingDirect: Boolean(result.request.goingDirect),
+              multiFxName: result.request.multiFx || null,
+              pedalNames: (result.request.selectedFx || "").split(",").map((value) => value.trim()).filter(Boolean),
+              adaptedSettings: result.targetSettings,
+              confidenceShown: result.accuracy,
+              verificationStatus: result.sourceProfile?.verificationStatus || null
+            }}
+          />
+        </div>
+      ) : null}
     </motion.article>
   );
 }

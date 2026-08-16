@@ -1,5 +1,22 @@
-import type { PedalProfileInput, RuleContribution, RuleDefinition, RuleEvaluationContext, ToneDeltas, ToneType } from "./types";
-import { brightnessToNumber, mergeDeltas, outputLevelToNumber, readNumericProfileValue } from "./utils";
+import type { AmplifierProfileInput, PedalProfileInput, RuleContribution, RuleDefinition, RuleEvaluationContext, ToneDeltas, ToneType } from "./types";
+import { brightnessToNumber, clampDelta, mergeDeltas, outputLevelToNumber, readNumericProfileValue } from "./utils";
+
+// Continuous compensation: distance from the neutral midpoint (5) scaled per point,
+// clamped so a single characteristic can't dominate the tone. Replaces the old
+// 3-bucket thresholds (<=3.5 / >=7) that made a 6.9 and a 3.6 behave identically.
+function fromNeutral(value: number | null, perPoint: number, cap = 1.5): number {
+  if (value == null) return 0;
+  // No rounding here — mergeDeltas quantizes the accumulated result to knob
+  // resolution (0.5); rounding twice would re-bucket the continuous values.
+  return Math.max(-cap, Math.min(cap, (value - 5) * perPoint));
+}
+
+function pushIfNonZero(deltas: ToneDeltas[], entry: ToneDeltas) {
+  const cleaned = Object.fromEntries(Object.entries(entry).filter(([, v]) => typeof v === "number" && v !== 0));
+  if (Object.keys(cleaned).length) {
+    deltas.push(cleaned as ToneDeltas);
+  }
+}
 
 export function createDefaultRules(): RuleDefinition[] {
   return [
@@ -76,29 +93,22 @@ function guitarProfileRule(): RuleDefinition {
       const compression = readNumericProfileValue(guitar.compression);
       const deltas: ToneDeltas[] = [guitar.deltas || {}, readToneSpecificDeltas(guitar.toneTypeDeltas, input.toneType)];
 
-      if (brightness != null && brightness >= 7) {
-        deltas.push({ treble: -1, presence: -1 });
-      } else if (brightness != null && brightness <= 3.5) {
-        deltas.push({ treble: 1, presence: 1 });
-      }
-
-      if (output != null && output <= 3.5) {
-        deltas.push({ gain: 0.5, compression: 0.5 });
-      } else if (output != null && output >= 7) {
-        deltas.push({ gain: -0.5, compression: -0.5 });
-      }
-
-      if (warmth != null && warmth >= 7) {
-        deltas.push({ bass: -0.5, middle: -0.5 });
-      } else if (warmth != null && warmth <= 3.5) {
-        deltas.push({ bass: 0.5, middle: 0.5 });
-      }
-
-      if (compression != null && compression >= 7) {
-        deltas.push({ compression: -0.5 });
-      } else if (compression != null && compression <= 3.5) {
-        deltas.push({ compression: 0.5 });
-      }
+      // Continuous compensation: the farther a characteristic sits from neutral,
+      // the larger the counter-adjustment — a slightly bright guitar gets a slight
+      // treble cut, a very bright one a strong cut.
+      pushIfNonZero(deltas, {
+        treble: -fromNeutral(brightness, 0.4),
+        presence: -fromNeutral(brightness, 0.4)
+      });
+      pushIfNonZero(deltas, {
+        gain: -fromNeutral(output, 0.25, 1),
+        compression: -fromNeutral(output, 0.25, 1)
+      });
+      pushIfNonZero(deltas, {
+        bass: -fromNeutral(warmth, 0.25, 1),
+        middle: -fromNeutral(warmth, 0.25, 1)
+      });
+      pushIfNonZero(deltas, { compression: -fromNeutral(compression, 0.25, 1) });
 
       return {
         ruleId: "gear.apply_guitar_profile",
@@ -128,11 +138,12 @@ function pickupProfileRule(): RuleDefinition {
         const brightness = brightnessToNumber(pickup.brightness);
         const deltas: ToneDeltas[] = [pickup.deltas || {}, readToneSpecificDeltas(pickup.toneTypeDeltas, input.toneType)];
 
-        if (output != null && output <= 3.5) {
-          deltas.push({ gain: 1, compression: 0.5 });
-        } else if (output != null && output >= 7) {
-          deltas.push({ gain: -1, compression: -0.5 });
-        }
+        // Continuous: pickup output distance from neutral drives a proportional
+        // gain trade — hotter pickups hit the amp harder, so the knob comes down.
+        pushIfNonZero(deltas, {
+          gain: -fromNeutral(output, 0.5),
+          compression: -fromNeutral(output, 0.25, 1)
+        });
 
         if (pickup.circuitType === "active") {
           deltas.push({ gain: -0.5, noiseGate: -0.5, compression: -0.5 });
@@ -140,11 +151,10 @@ function pickupProfileRule(): RuleDefinition {
           deltas.push({ compression: 0.25 });
         }
 
-        if (brightness != null && brightness >= 7) {
-          deltas.push({ treble: -0.5, presence: -0.5 });
-        } else if (brightness != null && brightness <= 3.5) {
-          deltas.push({ treble: 0.5, presence: 0.5 });
-        }
+        pushIfNonZero(deltas, {
+          treble: -fromNeutral(brightness, 0.25, 1),
+          presence: -fromNeutral(brightness, 0.25, 1)
+        });
 
         if (pickup.position === "neck") {
           deltas.push({ bass: -0.5, treble: 0.5 });
@@ -181,37 +191,54 @@ function amplifierProfileRule(): RuleDefinition {
       const deltas: ToneDeltas[] = [amplifier.deltas || {}, readToneSpecificDeltas(amplifier.toneTypeDeltas, input.toneType)];
       const brightness = brightnessToNumber(amplifier.brightness);
       const warmth = readNumericProfileValue(amplifier.warmth);
-      const headroom = readNumericProfileValue(amplifier.cleanHeadroom);
+      const notes = [`Adjusted for amplifier profile: ${amplifier.name}.`];
 
       const gainStructure = (amplifier.gainStructure || "").toLowerCase();
 
-      if (amplifier.era === "vintage" || /vintage|plexi|tweed|blackface/i.test(gainStructure)) {
-        deltas.push({ gain: 0.5, middle: 0.5 });
-      } else if (/boutique_high_gain/i.test(gainStructure)) {
-        deltas.push({ gain: 0.75, bass: -0.25 });
-      } else if (/boutique_overdrive/i.test(gainStructure)) {
-        deltas.push({ gain: 0.5 });
-      } else if (/modern_high_gain_5150/i.test(gainStructure)) {
-        deltas.push({ gain: -0.75, bass: -0.5 });
-      } else if (/modern|high|rectifier/i.test(gainStructure)) {
-        deltas.push({ gain: -0.5, bass: -0.25 });
-      } else if (/digital_modeling/i.test(gainStructure)) {
-        deltas.push({ gain: 0.25 });
-      }
-
-      if (brightness != null && brightness >= 7) {
-        deltas.push({ treble: -0.5, presence: -0.5 });
-      } else if (brightness != null && brightness <= 3.5) {
-        deltas.push({ treble: 0.5, presence: 0.5 });
-      }
-
-      if (warmth != null && warmth >= 7) {
+      // Voicing residuals: EQ character only. The gain axis is handled by the
+      // proportional headroom compensation below — keeping fixed gain nudges here
+      // too would double-count the same physical effect.
+      if (amplifier.era === "vintage" || /vintage|plexi|tweed|blackface/.test(gainStructure)) {
+        deltas.push({ middle: 0.5 });
+      } else if (/boutique_high_gain/.test(gainStructure)) {
+        deltas.push({ bass: -0.25 });
+      } else if (/modern_high_gain_5150/.test(gainStructure)) {
         deltas.push({ bass: -0.5 });
+      } else if (/modern|high|rectifier/.test(gainStructure)) {
+        deltas.push({ bass: -0.25 });
       }
 
-      if (headroom != null && headroom <= 3.5) {
-        deltas.push({ gain: -0.5, masterVolume: -0.5 });
+      // Proportional gain compensation. How far the amp's knob must move depends on
+      // BOTH how far the target drive sits from neutral AND how much clean headroom
+      // this amp has: high-headroom amps must be pushed to reach a drive target,
+      // early-breakup amps reach it sooner and must be backed off — proportionally,
+      // not by a fixed nudge.
+      const masterGain = typeof input.masterTone.settings.gain === "number" ? input.masterTone.settings.gain : 5;
+      const headroom = readNumericProfileValue(amplifier.cleanHeadroom) ?? inferCleanHeadroom(amplifier, gainStructure);
+      const driveDemand = (masterGain - 5) / 5;
+      const headroomOffset = (headroom - 5) / 5;
+      let gainCompensation = 0;
+      if (driveDemand > 0 && headroomOffset !== 0) {
+        gainCompensation = 2 * driveDemand * headroomOffset;
+      } else if (driveDemand < 0 && headroomOffset < 0) {
+        // Clean target on an early-breakup amp: back the gain off to stay clean.
+        gainCompensation = 2 * driveDemand * -headroomOffset;
       }
+      if (gainCompensation !== 0) {
+        deltas.push({ gain: clampDelta(gainCompensation, 2) });
+        notes.push(
+          gainCompensation > 0
+            ? `Pushed gain to reach the target drive on this high-headroom amp.`
+            : `Reduced gain — this amp reaches the target drive earlier than the original.`
+        );
+      }
+
+      pushIfNonZero(deltas, {
+        treble: -fromNeutral(brightness, 0.25, 1),
+        presence: -fromNeutral(brightness, 0.25, 1)
+      });
+      pushIfNonZero(deltas, { bass: -Math.max(0, fromNeutral(warmth, 0.25, 1)) });
+      pushIfNonZero(deltas, { masterVolume: Math.min(0, fromNeutral(headroom, 0.25, 1)) });
 
       return {
         ruleId: "gear.apply_amplifier_profile",
@@ -219,7 +246,7 @@ function amplifierProfileRule(): RuleDefinition {
         priority: 50,
         description: `Applied amplifier profile ${amplifier.name}.`,
         deltas: mergeDeltas(deltas),
-        notes: [`Adjusted for amplifier profile: ${amplifier.name}.`]
+        notes
       };
     }
   };
@@ -254,17 +281,20 @@ function cabinetProfileRule(): RuleDefinition {
         deltas.push({ bass: 0.5, resonance: 0.5 });
       }
 
-      if (brightness != null && brightness >= 7) {
-        deltas.push({ treble: -0.5, presence: -0.5 });
-      }
-
-      if (lowEnd != null && lowEnd >= 7) {
-        deltas.push({ bass: -0.5, depth: -0.5 });
-      }
-
-      if (highEnd != null && highEnd <= 3.5) {
-        deltas.push({ treble: 0.5, presence: 0.5 });
-      }
+      // Continuous: only counter excesses (bright/boomy cabs get cut, dull cabs
+      // get lifted) — proportional to how far the cab sits from neutral.
+      pushIfNonZero(deltas, {
+        treble: -Math.max(0, fromNeutral(brightness, 0.25, 1)),
+        presence: -Math.max(0, fromNeutral(brightness, 0.25, 1))
+      });
+      pushIfNonZero(deltas, {
+        bass: -Math.max(0, fromNeutral(lowEnd, 0.25, 1)),
+        depth: -Math.max(0, fromNeutral(lowEnd, 0.25, 1))
+      });
+      pushIfNonZero(deltas, {
+        treble: Math.max(0, -fromNeutral(highEnd, 0.33, 1)),
+        presence: Math.max(0, -fromNeutral(highEnd, 0.33, 1))
+      });
 
       return {
         ruleId: "gear.apply_cabinet_profile",
@@ -435,6 +465,18 @@ function pedalContribution(pedal: PedalProfileInput): RuleContribution {
     notes: [`Applied pedal: ${pedal.name}.`],
     effects: [pedal.name]
   };
+}
+
+// When the catalog has no clean_headroom value, estimate one from the amp's
+// voicing so proportional gain compensation still has a physical anchor.
+// Neutral (5) means "no compensation", matching the old behavior for unknowns.
+function inferCleanHeadroom(amplifier: AmplifierProfileInput, gainStructure: string): number {
+  if (/5150|rectifier|metal|high_gain/.test(gainStructure)) return 2.5;
+  if (/modern|high/.test(gainStructure)) return 3.5;
+  if (amplifier.era === "vintage" || /plexi|tweed/.test(gainStructure)) return 4;
+  if (/blackface|clean|jazz/.test(gainStructure)) return 7.5;
+  if (amplifier.era === "modern") return 3.5;
+  return 5;
 }
 
 function toneTypeDeltas(toneType: ToneType): ToneDeltas {

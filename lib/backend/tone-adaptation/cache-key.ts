@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import type { ToneType } from "../../rule-engine";
 
 export const TONE_BACKEND_CACHE_SCHEMA_VERSION = 4;
-export const TONE_BACKEND_RULE_ENGINE_VERSION = "deterministic-rule-engine-v2";
+// v3: continuous gear compensation (no 3-bucket thresholds) + proportional
+// headroom-based gain compensation. Bumping invalidates cache entries computed
+// with the older, coarser math.
+export const TONE_BACKEND_RULE_ENGINE_VERSION = "deterministic-rule-engine-v3";
 
 export interface ToneCacheKeyIdentity {
   song: string;

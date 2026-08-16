@@ -267,18 +267,11 @@ export function toNumber(value: unknown): number | null {
   return null;
 }
 
+// Pass catalog brightness through as-is. The rule engine accepts numbers directly
+// (brightnessToNumber), so collapsing 0-10 values into dark/balanced/bright here
+// would throw away real precision — a 6.9 and a 3.6 amp would become identical.
 function numericBrightnessOrProfile(value: unknown) {
-  const numeric = toNumber(value);
-  if (numeric === null) {
-    return null;
-  }
-  if (numeric <= 3.5) {
-    return "dark";
-  }
-  if (numeric >= 6.5) {
-    return "bright";
-  }
-  return "balanced";
+  return toNumber(value);
 }
 
 function displayName(row: Record<string, unknown>) {

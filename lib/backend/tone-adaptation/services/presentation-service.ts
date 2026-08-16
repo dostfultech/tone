@@ -953,10 +953,35 @@ function buildDifficulty(difficulty: string | null, partType: string, partLabel:
   return { level: difficulty, description };
 }
 
+// How much trust the underlying song data deserves, independent of gear matching.
+// Without this, a flat starter template (stored confidence 66-79) can display a HIGHER
+// score than a hand-verified tone with one unmatched pedal — exactly backwards.
+const VERIFICATION_TRUST: Record<string, { cap: number; penalty: number; factor: string | null }> = {
+  admin_verified: { cap: 98, penalty: 0, factor: null },
+  research_verified: { cap: 92, penalty: 0, factor: null },
+  needs_review: {
+    cap: 78,
+    penalty: 5,
+    factor: "Tone research has not been human-reviewed yet — settings may shift after verification."
+  },
+  starter_estimate: {
+    cap: 55,
+    penalty: 18,
+    factor: "This song's settings are an initial estimate, not yet verified against the recording."
+  }
+};
+
 function computeConfidence(sourceConfidence: number, context: LoadedToneRequestContext): { score: number; factors: string[] } {
   let score = sourceConfidence;
   const factors: string[] = [];
   const resolution = context.gear.resolution;
+
+  const trust =
+    VERIFICATION_TRUST[context.masterTone.source.verificationStatus] ?? VERIFICATION_TRUST.needs_review;
+  score -= trust.penalty;
+  if (trust.factor) {
+    factors.push(trust.factor);
+  }
 
   if (resolution) {
     if (resolution.guitar === "none") {
@@ -989,7 +1014,7 @@ function computeConfidence(sourceConfidence: number, context: LoadedToneRequestC
   }
 
   return {
-    score: Math.max(35, Math.min(98, Math.round(score))),
+    score: Math.max(25, Math.min(trust.cap, Math.round(score))),
     factors
   };
 }

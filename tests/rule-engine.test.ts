@@ -162,24 +162,73 @@ test("dark guitar increases treble and presence", () => {
   assert.equal(result.settings.presence, 6);
 });
 
-test("vintage amp increases drive while modern amp reduces drive", () => {
-  const vintage = transformMasterToneForGear(baseInput({
-    guitar: null,
-    pickups: [],
-    cabinet: null,
-    toneType: "auto_detect",
-    amplifier: { id: "vintage", name: "Vintage Amp", era: "vintage" }
-  }));
-  const modern = transformMasterToneForGear(baseInput({
-    guitar: null,
-    pickups: [],
-    cabinet: null,
-    toneType: "auto_detect",
-    amplifier: { id: "modern", name: "Modern Amp", era: "modern" }
-  }));
+test("gain compensation is proportional to drive demand and amp headroom", () => {
+  const withDriveTarget = (amplifier: NonNullable<RuleEngineInput["amplifier"]>) => {
+    const input = baseInput({ guitar: null, pickups: [], cabinet: null, toneType: "auto_detect", amplifier });
+    input.masterTone.settings = { ...input.masterTone.settings, gain: 8 };
+    return transformMasterToneForGear(input);
+  };
 
-  assert.equal(vintage.settings.gain, 5.5);
-  assert.equal(modern.settings.gain, 4.5);
+  const cleanAmp = withDriveTarget({
+    id: "twin",
+    name: "High Headroom Clean Amp",
+    cleanHeadroom: 7.5,
+    gainStructure: "blackface clean"
+  });
+  const earlyBreakup = withDriveTarget({
+    id: "5150",
+    name: "Early Breakup High Gain Amp",
+    cleanHeadroom: 2.5,
+    gainStructure: "modern_high_gain_5150"
+  });
+
+  // A high-headroom amp must be pushed harder to reach the same drive...
+  assert.equal(cleanAmp.settings.gain, 8.5);
+  // ...while an early-breakup amp reaches it sooner and gets backed off.
+  assert.equal(earlyBreakup.settings.gain, 7.5);
+});
+
+test("clean targets on early-breakup amps back the gain off to stay clean", () => {
+  const withCleanTarget = (amplifier: NonNullable<RuleEngineInput["amplifier"]>) => {
+    const input = baseInput({ guitar: null, pickups: [], cabinet: null, toneType: "auto_detect", amplifier });
+    input.masterTone.settings = { ...input.masterTone.settings, gain: 2 };
+    return transformMasterToneForGear(input);
+  };
+
+  const earlyBreakup = withCleanTarget({
+    id: "5150",
+    name: "Early Breakup High Gain Amp",
+    cleanHeadroom: 2.5,
+    gainStructure: "modern_high_gain_5150"
+  });
+  const cleanAmp = withCleanTarget({
+    id: "twin",
+    name: "High Headroom Clean Amp",
+    cleanHeadroom: 7.5,
+    gainStructure: "blackface clean"
+  });
+
+  // Early-breakup amps distort at low knob values, so the clean target lowers gain further.
+  assert.equal(earlyBreakup.settings.gain, 1.5);
+  // A naturally clean amp needs no compensation for a clean target.
+  assert.equal(cleanAmp.settings.gain, 2);
+});
+
+test("brightness compensation scales continuously instead of bucketing", () => {
+  const withBrightness = (brightness: number) =>
+    transformMasterToneForGear(baseInput({
+      pickups: [],
+      amplifier: null,
+      cabinet: null,
+      toneType: "auto_detect",
+      guitar: { id: `g-${brightness}`, name: `Guitar ${brightness}`, brightness, outputLevel: "medium" }
+    }));
+
+  // 9 is much brighter than 6.5 — the cut must scale with the distance, not
+  // collapse into one "bright" bucket.
+  assert.equal(withBrightness(9).settings.treble, 3.5);
+  assert.equal(withBrightness(6.5).settings.treble, 4.5);
+  assert.equal(withBrightness(5).settings.treble, 5);
 });
 
 test("open back cabinet reduces low end and closed back cabinet increases low end", () => {
