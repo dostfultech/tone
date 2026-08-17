@@ -42,11 +42,15 @@ export default async function ReferralPage() {
     if (referredIds.length > 0) {
       const { data: subs } = await admin
         .from("subscriptions")
-        .select("user_id")
+        .select("user_id, trial_end")
         .in("user_id", referredIds)
         .eq("status", "active")
         .in("plan_id", ["beginner", "expert"]);
-      subscribedCount = new Set((subs ?? []).map((row) => row.user_id as string)).size;
+      // Only count genuinely PAID subscribers: active AND past the trial (or no trial). A
+      // trial-then-cancel never reaches a real payment, so it never counts here.
+      const now = Date.now();
+      const paid = (subs ?? []).filter((row) => !row.trial_end || new Date(row.trial_end as string).getTime() <= now);
+      subscribedCount = new Set(paid.map((row) => row.user_id as string)).size;
     }
   }
 

@@ -35,11 +35,17 @@ export default async function AdminReferralsPage() {
   if (refereeIds.length) {
     const { data: subs } = await admin
       .from("subscriptions")
-      .select("user_id")
+      .select("user_id, trial_end")
       .in("user_id", refereeIds)
       .eq("status", "active")
       .in("plan_id", ["beginner", "expert"]);
-    subscribedSet = new Set((subs ?? []).map((s) => s.user_id as string));
+    // Paid only: active AND past-trial (or no trial). Trial-then-cancel never counts.
+    const now = Date.now();
+    subscribedSet = new Set(
+      (subs ?? [])
+        .filter((s) => !s.trial_end || new Date(s.trial_end as string).getTime() <= now)
+        .map((s) => s.user_id as string)
+    );
   }
 
   const agg = new Map<string, { signups: number; subscribed: number }>();
